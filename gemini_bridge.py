@@ -15,7 +15,7 @@ SECURE_1PSIDTS = os.getenv("SECURE_1PSIDTS")
 
 class ToolExecutor:
     @staticmethod
-    async def execute(response_text):
+    async def execute(response_text, chat_context):
         # Regex to find tool blocks
         blocks = re.findall(r"```tool:(\w+)\n(.*?)\n```", response_text, re.DOTALL)
         if not blocks:
@@ -24,7 +24,30 @@ class ToolExecutor:
         for tool, content in blocks:
             print(f"\n[🛠️ EXECUTING: {tool}]")
             try:
-                if tool == "read":
+                if tool == "delegate":
+                    # Multi-agent orchestration
+                    lines = content.splitlines()
+                    agent_name = [l for l in lines if l.startswith("agent:")][0].replace("agent:", "").strip()
+                    task = content.split("task:")[1].strip()
+                    
+                    print(f"Delegating to {agent_name}...")
+                    
+                    # Load specialized instructions
+                    spec_path = Path("/data/data/com.termux/files/home/dev/ww/agents/specialized.md")
+                    spec_text = spec_path.read_text() if spec_path.exists() else ""
+                    
+                    # Create a new sub-session for the delegate
+                    # Note: We reuse the same client but start a new chat
+                    sub_chat = chat_context['client'].start_chat()
+                    priming = f"You are the {agent_name.upper()} AGENT. Your instructions:\n{spec_text}\n\nTask: {task}"
+                    
+                    sub_response = await sub_chat.send_message(priming)
+                    print(f"\n[{agent_name.upper()} RESPONSE]: {sub_response.text}\n")
+                    
+                    # Feed sub-agent result back to Overseer
+                    await chat_context['chat'].send_message(f"SYSTEM: {agent_name} has completed the task. Result: {sub_response.text}")
+                
+                elif tool == "read":
                     path = content.strip()
                     print(f"Reading: {path}")
                     print("-" * 20)
@@ -32,11 +55,9 @@ class ToolExecutor:
                     print("-" * 20)
                 
                 elif tool == "write":
-                    # Simple parser for write blocks
                     lines = content.splitlines()
                     path_line = [l for l in lines if l.startswith("filepath:")][0]
                     filepath = path_line.replace("filepath:", "").strip()
-                    # Find where content starts
                     content_start = content.find("content:") + len("content:")
                     file_content = content[content_start:].strip()
                     Path(filepath).write_text(file_content)
@@ -75,7 +96,6 @@ class ToolExecutor:
                             search_path = line.replace("path:", "").strip()
                     
                     print(f"Searching for '{pattern}' in {search_path}...")
-                    # Using find for filenames and grep for content
                     cmd = f"find {search_path} -maxdepth 3 -name '*{pattern}*' && grep -rli '{pattern}' {search_path} | head -n 20"
                     process = await asyncio.create_subprocess_shell(
                         cmd,
@@ -119,66 +139,59 @@ async def main():
     
     # Initialize state tracking chat object
     chat = client.start_chat()
+    chat_context = {'client': client, 'chat': chat}
 
-    # Load System Instructions for the "Gem" behavior
-    instructions_path = Path("/data/data/com.termux/files/home/dev/ww/GEM_INSTRUCTIONS.md")
-    system_instructions = instructions_path.read_text() if instructions_path.exists() else ""
+    # Load Overseer Instructions
+    overseer_path = Path("/data/data/com.termux/files/home/dev/ww/agents/overseer.md")
+    overseer_instructions = overseer_path.read_text() if overseer_path.exists() else ""
+    
+    # Load Base Tool Instructions
+    base_instr_path = Path("/data/data/com.termux/files/home/dev/ww/GEM_INSTRUCTIONS.md")
+    base_instructions = base_instr_path.read_text() if base_instr_path.exists() else ""
 
     # Pre-calculate workspace context
     print("[*] Gathering workspace context...")
     workspace_context = get_workspace_context()
 
-    # Combine Instructions and Context for the "Priming" message
+    # Combine Instructions and Context
     priming_message = (
-        f"SYSTEM INSTRUCTIONS:\n{system_instructions}\n\n"
+        f"OVERSEER INSTRUCTIONS:\n{overseer_instructions}\n\n"
+        f"BASE TOOL PROTOCOLS:\n{base_instructions}\n\n"
         f"INITIAL WORKSPACE CONTEXT:\n{workspace_context}\n\n"
-        "Please acknowledge these instructions and the workspace context. "
-        "From now on, respond as the Codebase Engineer Gem using the tool protocols defined."
+        "Acknowledge your role as OVERSEER. Use 'tool:delegate' to invoke sub-agents."
     )
 
     if len(sys.argv) > 1:
-        # One-shot mode
         user_prompt = sys.argv[1]
         print("[*] Priming session and dispatching request...")
-        # In one-shot, we must send everything because there's no persistent state after this script ends
         full_payload = f"{priming_message}\n\nUSER REQUEST: {user_prompt}"
         response = await chat.send_message(full_payload)
         print("\n=== SYSTEM OUT ===")
         print(response.text)
-        await ToolExecutor.execute(response.text)
+        await ToolExecutor.execute(response.text, chat_context)
         print("==================\n")
     else:
-        # Interactive mode
-        print("--- Gemini Agentic Bridge (Stateful) ---")
+        print("--- Gemini Multi-Agent Orchestrator ---")
         print("Type 'exit' or 'quit' to end the session.\n")
         
-        print("[*] Priming session with Instructions and Workspace Context...")
-        # This priming happens ONCE per session
+        print("[*] Priming session...")
         await chat.send_message(priming_message)
-        print("[+] Session primed. Gemini is now project-aware.")
+        print("[+] Orchestrator Ready.")
 
         while True:
             try:
                 user_prompt = input("\nYou: ").strip()
-                if not user_prompt:
-                    continue
-                if user_prompt.lower() in ("exit", "quit"):
-                    print("Goodbye!")
-                    break
+                if not user_prompt: continue
+                if user_prompt.lower() in ("exit", "quit"): break
 
-                print("[*] Waiting for response...")
-                # Subsequent messages ONLY send the user prompt; Gemini remembers the rest
+                print("[*] Waiting for Overseer...")
                 response = await chat.send_message(user_prompt)
-                print(f"\nGemini: {response.text}")
+                print(f"\nOverseer: {response.text}")
                 
-                # Check for and execute tools
-                await ToolExecutor.execute(response.text)
+                await ToolExecutor.execute(response.text, chat_context)
 
-            except KeyboardInterrupt:
-                print("\nGoodbye!")
-                break
-            except Exception as e:
-                print(f"\n[!] Error: {e}\n")
+            except KeyboardInterrupt: break
+            except Exception as e: print(f"\n[!] Error: {e}\n")
 
 if __name__ == "__main__":
     asyncio.run(main())
