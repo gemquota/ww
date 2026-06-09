@@ -27,24 +27,43 @@ class ToolExecutor:
                 if tool == "delegate":
                     # Multi-agent orchestration
                     lines = content.splitlines()
-                    agent_name = [l for l in lines if l.startswith("agent:")][0].replace("agent:", "").strip()
+                    agent_name = [l for l in lines if l.startswith("agent:")][0].replace("agent:", "").strip().lower()
                     task = content.split("task:")[1].strip()
                     
                     print(f"Delegating to {agent_name}...")
                     
-                    # Load specialized instructions
-                    spec_path = Path("/data/data/com.termux/files/home/dev/ww/agents/specialized.md")
-                    spec_text = spec_path.read_text() if spec_path.exists() else ""
+                    # Determine which instruction file to load
+                    if agent_name == "overseer":
+                        spec_path = Path("/data/data/com.termux/files/home/dev/ww/agents/overseer.md")
+                    elif agent_name == "communicator":
+                        spec_path = Path("/data/data/com.termux/files/home/dev/ww/agents/communicator.md")
+                    else:
+                        spec_path = Path("/data/data/com.termux/files/home/dev/ww/agents/specialized.md")
+                    
+                    spec_text = spec_path.read_text() if spec_path.exists() else f"You are the {agent_name.upper()} AGENT."
                     
                     # Create a new sub-session for the delegate
-                    # Note: We reuse the same client but start a new chat
                     sub_chat = chat_context['client'].start_chat()
-                    priming = f"You are the {agent_name.upper()} AGENT. Your instructions:\n{spec_text}\n\nTask: {task}"
+                    
+                    # Include tool protocols in the priming of every sub-agent
+                    base_instr_path = Path("/data/data/com.termux/files/home/dev/ww/GEM_INSTRUCTIONS.md")
+                    base_instructions = base_instr_path.read_text() if base_instr_path.exists() else ""
+                    
+                    priming = (
+                        f"SYSTEM INSTRUCTIONS:\n{spec_text}\n\n"
+                        f"TOOL PROTOCOLS:\n{base_instructions}\n\n"
+                        f"TASK: {task}"
+                    )
                     
                     sub_response = await sub_chat.send_message(priming)
-                    print(f"\n[{agent_name.upper()} RESPONSE]: {sub_response.text}\n")
                     
-                    # Feed sub-agent result back to Overseer
+                    # Recursive tool execution for sub-agents
+                    sub_context = {'client': chat_context['client'], 'chat': sub_chat}
+                    await ToolExecutor.execute(sub_response.text, sub_context)
+                    
+                    print(f"\n[{agent_name.upper()} FINAL RESPONSE]: {sub_response.text}\n")
+                    
+                    # Feed sub-agent result back to caller
                     await chat_context['chat'].send_message(f"SYSTEM: {agent_name} has completed the task. Result: {sub_response.text}")
                 
                 elif tool == "read":
@@ -141,9 +160,9 @@ async def main():
     chat = client.start_chat()
     chat_context = {'client': client, 'chat': chat}
 
-    # Load Overseer Instructions
-    overseer_path = Path("/data/data/com.termux/files/home/dev/ww/agents/overseer.md")
-    overseer_instructions = overseer_path.read_text() if overseer_path.exists() else ""
+    # Load Communicator Instructions
+    comm_path = Path("/data/data/com.termux/files/home/dev/ww/agents/communicator.md")
+    comm_instructions = comm_path.read_text() if comm_path.exists() else ""
     
     # Load Base Tool Instructions
     base_instr_path = Path("/data/data/com.termux/files/home/dev/ww/GEM_INSTRUCTIONS.md")
@@ -155,10 +174,10 @@ async def main():
 
     # Combine Instructions and Context
     priming_message = (
-        f"OVERSEER INSTRUCTIONS:\n{overseer_instructions}\n\n"
+        f"YOUR IDENTITY:\n{comm_instructions}\n\n"
         f"BASE TOOL PROTOCOLS:\n{base_instructions}\n\n"
         f"INITIAL WORKSPACE CONTEXT:\n{workspace_context}\n\n"
-        "Acknowledge your role as OVERSEER. Use 'tool:delegate' to invoke sub-agents."
+        "Acknowledge your role as COMMUNICATOR. Use 'tool:delegate' to invoke the OVERSEER for technical tasks."
     )
 
     if len(sys.argv) > 1:
@@ -171,12 +190,12 @@ async def main():
         await ToolExecutor.execute(response.text, chat_context)
         print("==================\n")
     else:
-        print("--- Gemini Multi-Agent Orchestrator ---")
+        print("--- Gemini 3-Tier Multi-Agent System ---")
         print("Type 'exit' or 'quit' to end the session.\n")
         
-        print("[*] Priming session...")
+        print("[*] Priming session as COMMUNICATOR...")
         await chat.send_message(priming_message)
-        print("[+] Orchestrator Ready.")
+        print("[+] Hierarchy Active: User <-> Communicator <-> Overseer <-> Specialists.")
 
         while True:
             try:
@@ -184,9 +203,9 @@ async def main():
                 if not user_prompt: continue
                 if user_prompt.lower() in ("exit", "quit"): break
 
-                print("[*] Waiting for Overseer...")
+                print("[*] Waiting for response...")
                 response = await chat.send_message(user_prompt)
-                print(f"\nOverseer: {response.text}")
+                print(f"\nResponse: {response.text}")
                 
                 await ToolExecutor.execute(response.text, chat_context)
 
