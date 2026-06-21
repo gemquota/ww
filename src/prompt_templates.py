@@ -11,7 +11,7 @@ import json
 import re
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Callable
 
 
 class TemplateError(Exception):

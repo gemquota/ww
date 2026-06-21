@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
-from typing import Dict, Optional, Set, Type
+from typing import Dict, Optional, Set, Type, Callable, List
 
 
 class _FaultConfig:

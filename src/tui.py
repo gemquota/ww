@@ -1,3 +1,4 @@
+from typing import Callable
 """
 TUI Module — Terminal UI components for the WW Bridge.
 

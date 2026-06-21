@@ -1,3 +1,4 @@
+from typing import Callable
 # WW Plugin System
 """WW Bridge subpackage."""
 

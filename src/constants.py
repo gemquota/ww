@@ -3,6 +3,7 @@ Shared constants for WW Bridge.
 
 Single source of truth for ignore sets, critical file lists, and
 workspace-wide configuration defaults used across multiple modules.
+from typing import Callable
 """
 
 # Files that should almost always be included in workspace context

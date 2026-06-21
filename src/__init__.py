@@ -3,6 +3,7 @@ WW Bridge — Gemini Multi-Agent Coding Harness.
 
 A production-quality agentic coding loop providing:
 - Token-aware context window management
+from typing import Callable
 - Fuzzy SEARCH/REPLACE editing with colorized diffs
 - Granular permission/approval system for tool execution
 - Git checkpoint system with /undo support

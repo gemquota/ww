@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 
 class ToolCall(BaseModel):
     thought: str = Field(..., description="Your step-by-step reasoning about the task.")

@@ -6,6 +6,7 @@ import threading
 import time
 import json
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 
 def _crash_safe_commit(conn) -> None:
@@ -387,3 +388,446 @@ class FeatureDiscovery:
             if task_count >= threshold:
                 return f"Tip: Try {feature}"
         return ""
+
+
+# ── Merged from metrics.py (# Metrics subsystem) ──
+class FirstCommitTracker:
+    """Tracks time-to-first-commit for new developers."""
+
+    def __init__(self, data_dir: str = ".tel"):
+        self.db_path = Path.cwd() / data_dir / "metrics.db"
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _init_db(self):
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS first_commit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    developer_id TEXT NOT NULL,
+                    start_time REAL NOT NULL,
+                    first_commit_time REAL,
+                    first_commit_hash TEXT,
+                    repo_url TEXT,
+                    completed INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS dev_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    developer_id TEXT NOT NULL,
+                    metric_name TEXT NOT NULL,
+                    metric_value REAL,
+                    recorded_at REAL DEFAULT (julianday('now'))
+                )
+            """)
+
+    def start_tracking(self, developer_id: str, repo_url: str = "") -> int:
+        """Begin tracking a developer's time-to-first-commit."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.execute(
+                "INSERT INTO first_commit (developer_id, start_time, repo_url) VALUES (?, ?, ?)",
+                (developer_id, time.time(), repo_url)
+            )
+            return cur.lastrowid
+
+    def record_commit(self, tracking_id: int, commit_hash: str) -> bool:
+        """Record when the first commit happens."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.execute(
+                "UPDATE first_commit SET first_commit_time = ?, first_commit_hash = ?, completed = 1 WHERE id = ?",
+                (time.time(), commit_hash, tracking_id)
+            )
+            return cur.rowcount > 0
+
+    def get_time_to_first_commit(self, tracking_id: int) -> Optional[float]:
+        """Get time-to-first-commit in seconds. Returns None if not yet committed."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            row = conn.execute(
+                "SELECT start_time, first_commit_time FROM first_commit WHERE id = ?",
+                (tracking_id,)
+            ).fetchone()
+            if row and row[1]:
+                return row[1] - row[0]
+            return None
+
+    def get_average_time(self) -> Optional[float]:
+        """Get average time-to-first-commit across all completed developers."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            row = conn.execute(
+                "SELECT AVG(first_commit_time - start_time) FROM first_commit WHERE completed = 1"
+            ).fetchone()
+            return row[0] if row and row[0] else None
+
+    def record_metric(self, developer_id: str, name: str, value: float):
+        """Record an arbitrary development metric."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute(
+                "INSERT INTO dev_metrics (developer_id, metric_name, metric_value) VALUES (?, ?, ?)",
+                (developer_id, name, value)
+            )
+
+    def get_metric(self, developer_id: str, name: str) -> Optional[float]:
+        """Get the latest value for a metric."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            row = conn.execute(
+                "SELECT metric_value FROM dev_metrics WHERE developer_id = ? AND metric_name = ? ORDER BY id DESC LIMIT 1",
+                (developer_id, name)
+            ).fetchone()
+            return row[0] if row else None
+
+
+# ── Merged from logchain.py (# Log chain) ──
+class MerkleChain:
+    """Append-only tamper-evident log chain using Merkle hashing."""
+
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self._init_table()
+
+    def _init_table(self):
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS log_chain (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    event_type TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    previous_hash TEXT NOT NULL DEFAULT '',
+                    hash TEXT NOT NULL
+                )
+            """)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _get_last_hash(self) -> str:
+        """Get the hash of the most recent entry."""
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            row = conn.execute(
+                "SELECT hash FROM log_chain ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            return row[0] if row else ""
+        finally:
+            conn.close()
+
+    def _compute_hash(self, timestamp: float, event_type: str,
+                      data: str, previous_hash: str) -> str:
+        """Compute SHA-256 hash of a log entry."""
+        content = f"{timestamp}|{event_type}|{data}|{previous_hash}"
+        return hashlib.sha256(content.encode()).hexdigest()
+
+    def append(self, event_type: str, data: Dict[str, Any]) -> str:
+        """Append a log entry and return its hash."""
+        previous_hash = self._get_last_hash()
+        timestamp = time.time()
+        data_str = json.dumps(data, sort_keys=True)
+        entry_hash = self._compute_hash(timestamp, event_type, data_str, previous_hash)
+
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            conn.execute(
+                "INSERT INTO log_chain (timestamp, event_type, data, previous_hash, hash) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (timestamp, event_type, data_str, previous_hash, entry_hash)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        return entry_hash
+
+    def verify_integrity(self) -> bool:
+        """Verify the entire chain integrity. Returns True if intact."""
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            rows = conn.execute(
+                "SELECT id, timestamp, event_type, data, previous_hash, hash "
+                "FROM log_chain ORDER BY id"
+            ).fetchall()
+
+            expected_prev = ""
+            for row in rows:
+                _, timestamp, event_type, data_str, prev_hash, entry_hash = row
+                if prev_hash != expected_prev:
+                    return False
+                computed = self._compute_hash(timestamp, event_type, data_str, prev_hash)
+                if computed != entry_hash:
+                    return False
+                expected_prev = entry_hash
+            return True
+        finally:
+            conn.close()
+
+    def get_entry(self, entry_hash: str) -> Optional[Dict]:
+        """Get a log entry by its hash."""
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            row = conn.execute(
+                "SELECT timestamp, event_type, data, previous_hash, hash "
+                "FROM log_chain WHERE hash = ?", (entry_hash,)
+            ).fetchone()
+            if row:
+                return {
+                    "timestamp": row[0],
+                    "event_type": row[1],
+                    "data": json.loads(row[2]),
+                    "previous_hash": row[3],
+                    "hash": row[4],
+                }
+            return None
+        finally:
+            conn.close()
+
+    def get_chain_length(self) -> int:
+        """Get the number of entries in the chain."""
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            return conn.execute("SELECT COUNT(*) FROM log_chain").fetchone()[0]
+        finally:
+            conn.close()
+
+
+class AuditTrail:
+    """Comprehensive audit trail — S1#2 (Detective Ava Chen).
+    
+    Wraps MerkleChain with structured event types and querying.
+    Provides complete auditability of agent actions.
+    """
+
+    EVENT_TYPES = {
+        "user_query": "User submitted query",
+        "agent_response": "Agent generated response",
+        "tool_execution": "Tool was executed",
+        "tool_result": "Tool returned result",
+        "permission_check": "Permission was checked",
+        "permission_granted": "Permission was granted",
+        "permission_denied": "Permission was denied",
+        "file_read": "File was read",
+        "file_write": "File was written",
+        "file_patch": "File was patched",
+        "shell_command": "Shell command executed",
+        "memory_access": "Memory was accessed",
+        "memory_write": "Memory was written",
+        "checkpoint_created": "Checkpoint was created",
+        "checkpoint_restored": "Checkpoint was restored",
+        "session_start": "Session started",
+        "session_end": "Session ended",
+        "error": "Error occurred",
+        "auth_success": "Authentication succeeded",
+        "auth_failure": "Authentication failed",
+    }
+
+    def __init__(self, db_path: Path):
+        self.chain = MerkleChain(db_path)
+
+    def record(self, event_type: str, details: dict, session_id: str = "") -> str:
+        """Record an audit event. Returns event hash."""
+        assert event_type in self.EVENT_TYPES, f"Unknown event type: {event_type}"
+        data = {
+            "event": event_type,
+            "description": self.EVENT_TYPES[event_type],
+            "session_id": session_id,
+            **details,
+        }
+        return self.chain.append(event_type, data)
+
+    def record_tool_execution(self, tool: str, args: dict, result: str,
+                              duration_ms: float, session_id: str = "") -> str:
+        """Record a tool execution with full details."""
+        return self.record("tool_execution", {
+            "tool": tool,
+            "args": args,
+            "result_preview": str(result)[:200],
+            "duration_ms": round(duration_ms, 1),
+        }, session_id)
+
+    def query_by_type(self, event_type: str, limit: int = 50) -> list:
+        """Query audit entries by event type."""
+        conn = sqlite3.connect(str(self.chain.db_path))
+        try:
+            rows = conn.execute(
+                "SELECT timestamp, event_type, data, hash FROM log_chain "
+                "WHERE event_type = ? ORDER BY id DESC LIMIT ?",
+                (event_type, limit)
+            ).fetchall()
+            return [
+                {
+                    "timestamp": r[0],
+                    "event_type": r[1],
+                    "data": json.loads(r[2]),
+                    "hash": r[3],
+                }
+                for r in rows
+            ]
+        finally:
+            conn.close()
+
+    def query_by_session(self, session_id: str, limit: int = 100) -> list:
+        """Query audit entries by session ID."""
+        conn = sqlite3.connect(str(self.chain.db_path))
+        try:
+            rows = conn.execute(
+                "SELECT timestamp, event_type, data, hash FROM log_chain "
+                "WHERE data LIKE ? ORDER BY id DESC LIMIT ?",
+                (f"%{session_id}%", limit)
+            ).fetchall()
+            return [
+                {
+                    "timestamp": r[0],
+                    "event_type": r[1],
+                    "data": json.loads(r[2]),
+                    "hash": r[3],
+                }
+                for r in rows
+            ]
+        finally:
+            conn.close()
+
+    def query_recent(self, limit: int = 50) -> list:
+        """Get the most recent audit entries."""
+        conn = sqlite3.connect(str(self.chain.db_path))
+        try:
+            rows = conn.execute(
+                "SELECT timestamp, event_type, data, hash FROM log_chain "
+                "ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [
+                {
+                    "timestamp": r[0],
+                    "event_type": r[1],
+                    "data": json.loads(r[2]),
+                    "hash": r[3],
+                }
+                for r in rows
+            ]
+        finally:
+            conn.close()
+
+    def verify_chain(self) -> dict:
+        """Verify the full audit trail integrity."""
+        valid = self.chain.verify_integrity()
+        return {
+            "valid": valid,
+            "chain_length": self.chain.get_chain_length(),
+            "status": "PASS" if valid else "TAMPERED",
+        }
+
+    def get_stats(self) -> dict:
+        """Get audit trail statistics."""
+        conn = sqlite3.connect(str(self.chain.db_path))
+        try:
+            total = conn.execute("SELECT COUNT(*) FROM log_chain").fetchone()[0]
+            by_type = conn.execute(
+                "SELECT event_type, COUNT(*) as c FROM log_chain GROUP BY event_type"
+            ).fetchall()
+            return {
+                "total_entries": total,
+                "by_type": {r[0]: r[1] for r in by_type},
+                "verified": self.chain.verify_integrity(),
+            }
+        finally:
+            conn.close()
+
+
+# ── Merged from profiler.py (# Profiler) ──
+class FlameGraphProfiler:
+    """Profiler that can output cProfile stats for flame graph generation."""
+
+    def __init__(self, data_dir: str = ".tel"):
+        self.data_dir = Path.cwd() / data_dir / "profiles"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._profiler: Optional[cProfile.Profile] = None
+        self._active = False
+
+    def start(self):
+        """Start profiling."""
+        self._profiler = cProfile.Profile()
+        self._profiler.enable()
+        self._active = True
+
+    def stop(self) -> str:
+        """Stop profiling and save results. Returns path to stats file."""
+        if not self._active or not self._profiler:
+            return ""
+        self._profiler.disable()
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        stats_path = self.data_dir / f"profile_{timestamp}.stats"
+        self._profiler.dump_stats(str(stats_path))
+
+        # Also save human-readable summary
+        s = io.StringIO()
+        ps = pstats.Stats(self._profiler, stream=s).sort_stats("cumulative")
+        ps.print_stats(30)
+        summary_path = self.data_dir / f"profile_{timestamp}.txt"
+        summary_path.write_text(s.getvalue())
+
+        self._profiler = None
+        self._active = False
+        return str(stats_path)
+
+    def get_recent_profiles(self, n: int = 5) -> list:
+        """List most recent profile files."""
+        files = sorted(self.data_dir.glob("*.stats"), key=lambda f: f.stat().st_mtime, reverse=True)
+        return [str(f) for f in files[:n]]
+
+    @staticmethod
+    def profile(func: Callable) -> Callable:
+        """Decorator to profile a specific function."""
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            profiler = cProfile.Profile()
+            profiler.enable()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                profiler.disable()
+                s = io.StringIO()
+                ps = pstats.Stats(profiler, stream=s).sort_stats("cumulative")
+                ps.print_stats(20)
+                # Log to debug output
+                print(f"[profile] {func.__name__}:")
+                print(s.getvalue()[:500])
+        return wrapper
+
+
+class HotPathDetector:
+    """Detects hot paths by measuring execution time of key functions."""
+
+    def __init__(self):
+        self._timings: dict = {}
+
+    def time(self, label: str) -> callable:
+        """Context manager to time a block."""
+        return _Timer(self, label)
+
+    def report(self, top_n: int = 10) -> str:
+        """Generate a hot path report sorted by total time."""
+        sorted_items = sorted(self._timings.items(), key=lambda x: -x[1]["total"])
+        lines = ["Hot Path Report:", "-" * 60]
+        lines.append(f"{'Function':<40} {'Calls':>6} {'Total (s)':>10} {'Avg (ms)':>10}")
+        lines.append("-" * 60)
+        for label, data in sorted_items[:top_n]:
+            avg_ms = (data["total"] / data["calls"]) * 1000 if data["calls"] > 0 else 0
+            lines.append(f"{label:<40} {data['calls']:>6} {data['total']:>10.3f} {avg_ms:>10.2f}")
+        return "\n".join(lines)
+
+
+class _Timer:
+    def __init__(self, detector: HotPathDetector, label: str):
+        self.detector = detector
+        self.label = label
+        self.start: float = 0
+
+    def __enter__(self):
+        self.start = time.perf_counter()
+        return self
+
+    def __exit__(self, *args):
+        elapsed = time.perf_counter() - self.start
+        if self.label not in self.detector._timings:
+            self.detector._timings[self.label] = {"total": 0.0, "calls": 0}
+        self.detector._timings[self.label]["total"] += elapsed
+        self.detector._timings[self.label]["calls"] += 1

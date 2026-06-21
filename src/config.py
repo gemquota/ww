@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 import yaml
 from pydantic import Field, field_validator

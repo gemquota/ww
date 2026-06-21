@@ -1,3 +1,4 @@
+from typing import Callable, List
 """
 Bridge subpackage — extracted concerns from gemini_bridge.py.
 Addresses V4-M1: God Object Risk

@@ -1,3 +1,4 @@
+from typing import Callable
 from .schemas import ToolCall
 from .memory import MemoryManager, SessionDatabase, MemoryEvent
 from .healing import AutoHealer

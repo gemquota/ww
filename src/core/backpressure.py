@@ -3,7 +3,7 @@ Backpressure and resource fairness system.
 Addresses NEW-B2#2, NEW-B2#3 (Dr. Aisha Bakari).
 """
 import time
-from typing import Dict, Optional
+from typing import Callable, Dict, List, Optional, Set
 from collections import defaultdict
 from dataclasses import dataclass, field
 

@@ -10,7 +10,7 @@ import os
 import re
 import shlex
 from pathlib import Path
-from typing import Optional, Set, Tuple, TYPE_CHECKING
+from typing import Optional, Set, Tuple, TYPE_CHECKING, Callable
 from enum import Enum
 
 if TYPE_CHECKING:

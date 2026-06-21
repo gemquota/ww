@@ -15,7 +15,7 @@ import uuid
 import sqlite3
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Callable
 
 
 class CausalDivergenceError(Exception):

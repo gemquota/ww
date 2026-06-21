@@ -6,7 +6,7 @@ Addresses V4-I4: Python SDK
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Callable, List, Optional
 
 
 class WWClient:

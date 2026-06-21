@@ -4,7 +4,7 @@ Addresses NEW-V5-E2#3 — hover documentation (/docs command).
 """
 import pydoc
 import sys
-from typing import Optional
+from typing import Optional, Callable
 
 
 def docs_command(symbol: str) -> str:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
 from src.config import Settings
 # from src.core.context import ConversationHistory, TokenCounter
@@ -143,7 +143,7 @@ structural overview using AST-aware parsing.
 import tiktoken
 from loguru import logger
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 import json
 import os
 import subprocess
@@ -472,7 +472,7 @@ Enhanced workspace context engine that provides:
 from src.core.context import RepoMapper
 import os
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 import pathspec
 
 from src.constants import BASE_IGNORE, CRITICAL_FILES, MAX_FILE_LINES_DEFAULT, MAX_FILE_LINES_CRITICAL, MAX_TREE_LINES

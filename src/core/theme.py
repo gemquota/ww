@@ -1,3 +1,4 @@
+from typing import Callable, List
 """Theme definitions for TUI — SPA extraction from gemini_bridge.py."""
 from colorama import Fore, Style, init as colorama_init
 

@@ -1,3 +1,4 @@
+from typing import Callable
 from .registry import ToolRegistry, ToolNode
 from .system_tools import (
     read_file, list_dir, write_file, shell_exec, git_tool,

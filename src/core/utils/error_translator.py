@@ -3,7 +3,7 @@ Error translation layer: maps internal exceptions to user-facing messages.
 Addresses NEW-A2#4 (Tomas Rivera).
 """
 import traceback
-from typing import Dict, Optional, Type
+from typing import Dict, Optional, Type, Callable
 
 
 class ErrorTranslator:
