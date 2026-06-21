@@ -1,0 +1,13 @@
+  ◢◤ 🌌🛸🧬 ◥◣
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ┃ 🎯  🌊  ⚖️   ⧖ 1/5  ❓ 2  ⬡ 3                 ┃
+  ┃ 📶 ▇▆▅▃  ▸ 0.65                           ┃
+  ┃ 🎯 Goal: Maximize utility and capabilit... ┃
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ◥◣ 🛸🌀🧬 ◢◤
+
+🛡️ L2 Analysis: Initializing Ambiguity Vector (▇▆▅▃)...
+🗣️ L1 Response: Welcome to the Recursive Refinement Protocol.
+
+💡 Tip: Use 'activate_skill ace-rrp' within gemini-cli for full dual-layer stateful refinement.
+     Or run 'ace-rrp server' to launch the web dashboard.

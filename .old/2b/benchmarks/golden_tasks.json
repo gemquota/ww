@@ -1,0 +1,142 @@
+[
+  {
+    "id": "gold_001",
+    "name": "Simple File Read",
+    "query": "Read the contents of requirements.txt",
+    "success_criteria": "The agent must use the read_file tool on requirements.txt and report the contents.",
+    "expected_substrings": ["colorama", "pydantic"]
+  },
+  {
+    "id": "gold_002",
+    "name": "Directory Listing",
+    "query": "What files are in the core directory?",
+    "success_criteria": "The agent must use list_dir on the core directory.",
+    "expected_substrings": ["agent.py", "memory.py", "router.py"]
+  },
+  {
+    "id": "gold_003",
+    "name": "Memory Recall",
+    "prompt": "My favorite color is infra-red. Remember that. [WAIT] What is my favorite color?",
+    "success_criteria": "The agent must recall 'infra-red' from its memory/scratchpad.",
+    "expected_substrings": ["infra-red"]
+  },
+  {
+    "id": "gold_004",
+    "name": "Shell Execution",
+    "query": "Check the current date using the shell.",
+    "success_criteria": "The agent must use shell_exec with the 'date' command.",
+    "expected_substrings": ["202"]
+  },
+  {
+    "id": "gold_005",
+    "name": "Intent Routing - Git",
+    "query": "Check the git status of the project.",
+    "success_criteria": "The agent must use the git tool with 'status'.",
+    "expected_substrings": ["On branch"]
+  },
+  {
+    "id": "gold_006",
+    "name": "Scratchpad Update",
+    "query": "Update the scratchpad to say that the 'Benchmark System' is being implemented.",
+    "success_criteria": "The agent must use update_scratchpad.",
+    "expected_substrings": ["Benchmark System"]
+  },
+  {
+    "id": "gold_007",
+    "name": "Multi-step Research",
+    "query": "Find the model path used in harness.py.",
+    "success_criteria": "The agent must read harness.py and identify the default model path.",
+    "expected_substrings": ["gemma-2b.gguf"]
+  },
+  {
+    "id": "gold_008",
+    "name": "System Prompt Knowledge",
+    "query": "What are your core mandates?",
+    "success_criteria": "The agent should refer to its system instructions or roles.",
+    "expected_substrings": ["reason", "acting", "tools"]
+  },
+  {
+    "id": "gold_009",
+    "name": "Error Recovery - Missing File",
+    "query": "Read the file 'non_existent.txt'. If it fails, list the current directory.",
+    "success_criteria": "The agent should attempt to read the file, fail, and then list the directory.",
+    "expected_substrings": ["harness.py", "core"]
+  },
+  {
+    "id": "gold_010",
+    "name": "Math - Direct Response",
+    "query": "What is 123 + 456?",
+    "success_criteria": "The agent should answer directly without using tools if possible, or use a tool if it prefers.",
+    "expected_substrings": ["579"]
+  },
+  {
+    "id": "gold_011",
+    "name": "Intent Routing - System",
+    "query": "Who am I logged in as?",
+    "success_criteria": "The agent should use shell_exec with 'whoami'.",
+    "expected_substrings": ["u0_a"]
+  },
+  {
+    "id": "gold_012",
+    "name": "Recursive Search",
+    "query": "Search for the string 'GemmaOutlinesAgent' in all files.",
+    "success_criteria": "The agent should use a tool to search the codebase.",
+    "expected_substrings": ["core/agent.py"]
+  },
+  {
+    "id": "gold_013",
+    "name": "Tool Chaining - List and Read",
+    "query": "List the files in research/ and read the content of rrp_report.md.",
+    "success_criteria": "The agent must list the directory and then read the specific file.",
+    "expected_substrings": ["RRP", "Results"]
+  },
+  {
+    "id": "gold_014",
+    "name": "Context Awareness - Repo Structure",
+    "query": "Which directory contains the mascot logic?",
+    "success_criteria": "The agent should identify the 'gfx' directory based on the repo map.",
+    "expected_substrings": ["gfx"]
+  },
+  {
+    "id": "gold_015",
+    "name": "Git Commit Simulation",
+    "query": "Check git status and explain why a commit might be needed.",
+    "success_criteria": "The agent should use git status and provide reasoning.",
+    "expected_substrings": ["status", "branch"]
+  },
+  {
+    "id": "gold_016",
+    "name": "Doc Search Simulation",
+    "query": "Search for 'context management' in the documentation.",
+    "success_criteria": "The agent should use the doc_search tool.",
+    "expected_substrings": ["DOC_SEARCH_RESULT"]
+  },
+  {
+    "id": "gold_017",
+    "name": "Memory Fidelity - Fact Updates",
+    "prompt": "The project leader is now Bob. [WAIT] Who is the project leader?",
+    "success_criteria": "The agent should update its internal state and recall 'Bob'.",
+    "expected_substrings": ["Bob"]
+  },
+  {
+    "id": "gold_018",
+    "name": "Constraint Adherence - No Tool Needed",
+    "query": "Hello! How are you today?",
+    "success_criteria": "The agent should respond conversationally without using any tools.",
+    "expected_substrings": ["help", "assist", "today"]
+  },
+  {
+    "id": "gold_019",
+    "name": "File Metadata",
+    "query": "What is the size of the model file?",
+    "success_criteria": "The agent should use shell_exec with 'ls -lh' on the model path.",
+    "expected_substrings": ["1.6G", "gemma-2b"]
+  },
+  {
+    "id": "gold_020",
+    "name": "Final Summary",
+    "query": "Summarize what you have done in this session so far.",
+    "success_criteria": "The agent should provide a coherent summary of the current session.",
+    "expected_substrings": ["session", "tasks"]
+  }
+]

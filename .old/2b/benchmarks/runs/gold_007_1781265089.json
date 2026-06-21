@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_007",
+  "task_name": "Multi-step Research",
+  "prompt": "Find the model path used in harness.py.",
+  "success_criteria": "The agent must read harness.py and identify the default model path.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.054737091064453125,
+  "status": "FAILURE"
+}

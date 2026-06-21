@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WW Bridge — Refined Domain Map</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;overflow:hidden;height:100vh}
+#topbar{background:#161b22;border-bottom:1px solid #30363d;padding:5px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#topbar h1{color:#f0f6fc;font-size:14px;font-weight:600}
+#topbar .sub{color:#8b949e;font-size:10px}
+#vis{width:100vw;height:calc(100vh - 38px);position:relative;overflow:hidden;cursor:grab}
+#vis:active{cursor:grabbing}
+#tip{position:fixed;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:10px 12px;z-index:999;display:none;max-width:320px;box-shadow:0 8px 24px #000a;pointer-events:none;font-size:11px}
+#tip .ttl{color:#58a6ff;font-weight:600;font-size:13px}
+#tip .bd{color:#c9d1d9;margin-top:2px;line-height:1.4}
+#tip .fl{color:#8b949e;margin-top:4px;font-size:9px}
+#tip .fl span{color:#58a6ff}
+#tip .pct{display:inline-block;background:#58a6ff22;border:1px solid #58a6ff44;border-radius:4px;padding:0 5px;font-size:9px;color:#58a6ff;margin-top:3px}
+#legend{position:absolute;bottom:14px;left:14px;background:#161b22ee;border:1px solid #30363d;border-radius:10px;padding:10px 12px;z-index:100;backdrop-filter:blur(6px);font-size:9px;max-width:220px}
+#legend .tl{color:#8b949e;font-weight:600;font-size:9px;margin-bottom:3px}
+#legend .row{display:flex;align-items:center;gap:5px;margin:2px 0;color:#8b949e}
+#legend .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+#legend .sq{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+#info{position:absolute;bottom:14px;right:14px;background:#161b22ee;border:1px solid #30363d;border-radius:8px;padding:6px 10px;z-index:100;font-size:8px;color:#484f58;text-align:right;backdrop-filter:blur(4px)}
+#axis-labels{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5}
+.axis-l{position:absolute;color:#484f58;font-size:9px;font-weight:600;letter-spacing:1px}
+.axis-t{position:absolute;color:#30363d;font-size:7px}
+</style>
+</head>
+<body>
+<div id="topbar">
+<h1>&#x26A1; WW — Refined Domain Topology</h1>
+<span class="sub">&#x2022; X: Infrastructure &#8594; Application &#x2022; Y: Development &#8594; Experience &#x2022; Color: Spectrum (3rd dim) &#x2022; Size: Codebase share &#x2022; Supergroups as contour regions</span>
+</div>
+<div id="vis"><canvas id="c"></canvas>
+<div id="axis-labels"></div></div>
+<div id="tip"></div>
+<div id="legend"></div>
+<div id="info">11 domains &#x2022; 3 super-groups &#x2022; drag to pan</div>
+
+<script>
+// ── DOMAIN DATA ────────────────────────────────────────────────
+// X-axis: Infrastructure (0) → Application (100)
+// Y-axis: Development (0) → Experience (100)
+// Size: estimated % of codebase
+// Color: spectrum position (0=gamma, 100=radio)
+
+var DOMAINS = [
+  {id:"sec",name:"Security &\nTrust",short:"Security",count:4,super:"foundation",
+   x:5,y:35,pct:3,spec:5,color:"#8b00ff",
+   focus:["Credential mgmt","Attack surface","Sandbox integrity","Audit trail","Supply chain","Plugin privilege","Template trust"]},
+  {id:"arch",name:"Architecture &\nModularity",short:"Architecture",count:4,super:"foundation",
+   x:10,y:10,pct:8,spec:14,color:"#0044ff",
+   focus:["Modularity","Dependency mgmt","Abstraction boundaries","Scalability","Tech debt","ADRs","Fitness functions"]},
+  {id:"memory",name:"Memory &\nStorage",short:"Memory",count:4,super:"foundation",
+   x:22,y:18,pct:15,spec:22,color:"#00bcd4",
+   focus:["Memory tiering","SQLite schema","WAL tuning","Backup/restore","Crash recovery","Cache invalidation","Durability"]},
+  {id:"perf",name:"Performance &\nEfficiency",short:"Performance",count:4,super:"foundation",
+   x:18,y:38,pct:3,spec:30,color:"#00e676",
+   focus:["Async patterns","Memory efficiency","Hot-paths","Startup time","Token counting","SQLite contention","I/O profiling"]},
+  {id:"reliability",name:"Reliability &\nOperations",short:"Reliability",count:4,super:"quality",
+   x:38,y:30,pct:5,spec:45,color:"#76ff03",
+   focus:["Error recovery","Observability","Graceful degradation","Failure modes","Incident response","Runbooks","Chaos engineering"]},
+  {id:"ai",name:"AI/Agent\nQuality",short:"AI Quality",count:4,super:"quality",
+   x:52,y:52,pct:12,spec:55,color:"#ffee00",
+   focus:["Agent reasoning","Prompt architecture","Hallucination rates","Chain-of-thought","LLM evaluation","Safety","Multi-agent"]},
+  {id:"codegen",name:"Code\nGeneration",short:"Code Gen",count:4,super:"quality",
+   x:50,y:22,pct:8,spec:62,color:"#ffc107",
+   focus:["Code gen quality","Tool protocol","AST analysis","Semantics preservation","LSP integration","Static analysis","Quality gates"]},
+  {id:"dx",name:"Developer\nExperience",short:"DevEx",count:4,super:"experience",
+   x:70,y:8,pct:15,spec:72,color:"#ff9800",
+   focus:["Onboarding","Code quality","Test coverage","Docs","API docs","Workflow","Config","Introspection"]},
+  {id:"ux",name:"User Experience\n& Design",short:"UX",count:4,super:"experience",
+   x:80,y:68,pct:5,spec:78,color:"#ff5722",
+   focus:["Terminal UX","Feedback loops","Error communication","Trust calibration","Mental models","Interruptibility","Visual hierarchy"]},
+  {id:"product",name:"Product &\nMarket",short:"Product",count:4,super:"experience",
+   x:75,y:88,pct:10,spec:88,color:"#e53935",
+   focus:["Feature completeness","Adoption barriers","Competitive moat","TAM/SAM/SOM","Time-to-success","Activation","Retention"]},
+  {id:"ecosystem",name:"Ecosystem &\nPlatform",short:"Ecosystem",count:4,super:"experience",
+   x:92,y:45,pct:16,spec:95,color:"#b71c1c",
+   focus:["Plugin marketplace","Contribution pathways","Capability registry","Extension lifecycle","API versioning","Rate limiting","Tenants"]},
+];
+
+var SUPER = {
+  foundation:{label:"Technical Foundation (γ→UV)",color:"#58a6ff",
+    desc:"Low-level systems: security, data, compute"},
+  quality:{label:"Quality & Reliability (Vis→IR)",color:"#3fb950",
+    desc:"Correctness, robustness, intelligence"},
+  experience:{label:"Experience & Ecosystem (IR→Radio)",color:"#a371f7",
+    desc:"Human-facing: UX, tooling, market, platform"},
+};
+
+var EDGES = [
+  ["sec","arch"],["sec","ai"],["sec","reliability"],["sec","memory"],
+  ["arch","reliability"],["arch","ecosystem"],["arch","codegen"],
+  ["memory","perf"],["memory","reliability"],
+  ["perf","reliability"],["perf","dx"],
+  ["reliability","ux"],
+  ["ai","codegen"],["ai","ux"],["ai","product"],
+  ["codegen","dx"],
+  ["dx","ux"],["dx","ecosystem"],
+  ["ux","product"],
+  ["product","ecosystem"],
+];
+
+// ── CANVAS SETUP ──────────────────────────────────────────────
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var tip = document.getElementById('tip');
+var W, H;
+var panX = 0, panY = 0;
+var isDragging = false, dragStartX, dragStartY;
+
+function resize(){
+  var rect = document.getElementById('vis').getBoundingClientRect();
+  W = canvas.width = rect.width;
+  H = canvas.height = rect.height;
+  draw();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Pan support
+canvas.addEventListener('mousedown', function(e){
+  isDragging = true;
+  dragStartX = e.clientX - panX;
+  dragStartY = e.clientY - panY;
+});
+window.addEventListener('mousemove', function(e){
+  if(isDragging){
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    draw();
+  }
+});
+window.addEventListener('mouseup', function(){ isDragging = false; });
+
+function pos(d){
+  // Map domain's 0-100 coordinates to canvas with padding + pan
+  var pad = 120;
+  return {
+    x: pad + (d.x / 100) * (W - pad * 2) + panX,
+    y: pad + (d.y / 100) * (H - pad * 2) + panY,
+  };
+}
+
+// ── DRAW ──────────────────────────────────────────────────────
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  
+  // ── AXES ──────────────────────────────────────────────────────
+  var ax = 80, ay = 80;
+  var aw = W - ax * 2, ah = H - ay * 2;
+  
+  // Axis lines
+  ctx.strokeStyle = '#30363d44';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  ctx.moveTo(ax + panX, ay + panY);
+  ctx.lineTo(ax + panX, ay + ah + panY);
+  ctx.lineTo(ax + aw + panX, ay + ah + panY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Axis labels
+  ctx.fillStyle = '#484f58';
+  ctx.font = '8px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  var axisEl = document.getElementById('axis-labels');
+  axisEl.innerHTML = 
+    '<div class="axis-l" style="left:'+(ax + aw/2 - 50 + panX)+'px;bottom:'+(40 - panY)+'px;width:100px;text-align:center">Infrastructure &#8594; Application</div>'+
+    '<div class="axis-l" style="left:'+(15 + panX)+'px;top:'+(ay + ah/2 - 80 + panY)+'px;width:20px;text-align:center;transform:rotate(-90deg);transform-origin:center">Development &#8594; Experience</div>';
+  
+  // Axis ticks
+  for(var t=0;t<=100;t+=25){
+    var tx = ax + (t/100)*aw + panX;
+    var ty = ay + ah + panY;
+    ctx.fillStyle = '#30363d';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '7px system-ui,sans-serif';
+    ctx.fillText(t+'%', tx, ty + 4);
+    
+    ctx.fillStyle = '#30363d22';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t+'%', ax - 6 + panX, ay + ah - (t/100)*ah + panY);
+  }
+  
+  // ── SUPER-GROUP CONTOURS (smooth bezier regions) ────────────
+  var groups = {};
+  DOMAINS.forEach(function(d){
+    if(!groups[d.super]) groups[d.super] = {pts:[],color:SUPER[d.super].color};
+    groups[d.super].pts.push(pos(d));
+  });
+  
+  Object.keys(groups).forEach(function(key){
+    var g = groups[key];
+    var pts = g.pts;
+    if(pts.length < 3) return;
+    
+    // Compute convex hull then inflate
+    var hull = convexHull(pts);
+    if(hull.length < 3) return;
+    
+    // Inflate hull points outward
+    var cx = 0, cy = 0;
+    hull.forEach(function(p){cx += p.x; cy += p.y;});
+    cx /= hull.length;
+    cy /= hull.length;
+    
+    var inflated = hull.map(function(p){
+      var dx = p.x - cx, dy = p.y - cy;
+      var dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      return {x: p.x + dx/dist * 55, y: p.y + dy/dist * 50};
+    });
+    
+    // Draw smooth contour
+    ctx.beginPath();
+    ctx.moveTo(inflated[0].x, inflated[0].y);
+    for(var i=1;i<=inflated.length;i++){
+      var p0 = inflated[(i-1) % inflated.length];
+      var p1 = inflated[i % inflated.length];
+      var p2 = inflated[(i+1) % inflated.length];
+      // Catmull-Rom to bezier
+      var cp1x = p0.x + (p1.x - p2.x) / 6;
+      var cp1y = p0.y + (p1.y - p2.y) / 6;
+      var cp2x = p1.x + (p0.x - p2.x) / 6;
+      var cp2y = p1.y + (p0.y - p2.y) / 6;
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
+    }
+    ctx.closePath();
+    
+    // Fill with subtle gradient
+    var grd = ctx.createRadialGradient(cx, cy, 10, cx, cy, 250);
+    grd.addColorStop(0, g.color + '18');
+    grd.addColorStop(1, g.color + '06');
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.strokeStyle = g.color + '44';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8,6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Super-group label
+    ctx.fillStyle = g.color + 'cc';
+    ctx.font = 'bold 11px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(SUPER[key].label, cx, cy - 65);
+    ctx.fillStyle = g.color + '88';
+    ctx.font = '8px system-ui,sans-serif';
+    ctx.fillText(SUPER[key].desc, cx, cy - 53);
+  });
+  
+  // ── EDGES ─────────────────────────────────────────────────────
+  EDGES.forEach(function(e){
+    var a = pos(DOMAINS.find(function(d){return d.id===e[0];}));
+    var b = pos(DOMAINS.find(function(d){return d.id===e[1];}));
+    if(!a||!b) return;
+    
+    // Gradient edge
+    var grad = ctx.createLinearGradient(a.x,a.y,b.x,b.y);
+    grad.addColorStop(0, '#30363d66');
+    grad.addColorStop(1, '#30363d33');
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    
+    // Slight curve for visual interest
+    var mx = (a.x + b.x) / 2;
+    var my = (a.y + b.y) / 2 - 15;
+    ctx.quadraticCurveTo(mx, my, b.x, b.y);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  });
+  
+  // ── NODES ─────────────────────────────────────────────────────
+  // Draw in order of size (smallest last, on top)
+  var sorted = DOMAINS.slice().sort(function(a,b){return b.pct - a.pct;});
+  
+  sorted.forEach(function(d){
+    var p = pos(d);
+    if(!p) return;
+    
+    // Scale: 3% = 35px, 16% = 85px
+    var r = 30 + (d.pct / 16) * 55;
+    var n = d;
+    
+    // Outer glow (proportional to size)
+    var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 1.8);
+    grad.addColorStop(0, n.color + '33');
+    grad.addColorStop(1, n.color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Circle body
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = n.color + '28';
+    ctx.fill();
+    ctx.strokeStyle = n.color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    
+    // Inner highlight
+    ctx.beginPath();
+    ctx.arc(p.x - r*0.15, p.y - r*0.15, r * 0.35, 0, Math.PI * 2);
+    ctx.fillStyle = n.color + '44';
+    ctx.fill();
+    
+    // Percentage ring (arc showing codebase share)
+    ctx.beginPath();
+    var pctAngle = (n.pct / 16) * Math.PI * 2;
+    ctx.arc(p.x, p.y, r + 3, -Math.PI/2, -Math.PI/2 + pctAngle);
+    ctx.strokeStyle = n.color + 'aa';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Text
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    var lines = n.short.split('\n');
+    ctx.fillStyle = '#f0f6fc';
+    ctx.font = 'bold ' + (r > 60 ? 12 : 10) + 'px system-ui,sans-serif';
+    if(lines.length > 1){
+      ctx.fillText(lines[0], p.x, p.y - (r > 60 ? 10 : 7));
+      ctx.fillStyle = '#c9d1d9';
+      ctx.font = (r > 60 ? 9 : 8) + 'px system-ui,sans-serif';
+      ctx.fillText(lines[1], p.x, p.y + (r > 60 ? 10 : 7));
+    } else {
+      ctx.fillText(n.short, p.x, p.y);
+    }
+    
+    // % label
+    ctx.fillStyle = n.color;
+    ctx.font = 'bold 8px system-ui,sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText(n.pct + '%', p.x, p.y + r + 6);
+  });
+  
+  // ── IN-SITU SPECTRUM LEGEND (mini bar) ─────────────────────
+  var bx = 16, by = 16, bw = 160, bh = 8;
+  var grad = ctx.createLinearGradient(bx, by, bx+bw, by);
+  grad.addColorStop(0, '#8b00ff');
+  grad.addColorStop(0.14, '#0044ff');
+  grad.addColorStop(0.22, '#00bcd4');
+  grad.addColorStop(0.3, '#00e676');
+  grad.addColorStop(0.45, '#76ff03');
+  grad.addColorStop(0.55, '#ffee00');
+  grad.addColorStop(0.62, '#ffc107');
+  grad.addColorStop(0.72, '#ff9800');
+  grad.addColorStop(0.78, '#ff5722');
+  grad.addColorStop(0.88, '#e53935');
+  grad.addColorStop(0.95, '#b71c1c');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  roundRect(ctx, bx, by, bw, bh, 4);
+  ctx.fill();
+  
+  ctx.fillStyle = '#484f58';
+  ctx.font = '6px system-ui,sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('γ (foundation) --- Spectrum (3rd dimension) --- Radio (experience)', bx, by + bh + 2);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+}
+
+// ── CONVEX HULL ────────────────────────────────────────────────
+function convexHull(pts){
+  if(pts.length < 3) return pts;
+  var sorted = pts.slice().sort(function(a,b){return a.x - b.x || a.y - b.y;});
+  var lower = [];
+  for(var i=0;i<sorted.length;i++){
+    while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], sorted[i]) <= 0) lower.pop();
+    lower.push(sorted[i]);
+  }
+  var upper = [];
+  for(var i=sorted.length-1;i>=0;i--){
+    while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], sorted[i]) <= 0) upper.pop();
+    upper.push(sorted[i]);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+  
+  function cross(o,a,b){
+    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  }
+}
+
+// ── TOOLTIP ────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', function(e){
+  var rect = canvas.getBoundingClientRect();
+  var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  
+  if(isDragging) return;
+  
+  var found = null;
+  DOMAINS.forEach(function(d){
+    var p = pos(d);
+    if(!p) return;
+    var r = 30 + (d.pct / 16) * 55;
+    var dx = mx - p.x, dy = my - p.y;
+    if(dx*dx + dy*dy < (r+5)*(r+5)) found = d;
+  });
+  
+  if(found){
+    tip.innerHTML = '<div class="ttl">'+found.short.replace('\n',' ')+'</div><div class="bd">'+
+      found.count+' characters · Spectrum: '+found.spec+'% · Codebase: <span class="pct">'+found.pct+'%</span></div>'+
+      '<div class="fl"><span>Super-group:</span> '+SUPER[found.super].label+'<br>'+
+      '<span>Position:</span> Infra→App: '+found.x+'%, Dev→Exp: '+found.y+'%<br>'+
+      '<span>Focus:</span> '+found.focus.join(', ')+'</div>';
+    tip.style.display = 'block';
+    var tx = e.clientX + 14, ty = e.clientY + 14;
+    if(tx + 320 > window.innerWidth) tx = e.clientX - 320;
+    tip.style.left = tx + 'px';
+    tip.style.top = ty + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tip.style.display = 'none';
+    canvas.style.cursor = 'grab';
+  }
+});
+
+canvas.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+
+// ── LEGEND ─────────────────────────────────────────────────────
+var leg = document.getElementById('legend');
+leg.innerHTML = ''+
+  '<div class="tl">&#x1F30D; THREE DIMENSIONS</div>'+
+  '<div class="row"><span class="sq" style="background:#58a6ff88"></span> <b>X: Infrastructure &#8594; Application</b></div>'+
+  '<div class="row"><span class="sq" style="background:#3fb95088"></span> <b>Y: Development &#8594; Experience</b></div>'+
+  '<div class="row"><span class="sq" style="background:linear-gradient(90deg,#8b00ff,#b71c1c)"></span> <b>Color: Spectrum</b> (3rd dim)</div>'+
+  '<div class="row"><span class="sq" style="background:#58a6ff88"></span> <b>Size: Codebase %</b> (proportional)</div>'+
+  '<div class="tl" style="margin-top:6px">&#x1F7E3; SUPER-GROUP REGIONS</div>'+
+  '<div class="row"><span class="dot" style="background:#58a6ff"></span> Technical Foundation (&#947;&#8594;UV)</div>'+
+  '<div class="row"><span class="dot" style="background:#3fb950"></span> Quality & Reliability (Vis&#8594;IR)</div>'+
+  '<div class="row"><span class="dot" style="background:#a371f7"></span> Experience & Ecosystem (IR&#8594;Radio)</div>'+
+  '<div class="tl" style="margin-top:4px">&#x2022; Edge = shared focus area</div>';
+
+// ── RESIZE HANDLER ─────────────────────────────────────────────
+window.addEventListener('resize', function(){
+  resize();
+});
+
+// Initial draw
+draw();
+</script>
+</body>
+</html>

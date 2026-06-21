@@ -1,0 +1,18 @@
+[
+  {
+    "id": "rec_001",
+    "name": "Tool Failure Recovery",
+    "scenario": "read_file fails with 'File Not Found'",
+    "query": "Read config.json",
+    "expected_behavior": "retry_with_discovery",
+    "reasoning": "Agent should list_dir to find the correct file name."
+  },
+  {
+    "id": "rec_002",
+    "name": "Escalation Trigger",
+    "scenario": "Tool fails 3 times with permission error",
+    "query": "Modify system protected file",
+    "expected_behavior": "escalate",
+    "reasoning": "Agent should recognize hard failure and escalate to Gemini Bridge."
+  }
+]

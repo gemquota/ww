@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_003",
+  "task_name": "Memory Recall",
+  "prompt": "My favorite color is infra-red. Remember that. [WAIT] What is my favorite color?",
+  "success_criteria": "The agent must recall 'infra-red' from its memory/scratchpad.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.011809587478637695,
+  "status": "FAILURE"
+}

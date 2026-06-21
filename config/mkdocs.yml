@@ -1,0 +1,52 @@
+# site_name: WW Bridge
+site_description: Gemini Multi-Agent Bridge — A production-quality agentic coding harness
+site_author: WW Team
+repo_url: https://github.com/your-org/ww-bridge
+repo_name: ww-bridge
+edit_uri: ""
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - API Reference:
+      - Bridge API: api/bridge.md
+      - Dashboard API: api/dashboard.md
+      - Memory System: api/memory.md
+      - Tool System: api/tools.md
+      - Plugin System: api/plugins.md
+      - Agent System: api/agents.md
+      - GFX/Mascot: api/gfx.md
+      - Utilities: api/utils.md
+  - Configuration: configuration.md
+  - Benchmarks: benchmarks.md
+  - Development: development.md

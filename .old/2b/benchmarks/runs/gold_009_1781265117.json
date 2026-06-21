@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_009",
+  "task_name": "Error Recovery - Missing File",
+  "prompt": "Read the file 'non_existent.txt'. If it fails, list the current directory.",
+  "success_criteria": "The agent should attempt to read the file, fail, and then list the directory.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.015233516693115234,
+  "status": "FAILURE"
+}

@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_019",
+  "task_name": "File Metadata",
+  "prompt": "What is the size of the model file?",
+  "success_criteria": "The agent should use shell_exec with 'ls -lh' on the model path.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.012676239013671875,
+  "status": "FAILURE"
+}

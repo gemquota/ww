@@ -10,11 +10,45 @@ venv/
 
 # Environment
 .env
+.env.*
+*.env
 
 # WW internal state
 .ww/
 .logs/
+.tel/
+.meta/
+site/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Audit & runtime detritus
+*.audit.md
+combined.txt
+test_execution.log
+.coverage
+l2audit.md
+WORKSPACE_AUDIT.md
+
+# Removed redundant root-level source files
+agents_loader.py
+checkpoint.py
+context_manager.py
+diff_engine.py
+permissions.py
+smart_context.py
+debug_init.py
+telemetry.py
+
+# gfx/ root dir (canonical is src/gfx/)
+gfx/
+
+# Config duplicates
+config/config.yaml
+config/pytest.ini
+
+# AGENTS.md must be tracked
+!AGENTS.md
+!.tel/scripts/

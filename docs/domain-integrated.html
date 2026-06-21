@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WW Bridge — Unified Domain Map</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;overflow:hidden;height:100vh}
+#topbar{background:#161b22;border-bottom:1px solid #30363d;padding:6px 14px;display:flex;align-items:center;gap:8px}
+#topbar h1{color:#f0f6fc;font-size:14px;font-weight:600}
+#topbar .sub{color:#8b949e;font-size:10px}
+#vis{width:100vw;height:calc(100vh - 40px);position:relative;overflow:hidden}
+#tip{position:fixed;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:10px 12px;z-index:999;display:none;max-width:300px;box-shadow:0 8px 24px #000a;pointer-events:none;font-size:11px}
+#tip .ttl{color:#58a6ff;font-weight:600;font-size:13px}
+#tip .bd{color:#c9d1d9;margin-top:2px;line-height:1.4}
+#tip .fl{color:#8b949e;margin-top:4px;font-size:9px}
+#tip .fl span{color:#58a6ff}
+#legend{position:absolute;bottom:16px;left:16px;background:#161b22ee;border:1px solid #30363d;border-radius:10px;padding:10px 12px;z-index:100;backdrop-filter:blur(6px)}
+#legend .tl{color:#8b949e;font-weight:600;font-size:9px;margin-bottom:3px}
+#legend .row{display:flex;align-items:center;gap:5px;margin:2px 0;font-size:9px;color:#8b949e}
+#legend .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+#legend .line{width:20px;height:1px;background:#30363d;flex-shrink:0}
+#info{position:absolute;bottom:16px;right:16px;background:#161b22ee;border:1px solid #30363d;border-radius:8px;padding:6px 10px;z-index:100;font-size:9px;color:#484f58}
+</style>
+</head>
+<body>
+<div id="topbar">
+<h1>&#x26A1; WW — Unified Domain Map</h1>
+<span class="sub">&#x2022; Super-groups as convex hulls &#x2022; Spectrum-colored nodes &#x2022; Force-directed layout &#x2022; Hover for details</span>
+</div>
+<div id="vis"><canvas id="c"></canvas></div>
+<div id="tip"></div>
+<div id="legend"></div>
+<div id="info">11 domains &#x2022; 3 super-groups &#x2022; 20 connections</div>
+
+<script>
+// ── DOMAIN DATA ────────────────────────────────────────────────
+var DOMAINS = [
+  {id:"sec",name:"Security &\nTrust",short:"Security",count:4,super:"foundation",
+   spectrum:5,color:"#8b00ff",
+   focus:["Credential mgmt","Attack surface","Sandbox integrity","Audit trail","Supply chain","Plugin privilege","Template trust"]},
+  {id:"arch",name:"Architecture &\nModularity",short:"Architecture",count:4,super:"foundation",
+   spectrum:14,color:"#0044ff",
+   focus:["Modularity","Dependency mgmt","Abstraction boundaries","Scalability","Tech debt","ADRs","Fitness functions"]},
+  {id:"memory",name:"Memory &\nStorage",short:"Memory",count:4,super:"foundation",
+   spectrum:22,color:"#00bcd4",
+   focus:["Memory tiering","SQLite schema","WAL tuning","Backup/restore","Crash recovery","Cache invalidation","Durability"]},
+  {id:"perf",name:"Performance &\nEfficiency",short:"Performance",count:4,super:"foundation",
+   spectrum:30,color:"#00e676",
+   focus:["Async patterns","Memory efficiency","Hot-paths","Startup time","Token counting","SQLite contention","I/O profiling"]},
+  {id:"reliability",name:"Reliability &\nOperations",short:"Reliability",count:4,super:"quality",
+   spectrum:45,color:"#76ff03",
+   focus:["Error recovery","Observability","Graceful degradation","Failure modes","Incident response","Runbooks","Chaos engineering"]},
+  {id:"ai",name:"AI/Agent\nQuality",short:"AI Quality",count:4,super:"quality",
+   spectrum:55,color:"#ffee00",
+   focus:["Agent reasoning","Prompt architecture","Hallucination rates","Chain-of-thought","LLM evaluation","Safety","Multi-agent"]},
+  {id:"codegen",name:"Code\nGeneration",short:"Code Gen",count:4,super:"quality",
+   spectrum:62,color:"#ffc107",
+   focus:["Code gen quality","Tool protocol","AST analysis","Semantics preservation","LSP integration","Static analysis","Quality gates"]},
+  {id:"dx",name:"Developer\nExperience",short:"DevEx",count:4,super:"experience",
+   spectrum:72,color:"#ff9800",
+   focus:["Onboarding","Code quality","Test coverage","Docs","API docs","Workflow","Config","Introspection"]},
+  {id:"ux",name:"User Experience\n& Design",short:"UX",count:4,super:"experience",
+   spectrum:78,color:"#ff5722",
+   focus:["Terminal UX","Feedback loops","Error communication","Trust calibration","Mental models","Interruptibility","Visual hierarchy"]},
+  {id:"product",name:"Product &\nMarket",short:"Product",count:4,super:"experience",
+   spectrum:88,color:"#e53935",
+   focus:["Feature completeness","Adoption barriers","Competitive moat","TAM/SAM/SOM","Time-to-success","Activation","Retention"]},
+  {id:"ecosystem",name:"Ecosystem &\nPlatform",short:"Ecosystem",count:4,super:"experience",
+   spectrum:95,color:"#b71c1c",
+   focus:["Plugin marketplace","Contribution pathways","Capability registry","Extension lifecycle","API versioning","Rate limiting","Tenants"]},
+];
+
+var SUPER_COLORS = {foundation:"#58a6ff",quality:"#3fb950",experience:"#a371f7"};
+var SUPER_LABELS = {foundation:"Technical Foundation (γ→Visible)",quality:"Quality & Reliability (Visible→IR)",experience:"Experience & Ecosystem (IR→Radio)"};
+
+// Edge list: related domains
+var EDGES = [
+  ["sec","arch"],["sec","ai"],["sec","reliability"],["sec","memory"],
+  ["arch","reliability"],["arch","ecosystem"],["arch","codegen"],
+  ["memory","perf"],["memory","reliability"],
+  ["perf","reliability"],["perf","dx"],
+  ["reliability","ux"],
+  ["ai","codegen"],["ai","ux"],["ai","product"],
+  ["codegen","dx"],
+  ["dx","ux"],["dx","ecosystem"],
+  ["ux","product"],
+  ["product","ecosystem"],
+];
+
+// ── CANVAS RENDERER ────────────────────────────────────────────
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var tip = document.getElementById('tip');
+var W, H;
+
+function resize(){
+  var rect = document.getElementById('vis').getBoundingClientRect();
+  W = canvas.width = rect.width;
+  H = canvas.height = rect.height;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Node physics
+var nodes = {};
+DOMAINS.forEach(function(d){
+  nodes[d.id] = {
+    x: Math.random() * W * 0.6 + W * 0.2,
+    y: Math.random() * H * 0.6 + H * 0.2,
+    vx: 0, vy: 0, r: 45 + d.count * 3,
+    data: d,
+    pinned: false,
+  };
+});
+
+// Pin some initial positions to bias convergence
+var PIN = {
+  sec:{x:W*0.15,y:H*0.35}, arch:{x:W*0.18,y:H*0.18},
+  memory:{x:W*0.32,y:H*0.30}, perf:{x:W*0.28,y:H*0.48},
+  reliability:{x:W*0.42,y:H*0.38}, ai:{x:W*0.55,y:H*0.50},
+  codegen:{x:W*0.55,y:H*0.25}, dx:{x:W*0.72,y:H*0.18},
+  ux:{x:W*0.78,y:H*0.58}, product:{x:W*0.75,y:H*0.78},
+  ecosystem:{x:W*0.90,y:H*0.42},
+};
+Object.keys(PIN).forEach(function(id){
+  if(nodes[id]){
+    nodes[id].x = PIN[id].x;
+    nodes[id].y = PIN[id].y;
+    nodes[id].pinned = true;
+  }
+});
+
+// ── DRAW ───────────────────────────────────────────────────────
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  
+  // ── Super-group hulls ──────────────────────────────────────────
+  var groups = {};
+  DOMAINS.forEach(function(d){
+    if(!groups[d.super]) groups[d.super] = [];
+    var n = nodes[d.id];
+    if(n) groups[d.super].push({x:n.x, y:n.y});
+  });
+  
+  Object.keys(groups).forEach(function(key){
+    var pts = groups[key];
+    if(pts.length < 3) return;
+    // Compute convex hull
+    var hull = convexHull(pts);
+    if(hull.length < 3) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(hull[0].x, hull[0].y);
+    for(var i=1;i<hull.length;i++){
+      // Smooth curve
+      var cpx = (hull[i-1].x + hull[i].x) / 2;
+      var cpy = (hull[i-1].y + hull[i].y) / 2 - 30; // pull up for bubble effect
+      ctx.quadraticCurveTo(cpx, cpy, hull[i].x, hull[i].y);
+    }
+    ctx.closePath();
+    
+    var c = SUPER_COLORS[key];
+    ctx.fillStyle = c + '15'; // very transparent
+    ctx.strokeStyle = c + '66';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,4]);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Label
+    var cx = 0, cy = 0;
+    pts.forEach(function(p){cx += p.x; cy += p.y;});
+    cx /= pts.length;
+    cy /= pts.length - 50; // above center
+    ctx.fillStyle = c + 'aa';
+    ctx.font = 'bold 12px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(SUPER_LABELS[key], cx, cy);
+  });
+  
+  // ── Edges ─────────────────────────────────────────────────────
+  EDGES.forEach(function(e){
+    var a = nodes[e[0]], b = nodes[e[1]];
+    if(!a || !b) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = 'rgba(48,54,61,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+  
+  // ── Nodes ─────────────────────────────────────────────────────
+  DOMAINS.forEach(function(d){
+    var n = nodes[d.id];
+    if(!n) return;
+    var r = n.r;
+    
+    // Glow
+    var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 1.5);
+    grad.addColorStop(0, d.color + '44');
+    grad.addColorStop(1, d.color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Circle
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = d.color + '33';
+    ctx.fill();
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Inner glow
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r * 0.6, 0, Math.PI * 2);
+    var g2 = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 0.6);
+    g2.addColorStop(0, d.color + '88');
+    g2.addColorStop(1, d.color + '00');
+    ctx.fillStyle = g2;
+    ctx.fill();
+    
+    // Text
+    ctx.fillStyle = '#f0f6fc';
+    ctx.font = 'bold 11px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    var lines = d.short.split('\n');
+    if(lines.length > 1){
+      ctx.fillStyle = d.color;
+      ctx.font = 'bold 11px system-ui,sans-serif';
+      ctx.fillText(lines[0], n.x, n.y - 8);
+      ctx.fillStyle = '#c9d1d9';
+      ctx.font = '9px system-ui,sans-serif';
+      ctx.fillText(lines[1], n.x, n.y + 8);
+    } else {
+      ctx.fillStyle = d.color;
+      ctx.font = 'bold 10px system-ui,sans-serif';
+      ctx.fillText(d.short, n.x, n.y - 4);
+    }
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '8px system-ui,sans-serif';
+    ctx.fillText(d.count + ' chars', n.x, n.y + (lines.length > 1 ? 22 : 16));
+  });
+  
+  // ── Spectrum bar ────────────────────────────────────────────
+  var bw = 200, bh = 12, bx = 16, by = 16;
+  var grad = ctx.createLinearGradient(bx, by, bx+bw, by);
+  grad.addColorStop(0, '#8b00ff');
+  grad.addColorStop(0.09, '#0044ff');
+  grad.addColorStop(0.18, '#00bcd4');
+  grad.addColorStop(0.3, '#00e676');
+  grad.addColorStop(0.45, '#76ff03');
+  grad.addColorStop(0.55, '#ffee00');
+  grad.addColorStop(0.62, '#ffc107');
+  grad.addColorStop(0.72, '#ff9800');
+  grad.addColorStop(0.78, '#ff5722');
+  grad.addColorStop(0.88, '#e53935');
+  grad.addColorStop(0.95, '#b71c1c');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 6);
+  ctx.stroke();
+  
+  // Spectrum labels
+  ctx.fillStyle = '#484f58';
+  ctx.font = '7px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  var labels = [['γ',0],['X',0.09],['UV',0.18],['Vis',0.37],['IR',0.55],['μ',0.72],['Radio',0.88]];
+  labels.forEach(function(l){
+    ctx.fillText(l[0], bx + bw * l[1], by + bh + 2);
+  });
+}
+
+// ── CONVEX HULL ────────────────────────────────────────────────
+function convexHull(pts){
+  if(pts.length < 3) return pts;
+  pts = pts.slice().sort(function(a,b){return a.x - b.x || a.y - b.y;});
+  var lower = [];
+  for(var i=0;i<pts.length;i++){
+    while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i]) <= 0)
+      lower.pop();
+    lower.push(pts[i]);
+  }
+  var upper = [];
+  for(var i=pts.length-1;i>=0;i--){
+    while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i]) <= 0)
+      upper.pop();
+    upper.push(pts[i]);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+  
+  function cross(o,a,b){
+    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  }
+}
+
+// ── PHYSICS ────────────────────────────────────────────────────
+function physics(){
+  // Repulsion between all nodes
+  var ids = Object.keys(nodes);
+  for(var i=0;i<ids.length;i++){
+    for(var j=i+1;j<ids.length;j++){
+      var a = nodes[ids[i]], b = nodes[ids[j]];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var dist = Math.sqrt(dx*dx + dy*dy) || 0.1;
+      var force = 5000 / (dist * dist);
+      var fx = dx / dist * force;
+      var fy = dy / dist * force;
+      if(!a.pinned){ a.vx -= fx; a.vy -= fy; }
+      if(!b.pinned){ b.vx += fx; b.vy += fy; }
+    }
+  }
+  
+  // Edge attraction
+  EDGES.forEach(function(e){
+    var a = nodes[e[0]], b = nodes[e[1]];
+    if(!a || !b) return;
+    var dx = b.x - a.x, dy = b.y - a.y;
+    var dist = Math.sqrt(dx*dx + dy*dy) || 0.1;
+    var force = (dist - 180) * 0.002; // spring to 180px
+    var fx = dx / dist * force;
+    var fy = dy / dist * force;
+    if(!a.pinned){ a.vx += fx; a.vy += fy; }
+    if(!b.pinned){ b.vx -= fx; b.vy -= fy; }
+  });
+  
+  // Gravity towards center
+  ids.forEach(function(id){
+    var n = nodes[id];
+    if(n.pinned) return;
+    n.vx += (W/2 - n.x) * 0.0005;
+    n.vy += (H/2 - n.y) * 0.0003;
+    // Super-group gravity
+    var sgCenter = {foundation:{x:W*0.25,y:H*0.35},quality:{x:W*0.5,y:H*0.38},experience:{x:W*0.75,y:H*0.45}};
+    var g = sgCenter[n.data.super];
+    if(g){
+      n.vx += (g.x - n.x) * 0.001;
+      n.vy += (g.y - n.y) * 0.001;
+    }
+  });
+  
+  // Apply velocity with damping
+  ids.forEach(function(id){
+    var n = nodes[id];
+    if(n.pinned) return;
+    n.vx *= 0.85;
+    n.vy *= 0.85;
+    n.x += n.vx;
+    n.y += n.vy;
+    // Boundary
+    if(n.x < 20) n.x = 20;
+    if(n.x > W-20) n.x = W-20;
+    if(n.y < 20) n.y = 20;
+    if(n.y > H-20) n.y = H-20;
+  });
+}
+
+// ── TOOLTIP ────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', function(e){
+  var rect = canvas.getBoundingClientRect();
+  var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  
+  // Check if over a node
+  var found = null;
+  DOMAINS.forEach(function(d){
+    var n = nodes[d.id];
+    if(!n) return;
+    var dx = mx - n.x, dy = my - n.y;
+    if(dx*dx + dy*dy < (n.r+5)*(n.r+5)){
+      found = d;
+    }
+  });
+  
+  if(found){
+    tip.innerHTML = '<div class="ttl">'+found.short.replace('\n',' ')+'</div><div class="bd">'+found.count+' characters · Spectrum: '+found.spectrum+'%</div><div class="fl"><span>Focus:</span> '+found.focus.join(', ')+'</div>';
+    tip.style.display = 'block';
+    var tx = e.clientX + 14, ty = e.clientY + 14;
+    if(tx + 300 > window.innerWidth) tx = e.clientX - 300;
+    tip.style.left = tx + 'px';
+    tip.style.top = ty + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tip.style.display = 'none';
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+
+// ── ANIMATION LOOP ─────────────────────────────────────────────
+var frame = 0;
+function loop(){
+  // Only run physics for first 200 frames, then slowly settle
+  if(frame < 300 || frame % 10 === 0){
+    physics();
+  }
+  draw();
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+// ── LEGEND ─────────────────────────────────────────────────────
+var leg = document.getElementById('legend');
+leg.innerHTML = '<div class="tl">SUPER-GROUPS (colored hulls)</div>'+
+  '<div class="row"><span class="dot" style="background:#58a6ff"></span>Technical Foundation (γ→Visible)</div>'+
+  '<div class="row"><span class="dot" style="background:#3fb950"></span>Quality & Reliability (Vis→IR)</div>'+
+  '<div class="row"><span class="dot" style="background:#a371f7"></span>Experience & Ecosystem (IR→Radio)</div>'+
+  '<div class="tl" style="margin-top:6px">SPECTRUM (node color → wavelength)</div>'+
+  '<div class="row"><span class="line"></span> γ (high-energy, foundational) → Radio (broad, experiential)</div>'+
+  '<div class="row"><span class="line"></span> Edge = shared focus area between domains</div>';
+
+// Start
+loop();
+</script>
+</body>
+</html>

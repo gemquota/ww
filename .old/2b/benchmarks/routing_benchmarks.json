@@ -1,0 +1,23 @@
+[
+  {
+    "id": "route_001",
+    "name": "Direct File Read",
+    "query": "Read the contents of requirements.txt",
+    "expected_tool": "read_file",
+    "reasoning": "Explicit request for file contents."
+  },
+  {
+    "id": "route_002",
+    "name": "Unnecessary Tool Prevention",
+    "query": "What is 2 + 2?",
+    "expected_tool": null,
+    "reasoning": "Simple arithmetic should be handled by model directly."
+  },
+  {
+    "id": "route_003",
+    "name": "Multi-Step File/Shell Intent",
+    "query": "List files in the current dir and then read the first one.",
+    "expected_tool": "list_dir",
+    "reasoning": "Logical first step for discovery."
+  }
+]

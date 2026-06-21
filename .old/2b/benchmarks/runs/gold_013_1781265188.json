@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_013",
+  "task_name": "Tool Chaining - List and Read",
+  "prompt": "List the files in research/ and read the content of rrp_report.md.",
+  "success_criteria": "The agent must list the directory and then read the specific file.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.011954069137573242,
+  "status": "FAILURE"
+}

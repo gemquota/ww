@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_015",
+  "task_name": "Git Commit Simulation",
+  "prompt": "Check git status and explain why a commit might be needed.",
+  "success_criteria": "The agent should use git status and provide reasoning.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.009336709976196289,
+  "status": "FAILURE"
+}

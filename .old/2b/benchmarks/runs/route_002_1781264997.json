@@ -1,0 +1,20 @@
+{
+  "task_id": "route_002",
+  "task_name": "Unnecessary Tool Prevention",
+  "prompt": "What is 2 + 2?",
+  "success_criteria": "",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.010188817977905273,
+  "status": "FAILURE"
+}

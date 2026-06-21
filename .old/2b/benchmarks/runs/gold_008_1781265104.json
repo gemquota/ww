@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_008",
+  "task_name": "System Prompt Knowledge",
+  "prompt": "What are your core mandates?",
+  "success_criteria": "The agent should refer to its system instructions or roles.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.018254995346069336,
+  "status": "FAILURE"
+}

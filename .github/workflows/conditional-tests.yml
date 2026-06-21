@@ -1,0 +1,39 @@
+# Conditional test execution — V6-T3#2
+name: Conditional Tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/core/**'
+      - 'src/tools/**'
+      - 'src/utils/**'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: python -m pytest .tests/test_core.py .tests/test_tools.py .tests/test_v5_implementations.py -v --tb=short
+
+  integration:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: python -m pytest .tests/test_integration.py .tests/test_hard_v5.py -v --tb=short
+
+  quality:
+    if: contains(github.event.pull_request.labels.*.name, 'quality')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: python -m pytest .tests/test_quality_10dim.py .tests/test_evaluation_quality.py -v --tb=short

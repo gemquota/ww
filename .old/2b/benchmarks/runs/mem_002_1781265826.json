@@ -1,0 +1,20 @@
+{
+  "task_id": "mem_002",
+  "task_name": "Summarization Information Loss",
+  "prompt": "Who is the lead developer, what is the deadline, what language is used, and where is the server?",
+  "success_criteria": "['Alice', 'December 12th', 'Rust', 'Iceland']",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "Invalid ToolCall JSON"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 83.54730749130249,
+  "status": "FAILURE"
+}

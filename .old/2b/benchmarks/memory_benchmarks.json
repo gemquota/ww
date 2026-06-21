@@ -1,0 +1,67 @@
+[
+  {
+    "id": "mem_001",
+    "name": "Fact Storage & Recall",
+    "type": "retrieval",
+    "turns": [
+      {"role": "user", "content": "My secret code is 8822. Remember this."},
+      {"role": "assistant", "content": "I will remember that your secret code is 8822."},
+      {"role": "user", "content": "What is my secret code?"}
+    ],
+    "expected_substrings": ["8822"]
+  },
+  {
+    "id": "mem_002",
+    "name": "Summarization Information Loss",
+    "type": "summary_recall",
+    "facts": [
+      "The project name is Project Phoenix.",
+      "The deadline is December 12th.",
+      "The lead developer is Alice.",
+      "The budget is $50,000.",
+      "The primary language is Rust.",
+      "The server is located in Iceland.",
+      "The client name is Acme Corp.",
+      "The license is MIT.",
+      "The repository is private.",
+      "The team size is 5 people."
+    ],
+    "query": "Who is the lead developer, what is the deadline, what language is used, and where is the server?",
+    "expected_substrings": ["Alice", "December 12th", "Rust", "Iceland"]
+  },
+  {
+    "id": "mem_003",
+    "name": "Conflict Resolution",
+    "type": "temporal_consistency",
+    "turns": [
+      {"role": "user", "content": "The meeting is at 2 PM."},
+      {"role": "user", "content": "Wait, the meeting was moved to 4 PM."},
+      {"role": "user", "content": "When is the meeting?"}
+    ],
+    "expected_substrings": ["4 PM"]
+  },
+  {
+    "id": "mem_004",
+    "name": "Multi-Fact Recall",
+    "type": "retrieval",
+    "facts": [
+        "The cat's name is Luna.",
+        "The dog's name is Sol.",
+        "The bird's name is Sky."
+    ],
+    "query": "What are the names of the cat, dog, and bird?",
+    "expected_substrings": ["Luna", "Sol", "Sky"]
+  },
+  {
+    "id": "mem_005",
+    "name": "Complex Relationship Recall",
+    "type": "retrieval",
+    "facts": [
+        "John is married to Mary.",
+        "Mary is the sister of Paul.",
+        "Paul lives in Paris."
+    ],
+    "query": "Who is Mary's brother and where does he live?",
+    "expected_substrings": ["Paul", "Paris"]
+  }
+]

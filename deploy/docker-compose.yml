@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  ww-bridge:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: ww-bridge
+    image: ww-bridge:latest
+    restart: unless-stopped
+    ports:
+      - "${WW_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - "${WW_WORKSPACE_MOUNT:-../.}:/app"
+      - ww-sessions:/app/.ww/sessions
+      - "${WW_CONFIG_MOUNT:-../config.yaml}:/app/config.yaml:ro"
+    env_file:
+      - ../.env
+    environment:
+      - WW_CONFIG=/app/config.yaml
+      - WW_WORKSPACE=/app
+      - WW_DASHBOARD__HOST=0.0.0.0
+      - WW_DASHBOARD__PORT=8080
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: ww-dashboard
+    image: ww-bridge:latest
+    restart: unless-stopped
+    ports:
+      - "${WW_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - ww-sessions:/app/.ww/sessions:ro
+    env_file:
+      - ../.env
+    environment:
+      - WW_CONFIG=/app/config.yaml
+      - WW_WORKSPACE=/app
+    command: ["uvicorn", "src.dashboard.app:app", "--host", "0.0.0.0", "--port", "8080"]
+
+volumes:
+  ww-sessions:

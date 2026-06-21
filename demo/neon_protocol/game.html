@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON PROTOCOL // ISO-HNS</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --primary: #00f3ff;
+            --secondary: #ff0055;
+            --accent: #bc00ff;
+            --surface: #111;
+            --text: #e0e0e0;
+            --panel-bg: rgba(10, 10, 10, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            border: 2px solid #222;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            background: radial-gradient(circle, #111 0%, #050505 100%);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            cursor: none;
+        }
+
+        /* HUD Styling */
+        .hud {
+            position: absolute;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+
+        #overlay {
+            top: 20px;
+            left: 20px;
+            padding: 15px;
+            background: var(--panel-bg);
+            border-left: 4px solid var(--primary);
+            backdrop-filter: blur(5px);
+        }
+
+        .title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 1.5rem;
+            color: var(--primary);
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        .stats {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .stat-val { color: var(--text); font-weight: bold; }
+
+        #telemetry-log {
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 150px;
+            background: var(--panel-bg);
+            border-bottom: 4px solid var(--secondary);
+            font-size: 0.7rem;
+            overflow: hidden;
+            padding: 10px;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #222;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-entry.critical { color: var(--secondary); }
+        .log-entry.info { color: var(--primary); }
+
+        #crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 1px solid var(--primary);
+            transform: translate(-50%, -50%) rotate(45deg);
+            pointer-events: none;
+        }
+
+        /* Scanner Effect */
+        #scanner {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 2px;
+            background: rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 15px var(--primary);
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.7rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="scanner"></div>
+    <div id="crosshair"></div>
+
+    <div id="overlay" class="hud">
+        <div class="title">NEON_PROTOCOL.sys</div>
+        <div class="stats">
+            AGENT_ID: <span class="stat-val">WW_ALPHA</span><br>
+            CORE_TEMP: <span class="stat-val" id="temp">32.4°C</span><br>
+            THREAT_LEVEL: <span class="stat-val" id="threat">NULL</span>
+        </div>
+    </div>
+
+    <div id="telemetry-log" class="hud"></div>
+
+    <div class="hint">WASD to Move // CLICK to Strike // Telemetry active</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const crosshair = document.getElementById('crosshair');
+    const logEl = document.getElementById('telemetry-log');
+
+    // --- Configuration ---
+    let width, height;
+    const TILE_SIZE = 64;
+    const ISO_SCALE = 0.5; // Y-compression for isometric
+    const COLORS = {
+        grid: '#1a1a1a',
+        gridActive: '#222',
+        player: '#00f3ff',
+        enemy: '#ff0055',
+        trail: 'rgba(0, 243, 255, 0.2)'
+    };
+
+    // --- State ---
+    const player = {
+        x: 0, y: 0, 
+        targetX: 0, targetY: 0,
+        speed: 5,
+        health: 100,
+        kills: 0,
+        striking: 0
+    };
+
+    const enemies = [];
+    const particles = [];
+    const keys = {};
+
+    // --- Utils ---
+    function toIso(x, y) {
+        return {
+            x: (x - y) + width / 2,
+            y: (x + y) * ISO_SCALE + height / 2 - 100
+        };
+    }
+
+    function log(msg, type='info') {
+        const div = document.createElement('div');
+        div.className = `log-entry ${type}`;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logEl.prepend(div);
+        
+        // Ship to WW Bridge Telemetry Endpoint
+        fetch('/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                event: msg,
+                type: type,
+                stats: {
+                    health: Math.floor(player.health),
+                    kills: player.kills,
+                    threat: Math.ceil(enemies.length / 5)
+                }
+            })
+        }).catch(err => console.error('Telemetry failed:', err));
+    }
+
+    // --- Initialization ---
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+    window.addEventListener('mousemove', e => {
+        crosshair.style.left = e.clientX + 'px';
+        crosshair.style.top = e.clientY + 'px';
+    });
+
+    window.addEventListener('mousedown', () => {
+        if (player.striking <= 0) {
+            player.striking = 10;
+            strike();
+        }
+    });
+
+    function strike() {
+        log("STRIKE_CMD_ISSUED", "info");
+        // Check for enemy proximity
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            const dx = e.x - player.x;
+            const dy = e.y - player.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 80) {
+                enemies.splice(i, 1);
+                player.kills++;
+                spawnExplosion(e.x, e.y, COLORS.enemy);
+                log(`PROCESS_TERMINATED: ${e.id}`, "critical");
+                document.getElementById('threat').textContent = `LVL_${Math.ceil(enemies.length / 5)}`;
+            }
+        }
+    }
+
+    function spawnExplosion(x, y, color) {
+        for (let i = 0; i < 15; i++) {
+            particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 1.0,
+                color
+            });
+        }
+    }
+
+    function spawnEnemy() {
+        if (enemies.length < 10) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 400 + Math.random() * 200;
+            enemies.push({
+                id: `ERR_${Math.floor(Math.random() * 9999)}`,
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                speed: 1.5 + Math.random() * 1
+            });
+        }
+    }
+
+    // --- Loop ---
+    function update() {
+        // Movement
+        let dx = 0, dy = 0;
+        if (keys['KeyW']) dy -= 1;
+        if (keys['KeyS']) dy += 1;
+        if (keys['KeyA']) dx -= 1;
+        if (keys['KeyD']) dx += 1;
+
+        if (dx !== 0 || dy !== 0) {
+            const mag = Math.sqrt(dx*dx + dy*dy);
+            player.x += (dx / mag) * player.speed;
+            player.y += (dy / mag) * player.speed;
+        }
+
+        if (player.striking > 0) player.striking--;
+
+        // Enemies
+        enemies.forEach(e => {
+            const edx = player.x - e.x;
+            const edy = player.y - e.y;
+            const dist = Math.sqrt(edx*edx + edy*edy);
+            e.x += (edx / dist) * e.speed;
+            e.y += (edy / dist) * e.speed;
+            
+            if (dist < 20) {
+                player.health -= 0.1;
+                document.getElementById('temp').textContent = `${(32 + (100 - player.health)/2).toFixed(1)}°C`;
+            }
+        });
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.02;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        if (Math.random() < 0.02) spawnEnemy();
+    }
+
+    function draw() {
+        ctx.fillStyle = COLORS.bg;
+        ctx.fillRect(0, 0, width, height);
+
+        // Grid
+        const gridOffset = { x: player.x % TILE_SIZE, y: player.y % TILE_SIZE };
+        ctx.strokeStyle = COLORS.grid;
+        ctx.lineWidth = 1;
+
+        const range = 15;
+        for (let ix = -range; ix <= range; ix++) {
+            for (let iy = -range; iy <= range; iy++) {
+                const x1 = (ix * TILE_SIZE) - gridOffset.x;
+                const y1 = (iy * TILE_SIZE) - gridOffset.y;
+                const iso1 = toIso(x1, y1);
+                const iso2 = toIso(x1 + TILE_SIZE, y1);
+                const iso3 = toIso(x1 + TILE_SIZE, y1 + TILE_SIZE);
+                const iso4 = toIso(x1, y1 + TILE_SIZE);
+
+                ctx.beginPath();
+                ctx.moveTo(iso1.x, iso1.y);
+                ctx.lineTo(iso2.x, iso2.y);
+                ctx.lineTo(iso3.x, iso3.y);
+                ctx.lineTo(iso4.x, iso4.y);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+
+        // Particles
+        particles.forEach(p => {
+            const iso = toIso(p.x - player.x, p.y - player.y);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.fillRect(iso.x, iso.y, 4, 4);
+        });
+        ctx.globalAlpha = 1.0;
+
+        // Enemies
+        enemies.forEach(e => {
+            const iso = toIso(e.x - player.x, e.y - player.y);
+            ctx.fillStyle = COLORS.enemy;
+            
+            // Draw a diamond
+            ctx.beginPath();
+            ctx.moveTo(iso.x, iso.y - 15);
+            ctx.lineTo(iso.x + 10, iso.y);
+            ctx.lineTo(iso.x, iso.y + 15);
+            ctx.lineTo(iso.x - 10, iso.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Neon Glow
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = COLORS.enemy;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        });
+
+        // Player
+        const pIso = toIso(0, 0);
+        ctx.fillStyle = COLORS.player;
+        if (player.striking > 0) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = COLORS.player;
+            ctx.beginPath();
+            ctx.arc(pIso.x, pIso.y, 40, 0, Math.PI * 2);
+            ctx.strokeStyle = COLORS.player;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        ctx.fillRect(pIso.x - 8, pIso.y - 8, 16, 16);
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = COLORS.player;
+        ctx.strokeRect(pIso.x - 10, pIso.y - 10, 20, 20);
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(loop);
+    }
+
+    function loop() {
+        update();
+        draw();
+    }
+
+    resize();
+    log("SYSTEM_INITIALIZED", "info");
+    log("NEON_PROTOCOL_V3.0_ONLINE", "info");
+    loop();
+
+</script>
+</body>
+</html>

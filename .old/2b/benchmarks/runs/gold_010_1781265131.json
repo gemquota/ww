@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_010",
+  "task_name": "Math - Direct Response",
+  "prompt": "What is 123 + 456?",
+  "success_criteria": "The agent should answer directly without using tools if possible, or use a tool if it prefers.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.04302859306335449,
+  "status": "FAILURE"
+}

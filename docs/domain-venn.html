@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WW Bridge — Domain Visualizations</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+#topbar{background:#161b22;border-bottom:1px solid #30363d;padding:6px 14px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#topbar .brand{color:#58a6ff;font-weight:700;font-size:13px;margin-right:6px}
+#topbar .tab{background:transparent;border:1px solid #30363d;color:#8b949e;padding:3px 12px;border-radius:16px;cursor:pointer;font-size:10px;white-space:nowrap}
+#topbar .tab:hover{background:#21262d;color:#c9d1d9}
+#topbar .tab.active{background:#1f6feb44;border-color:#1f6feb;color:#58a6ff;font-weight:600}
+#topbar .spacer{flex:1}
+#views{position:relative}
+.view{display:none;padding:16px}
+.view.active{display:block}
+.view h2{color:#f0f6fc;font-size:18px;font-weight:600;margin-bottom:4px}
+.view .sub{color:#8b949e;font-size:12px;margin-bottom:16px}
+.venn-container{display:flex;flex-wrap:wrap;gap:24px;justify-content:center}
+.venn-group{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;width:380px}
+.venn-group h3{color:#58a6ff;font-size:13px;margin-bottom:8px;text-align:center}
+.venn-canvas{position:relative;width:100%;height:260px;margin:0 auto}
+.vc{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9px;font-weight:600;border:2px solid;transition:all .2s;cursor:pointer}
+.vc:hover{transform:scale(1.1);z-index:100;border-width:3px}
+.vc .nm{pointer-events:none;text-shadow:0 1px 3px #000;line-height:1.2}
+.vc .ct{font-size:7px;opacity:.7;pointer-events:none;text-shadow:0 1px 3px #000}
+
+/* 2D Space */
+#space-container{position:relative;width:100%;max-width:960px;height:600px;margin:0 auto;border:1px solid #30363d;border-radius:12px;background:#161b22;overflow:hidden}
+#space-container .axis-label{position:absolute;color:#484f58;font-size:10px;font-weight:600}
+.space-dot{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8px;font-weight:600;border:2px solid;transform:translate(-50%,-50%);transition:all .2s;cursor:pointer;padding:2px;line-height:1.2}
+.space-dot:hover{transform:translate(-50%,-50%) scale(1.2);z-index:100;border-width:3px}
+.space-dot .nm{pointer-events:none;text-shadow:0 1px 4px #000;font-size:8px}
+.space-dot .ct{font-size:6px;opacity:.7;pointer-events:none;text-shadow:0 1px 4px #000}
+
+/* Spectrum */
+#spectrum{position:relative;width:100%;max-width:960px;height:180px;margin:16px auto;border-radius:12px;overflow:hidden}
+#spectrum-bar{width:100%;height:60px;background:linear-gradient(to right,#8b00ff,#0044ff,#00ccff,#00ff88,#ffee00,#ff8800,#ff2200);border-radius:8px;margin-bottom:4px}
+.spectrum-item{position:absolute;display:flex;flex-direction:column;align-items:center;text-align:center;font-size:8px;font-weight:600;cursor:pointer;transition:all .2s}
+.spectrum-item:hover{transform:scale(1.15)}
+.spectrum-item .nm{color:#f0f6fc;text-shadow:0 1px 3px #000;pointer-events:none}
+.spectrum-item .cn{color:#8b949e;font-size:7px;pointer-events:none}
+
+/* Tooltip */
+#tip{position:fixed;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:10px 12px;z-index:999;display:none;max-width:280px;box-shadow:0 8px 24px #000a;pointer-events:none;font-size:11px}
+#tip .ttl{color:#58a6ff;font-weight:600;font-size:12px}
+#tip .bd{color:#c9d1d9;margin-top:3px;line-height:1.4}
+#tip .fl{color:#8b949e;margin-top:4px;font-size:9px}
+#tip .fl span{color:#58a6ff}
+
+/* Sunburst */
+#sunburst{position:relative;width:100%;max-width:700px;height:700px;margin:0 auto}
+.sb-ring{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden}
+.sb-seg{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8px;font-weight:600;border:1px solid #fff2;cursor:pointer;transition:all .2s}
+.sb-seg:hover{filter:brightness(1.2);z-index:100}
+.sb-seg .nm{pointer-events:none;text-shadow:0 1px 3px #000;line-height:1.2}
+
+/* Grid */
+#grid-container{position:relative;width:100%;max-width:960px;height:240px;margin:0 auto}
+.grid-cell{position:absolute;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:all .2s;border:1px solid #fff2;padding:4px}
+.grid-cell:hover{transform:scale(1.05);z-index:100;border-color:#58a6ff}
+.grid-cell .nm{font-weight:600;font-size:9px;pointer-events:none;text-shadow:0 1px 3px #000}
+.grid-cell .ct{font-size:7px;opacity:.7;pointer-events:none}
+
+@media(max-width:700px){.venn-group{width:100%}#space-container{height:400px}}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+<span class="brand">&#9889; WW Domains</span>
+<button class="tab active" data-view="super">Super-Groups</button>
+<button class="tab" data-view="space">2D Space</button>
+<button class="tab" data-view="spectrum">Spectrum</button>
+<button class="tab" data-view="sunburst">Sunburst</button>
+<button class="tab" data-view="grid">Grid</button>
+<button class="tab" data-view="graph">Graph</button>
+<span class="spacer"></span>
+</div>
+<div id="tip"></div>
+
+<div id="views">
+
+<div class="view active" id="v-super">
+<h2>Super-Domain Groups</h2>
+<div class="sub">11 domains organized into 3 super-domains, each with their own Venn diagram showing overlapping focus areas.</div>
+<div class="venn-container" id="super-container"></div>
+</div>
+
+<div class="view" id="v-space">
+<h2>2D Space — Technical Depth vs User Proximity</h2>
+<div class="sub">X-axis: Low-level infrastructure (left) to High-level abstraction (right). Y-axis: Developer-facing (bottom) to End-user-facing (top).</div>
+<div id="space-container">
+<div class="axis-label" style="left:50%;bottom:4px;transform:translateX(-50%)">Low-level &#8594; High-level</div>
+<div class="axis-label" style="top:50%;left:6px;transform:translateY(-50%)rotate(-90deg);transform-origin:left center">Developer &#8594; End User</div>
+</div>
+</div>
+
+<div class="view" id="v-spectrum">
+<h2>Electromagnetic Spectrum</h2>
+<div class="sub">Domains mapped to the EM spectrum: gamma (foundational, high-energy) to radio (broad reach, low energy).</div>
+<div id="spectrum"></div>
+</div>
+
+<div class="view" id="v-sunburst">
+<h2>Radial Hierarchy</h2>
+<div class="sub">Inner ring: 3 super-domains. Outer ring: 11 domains. Size = character count.</div>
+<div id="sunburst"></div>
+</div>
+
+<div class="view" id="v-grid">
+<h2>2D Grid — Internal vs External &times; Code vs People</h2>
+<div class="sub">X-axis: Code-facing (left) to People-facing (right). Y-axis: Internal quality (bottom) to External delivery (top).</div>
+<div id="grid-container"></div>
+</div>
+
+<div class="view" id="v-graph">
+<h2>Domain Relationship Graph</h2>
+<div class="sub">Connected domains share focus areas. Edge thickness = number of shared concerns.</div>
+<div id="graph-container" style="width:100%;max-width:960px;height:500px;margin:0 auto;background:#161b22;border:1px solid #30363d;border-radius:12px;position:relative"></div>
+</div>
+
+</div>
+
+<script>
+var DOMAINS = [
+  {id:"sec",name:"Security &\nTrust",short:"Security",count:4,color:"#ff7b72",super:"foundation",
+   focus:["Credential mgmt","Attack surface","Sandbox integrity","Audit trail","Supply chain","Plugin privilege","Template trust"]},
+  {id:"arch",name:"Architecture &\nModularity",short:"Architecture",count:4,color:"#d29922",super:"foundation",
+   focus:["Modularity","Dependency mgmt","Abstraction boundaries","Scalability","Tech debt","ADRs","Fitness functions"]},
+  {id:"memory",name:"Memory &\nStorage",short:"Memory",count:4,color:"#7ee787",super:"foundation",
+   focus:["Memory tiering","SQLite schema","WAL tuning","Backup/restore","Crash recovery","Cache invalidation","Durability"]},
+  {id:"perf",name:"Performance &\nEfficiency",short:"Performance",count:4,color:"#db6d28",super:"foundation",
+   focus:["Async patterns","Memory efficiency","Hot-paths","Startup time","Token counting","SQLite contention","I/O profiling"]},
+  {id:"reliability",name:"Reliability &\nOperations",short:"Reliability",count:4,color:"#f78166",super:"quality",
+   focus:["Error recovery","Observability","Graceful degradation","Failure modes","Incident response","Runbooks","Chaos engineering"]},
+  {id:"ai",name:"AI/Agent\nQuality",short:"AI Quality",count:4,color:"#58a6ff",super:"quality",
+   focus:["Agent reasoning","Prompt architecture","Hallucination rates","Chain-of-thought","LLM evaluation","Safety","Multi-agent"]},
+  {id:"codegen",name:"Code\nGeneration",short:"Code Gen",count:4,color:"#e3b341",super:"quality",
+   focus:["Code gen quality","Tool protocol","AST analysis","Semantics preservation","LSP integration","Static analysis","Quality gates"]},
+  {id:"dx",name:"Developer\nExperience",short:"DevEx",count:4,color:"#3fb950",super:"experience",
+   focus:["Onboarding","Code quality","Test coverage","Docs","API docs","Workflow","Config","Introspection"]},
+  {id:"ux",name:"User Experience\n& Design",short:"UX",count:4,color:"#56d4dd",super:"experience",
+   focus:["Terminal UX","Feedback loops","Error communication","Trust calibration","Mental models","Interruptibility","Visual hierarchy"]},
+  {id:"product",name:"Product &\nMarket",short:"Product",count:4,color:"#a371f7",super:"experience",
+   focus:["Feature completeness","Adoption barriers","Competitive moat","TAM/SAM/SOM","Time-to-success","Activation","Retention"]},
+  {id:"ecosystem",name:"Ecosystem &\nPlatform",short:"Ecosystem",count:4,color:"#ff7b72",super:"experience",
+   focus:["Plugin marketplace","Contribution pathways","Capability registry","Extension lifecycle","API versioning","Rate limiting","Tenants"]},
+];
+
+var COLORS = {foundation:"#58a6ff",quality:"#3fb950",experience:"#a371f7"};
+var SUPER = {foundation:"Technical Foundation",quality:"Quality & Reliability",experience:"Experience & Ecosystem"};
+
+function tipShow(el,d){
+  var t=document.getElementById('tip');
+  t.innerHTML='<div class="ttl">'+d.short+'</div><div class="bd">'+d.count+' characters</div><div class="fl"><span>Focus:</span> '+d.focus.join(', ')+'</div>';
+  t.style.display='block';
+}
+function tipMove(e){var t=document.getElementById('tip'),x=e.clientX+14,y=e.clientY+14;if(x+280>window.innerWidth)x=e.clientX-280;t.style.left=x+'px';t.style.top=y+'px';}
+function tipHide(){document.getElementById('tip').style.display='none';}
+
+// ── VIEW 1: SUPER-GROUP VENNS ──────────────────────────────────
+function buildSuper(){
+  var c=document.getElementById('super-container');
+  c.innerHTML='';
+  Object.keys(SUPER).forEach(function(key){
+    var domains=DOMAINS.filter(function(d){return d.super===key;});
+    var html='<div class="venn-group"><h3 style="color:'+COLORS[key]+'">'+SUPER[key]+' ('+domains.length+' domains)</h3><div class="venn-canvas">';
+    // Calculate positions
+    var centerX=190,centerY=130,r=100,startAngle=-90;
+    var angleStep=360/domains.length;
+    domains.forEach(function(d,i){
+      var angle=(startAngle+i*angleStep)*Math.PI/180;
+      var x=centerX+Math.cos(angle)*r-55;
+      var y=centerY+Math.sin(angle)*r*0.7-50;
+      html+='<div class="vc" style="left:'+x+'px;top:'+y+'px;width:110px;height:100px;background:'+d.color+'22;border-color:'+d.color+';z-index:'+(10-i)+'" onmouseenter="tipShow(event,'+JSON.stringify(d).replace(/"/g,"'")+')" onmousemove="tipMove(event)" onmouseleave="tipHide()"><div><div class="nm">'+d.short+'</div><div class="ct">'+d.count+' chars</div></div></div>';
+    });
+    // Add overlap areas
+    for(var i=0;i<domains.length;i++){
+      for(var j=i+1;j<domains.length;j++){
+        var a1=(startAngle+i*angleStep)*Math.PI/180;
+        var a2=(startAngle+j*angleStep)*Math.PI/180;
+        var mx=(Math.cos(a1)+Math.cos(a2))/2*r+centerX-35;
+        var my=(Math.sin(a1)+Math.sin(a2))/2*r*0.7+centerY-25;
+        html+='<div style="position:absolute;left:'+mx+'px;top:'+my+'px;width:70px;height:50px;border-radius:50%;background:'+domains[i].color+'11;pointer-events:none;z-index:1"></div>';
+      }
+    }
+    html+='</div></div>';
+    c.innerHTML+=html;
+  });
+}
+
+// ── VIEW 2: 2D SPACE ───────────────────────────────────────────
+function buildSpace(){
+  var cont=document.getElementById('space-container');
+  // X: technical depth (0=low-level infrastructure, 100=high-level abstraction)
+  // Y: user proximity (0=developer/dev-facing, 100=end-user-facing)
+  var positions={
+    sec:{x:12,y:25}, arch:{x:18,y:18}, memory:{x:30,y:20}, perf:{x:35,y:30},
+    reliability:{x:50,y:35}, ai:{x:55,y:55}, codegen:{x:65,y:40},
+    dx:{x:70,y:15}, ux:{x:85,y:75}, product:{x:78,y:82}, ecosystem:{x:90,y:60}
+  };
+  var w=cont.offsetWidth||940,h=cont.offsetHeight||600;
+  Object.keys(positions).forEach(function(id){
+    var d=DOMAINS.find(function(x){return x.id===id;});if(!d)return;
+    var p=positions[id];
+    var x=p.x/100*w,y=p.y/100*h;
+    var el=document.createElement('div');el.className='space-dot';
+    var r=50+d.count*3;
+    el.style.cssText='left:'+x+'px;top:'+y+'px;width:'+r+'px;height:'+r+'px;background:'+d.color+'33;border-color:'+d.color;
+    el.innerHTML='<div><div class="nm">'+d.short+'</div><div class="ct">'+d.count+'</div></div>';
+    el.addEventListener('mouseenter',function(e){tipShow(e,d);});
+    el.addEventListener('mousemove',tipMove);
+    el.addEventListener('mouseleave',tipHide);
+    cont.appendChild(el);
+  });
+  // Grid lines
+  for(var i=1;i<=4;i++){
+    var l=document.createElement('div');
+    l.style.cssText='position:absolute;left:'+(i*20)+'%;top:0;width:1px;height:100%;background:#30363d22;pointer-events:none;z-index:0';
+    cont.appendChild(l);
+  }
+  for(var i=1;i<=4;i++){
+    var l=document.createElement('div');
+    l.style.cssText='position:absolute;left:0;top:'+(i*20)+'%;width:100%;height:1px;background:#30363d22;pointer-events:none;z-index:0';
+    cont.appendChild(l);
+  }
+}
+
+// ── VIEW 3: SPECTRUM ──────────────────────────────────────────
+function buildSpectrum(){
+  var cont=document.getElementById('spectrum');
+  var bands=[
+    {start:0,end:9,label:"Gamma",color:"#8b00ff"},
+    {start:9,end:18,label:"X-ray",color:"#0044ff"},
+    {start:18,end:27,label:"UV",color:"#00ccff"},
+    {start:27,end:50,label:"Visible",color:"#00ff88"},
+    {start:50,end:66,label:"IR",color:"#ffee00"},
+    {start:66,end:82,label:"Microwave",color:"#ff8800"},
+    {start:82,end:100,label:"Radio",color:"#ff2200"},
+  ];
+  var domainPos={
+    sec:{pos:5,band:"Gamma"}, arch:{pos:14,band:"X-ray"}, memory:{pos:22,band:"UV"},
+    perf:{pos:30,band:"Visible"}, reliability:{pos:45,band:"Visible"},
+    ai:{pos:55,band:"IR"}, codegen:{pos:62,band:"IR"},
+    dx:{pos:72,band:"Microwave"}, ux:{pos:78,band:"Microwave"},
+    product:{pos:88,band:"Radio"}, ecosystem:{pos:95,band:"Radio"}
+  };
+  var html='<div id="spectrum-bar"></div><div style="position:relative;height:100px">';
+  // Band labels
+  bands.forEach(function(b){
+    html+='<div style="position:absolute;left:'+b.start+'%;top:64px;font-size:7px;color:#484f58">'+b.label+'</div>';
+  });
+  Object.keys(domainPos).forEach(function(id){
+    var d=DOMAINS.find(function(x){return x.id===id;});if(!d)return;
+    var p=domainPos[id];
+    var left=p.pos-6;
+    html+='<div class="spectrum-item" style="left:'+left+'%;top:0;width:12%" onmouseenter="tipShow(event,'+JSON.stringify(d).replace(/"/g,"'")+')" onmousemove="tipMove(event)" onmouseleave="tipHide()"><div class="nm">'+d.short+'</div><div class="cn">'+d.count+' chars</div></div>';
+  });
+  html+='</div>';
+  cont.innerHTML=html;
+}
+
+// ── VIEW 4: SUNBURST ──────────────────────────────────────────
+function buildSunburst(){
+  var cont=document.getElementById('sunburst');
+  var supers={foundation:{color:COLORS.foundation,label:"Technical Foundation"},quality:{color:COLORS.quality,label:"Quality & Reliability"},experience:{color:COLORS.experience,label:"Experience & Ecosystem"}};
+  var html='';
+  // Super group rings
+  var superKeys=Object.keys(supers);
+  var total=superKeys.length;
+  // Inner circle: super groups
+  var cx=350,cy=350,innerR=100,outerR=260;
+  superKeys.forEach(function(key,i){
+    var domains=DOMAINS.filter(function(d){return d.super===key;});
+    var segAngle=360/total;
+    var startAngle=i*segAngle-90;
+    // Draw arc for super group
+    var r1=innerR,r2=outerR;
+    // Use positioned divs for each domain
+    var angleStep=segAngle/domains.length;
+    domains.forEach(function(d,j){
+      var a=(startAngle+j*angleStep)*Math.PI/180;
+      var aEnd=(startAngle+(j+1)*angleStep)*Math.PI/180;
+      var midAngle=(a+aEnd)/2;
+      var x=cx+Math.cos(midAngle)*((r1+r2)/2)-35;
+      var y=cy+Math.sin(midAngle)*((r1+r2)/2)-35;
+      html+='<div class="sb-seg" style="left:'+x+'px;top:'+y+'px;width:80px;height:70px;background:'+d.color+'44;border-color:'+d.color+';z-index:'+(10-j)+'" onmouseenter="tipShow(event,'+JSON.stringify(d).replace(/"/g,"'")+')" onmousemove="tipMove(event)" onmouseleave="tipHide()"><div class="nm">'+d.short+'</div></div>';
+    });
+    // Super group label
+    var sMid=(startAngle+(total-1)*segAngle/2)*Math.PI/180;
+    var sx=cx+Math.cos(sMid)*innerR*0.5-30;
+    var sy=cy+Math.sin(sMid)*innerR*0.5-10;
+    html+='<div style="position:absolute;left:'+sx+'px;top:'+sy+'px;width:60px;text-align:center;font-size:7px;color:'+supers[key].color+';font-weight:600;pointer-events:none">'+supers[key].label+'</div>';
+  });
+  // Center
+  html+='<div style="position:absolute;left:'+(cx-40)+'px;top:'+(cy-40)+'px;width:80px;height:80px;border-radius:50%;background:#0d1117;border:2px solid #30363d;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9px;color:#58a6ff;font-weight:700;pointer-events:none;z-index:50"><div>11 Domains</div></div>';
+  cont.innerHTML=html;
+}
+
+// ── VIEW 5: GRID ──────────────────────────────────────────────
+function buildGrid(){
+  var cont=document.getElementById('grid-container');
+  var w=cont.offsetWidth||940;
+  // X: Code-facing -> People-facing (0-100)
+  // Y: Internal quality -> External delivery (0-100)
+  var cells=[
+    {id:"sec",x:10,y:15}, {id:"arch",x:8,y:10}, {id:"memory",x:15,y:25},
+    {id:"perf",x:22,y:20}, {id:"reliability",x:30,y:35}, {id:"ai",x:60,y:50},
+    {id:"codegen",x:45,y:40}, {id:"dx",x:70,y:12}, {id:"ux",x:85,y:65},
+    {id:"product",x:80,y:85}, {id:"ecosystem",x:90,y:75}
+  ];
+  cells.forEach(function(c){
+    var d=DOMAINS.find(function(x){return x.id===c.id;});if(!d)return;
+    var el=document.createElement('div');el.className='grid-cell';
+    var x=c.x/100*w,y=c.y/100*160;
+    el.style.cssText='left:'+x+'px;top:'+y+'px;width:80px;height:56px;background:'+d.color+'33;border-color:'+d.color;
+    el.innerHTML='<div class="nm">'+d.short+'</div><div class="ct">'+d.count+' chars</div>';
+    el.addEventListener('mouseenter',function(e){tipShow(e,d);});
+    el.addEventListener('mousemove',tipMove);
+    el.addEventListener('mouseleave',tipHide);
+    cont.appendChild(el);
+  });
+  // Grid lines
+  for(var i=1;i<=4;i++){
+    var l=document.createElement('div');
+    l.style.cssText='position:absolute;left:'+(i*20)+'%;top:0;width:1px;height:100%;background:#30363d22;pointer-events:none;z-index:0';
+    cont.appendChild(l);
+  }
+  for(var i=1;i<=4;i++){
+    var l=document.createElement('div');
+    l.style.cssText='position:absolute;left:0;top:'+(i*25)+'%;width:100%;height:1px;background:#30363d22;pointer-events:none;z-index:0';
+    cont.appendChild(l);
+  }
+}
+
+// ── VIEW 6: GRAPH ─────────────────────────────────────────────
+function buildGraph(){
+  var cont=document.getElementById('graph-container');
+  var w=cont.offsetWidth||940,h=cont.offsetHeight||500;
+  // Force-directed positions
+  var pos={
+    sec:{x:0.12,y:0.35}, arch:{x:0.15,y:0.15}, memory:{x:0.32,y:0.22}, perf:{x:0.28,y:0.40},
+    reliability:{x:0.45,y:0.30}, ai:{x:0.55,y:0.55}, codegen:{x:0.55,y:0.25},
+    dx:{x:0.72,y:0.12}, ux:{x:0.78,y:0.65}, product:{x:0.75,y:0.82}, ecosystem:{x:0.88,y:0.50}
+  };
+  // Edges between related domains
+  var edges=[
+    ["sec","arch"],["sec","ai"],["sec","reliability"],["arch","reliability"],["arch","ecosystem"],
+    ["memory","perf"],["memory","reliability"],["perf","reliability"],["ai","codegen"],["ai","ux"],
+    ["codegen","dx"],["dx","ux"],["dx","ecosystem"],["ux","product"],["product","ecosystem"],
+    ["sec","memory"],["arch","codegen"],["perf","dx"],["reliability","ux"],["ai","product"]
+  ];
+  
+  // Draw edges
+  edges.forEach(function(e){
+    var s=pos[e[0]],t=pos[e[1]];if(!s||!t)return;
+    var el=document.createElement('div');
+    var x1=s.x*w,y1=s.y*h,x2=t.x*w,y2=t.y*h;
+    var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    var angle=Math.atan2(dy,dx)*180/Math.PI;
+    el.style.cssText='position:absolute;left:'+x1+'px;top:'+(y1-0.5)+'px;width:'+len+'px;height:1px;background:#30363d55;transform:rotate('+angle+'deg);transform-origin:0 50%;z-index:1';
+    cont.appendChild(el);
+  });
+  
+  // Draw nodes
+  Object.keys(pos).forEach(function(id){
+    var d=DOMAINS.find(function(x){return x.id===id;});if(!d)return;
+    var p=pos[id];
+    var el=document.createElement('div');
+    el.className='space-dot';
+    var r=45+d.count*2,size=Math.sqrt(r)*10;
+    el.style.cssText='left:'+(p.x*w)+'px;top:'+(p.y*h)+'px;width:'+size+'px;height:'+size+'px;background:'+d.color+'44;border-color:'+d.color+';z-index:10';
+    el.innerHTML='<div><div class="nm">'+d.short.replace(/\n/g,' ')+'</div><div class="ct">'+d.count+'</div></div>';
+    el.addEventListener('mouseenter',function(e){tipShow(e,d);});
+    el.addEventListener('mousemove',tipMove);
+    el.addEventListener('mouseleave',tipHide);
+    cont.appendChild(el);
+  });
+}
+
+// ── VIEW SWITCHING ────────────────────────────────────────────
+var BUILDERS = {super:buildSuper,space:buildSpace,spectrum:buildSpectrum,sunburst:buildSunburst,grid:buildGrid,graph:buildGraph};
+var BUILT = {};
+
+function showView(name,btn){
+  if(btn){
+    document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+  }
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+  var v=document.getElementById('v-'+name);
+  if(v){v.classList.add('active');}
+  if(!BUILT[name]){
+    var fn=BUILDERS[name];
+    if(fn){fn();}
+    BUILT[name]=true;
+  }
+  // Reflow for space/grid on window resize
+  if(name==='space'||name==='grid'||name==='graph'){
+    setTimeout(function(){
+      var cont=document.getElementById(name==='space'?'space-container':name==='grid'?'grid-container':'graph-container');
+      if(cont&&cont.children.length===0&&BUILDERS[name]){BUILDERS[name]();}
+    },100);
+  }
+}
+
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.addEventListener('click',function(){showView(this.dataset.view,this);});
+});
+
+// Fix JSON escaping in HTML
+document.querySelectorAll('.vc,.spectrum-item,.sb-seg').forEach(function(el){
+  // Tooltip events already inline
+});
+
+showView('super',document.querySelector('.tab'));
+</script>
+</body>
+</html>

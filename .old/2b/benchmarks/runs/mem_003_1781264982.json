@@ -1,0 +1,20 @@
+{
+  "task_id": "mem_003",
+  "task_name": "Conflict Resolution",
+  "prompt": "When is the meeting?",
+  "success_criteria": "['4 PM']",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.010036945343017578,
+  "status": "FAILURE"
+}

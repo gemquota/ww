@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Environment
+.env
+
+# WW internal state
+.ww/
+.logs/
+
+# OS
+.DS_Store
+Thumbs.db

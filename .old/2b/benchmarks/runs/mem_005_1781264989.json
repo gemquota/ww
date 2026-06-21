@@ -1,0 +1,20 @@
+{
+  "task_id": "mem_005",
+  "task_name": "Complex Relationship Recall",
+  "prompt": "Who is Mary's brother and where does he live?",
+  "success_criteria": "['Paul', 'Paris']",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.012527227401733398,
+  "status": "FAILURE"
+}

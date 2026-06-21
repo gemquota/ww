@@ -1,0 +1,20 @@
+{
+  "task_id": "mem_001",
+  "task_name": "Fact Storage & Recall",
+  "prompt": "What is my secret code?",
+  "success_criteria": "['8822']",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.04309582710266113,
+  "status": "FAILURE"
+}

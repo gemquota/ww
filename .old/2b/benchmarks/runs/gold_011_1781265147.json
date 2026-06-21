@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_011",
+  "task_name": "Intent Routing - System",
+  "prompt": "Who am I logged in as?",
+  "success_criteria": "The agent should use shell_exec with 'whoami'.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.009625911712646484,
+  "status": "FAILURE"
+}

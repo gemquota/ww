@@ -1,0 +1,14 @@
+# Stale issue management — NEW-V6-C2#3 (Tomás Oliveira)
+daysUntilStale: 60
+daysUntilClose: 14
+staleLabel: stale
+markComment: >
+  This issue has been automatically marked as stale because it has not had
+  recent activity. It will be closed in 14 days if no further activity occurs.
+  If this is still relevant, please comment to keep it open.
+closeComment: false
+exemptLabels:
+  - pinned
+  - security
+  - good-first-issue
+  - epic

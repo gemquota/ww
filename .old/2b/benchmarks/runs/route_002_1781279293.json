@@ -1,0 +1,11 @@
+{
+  "task_id": "route_002",
+  "task_name": "Unnecessary Tool Prevention",
+  "prompt": "What is 2 + 2?",
+  "success_criteria": "",
+  "steps": [],
+  "final_answer": "Task timed out after 30s",
+  "total_steps": 0,
+  "duration": 68.22426557540894,
+  "status": "TIMEOUT"
+}

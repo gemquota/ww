@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Cytoscape Test</title>
+<script src="vendor/cytoscape.min.js"></script>
+<script src="vendor/cytoscape-dagre.js"></script>
+<style>
+body{background:#0d1117;color:#c9d1d9;font-family:sans-serif;margin:20px}
+#cy{width:800px;height:500px;background:#161b22;border:1px solid #30363d;border-radius:8px}
+#log{color:#8b949e;font-size:12px;margin-top:10px;white-space:pre-wrap;font-family:monospace}
+</style>
+</head>
+<body>
+<h3 style="color:#58a6ff">Cytoscape Test Page</h3>
+<div id="cy"></div>
+<div id="log">Loading...</div>
+<script>
+var log=document.getElementById('log');
+try{
+  var cy=cytoscape({
+    container:document.getElementById('cy'),
+    elements:[
+      {data:{id:'a',label:'Module A'}},
+      {data:{id:'b',label:'Module B'}},
+      {data:{id:'c',label:'Module C'}},
+      {data:{source:'a',target:'b'}},
+      {data:{source:'b',target:'c'}},
+      {data:{source:'c',target:'a'}},
+    ],
+    style:[
+      {selector:'node',style:{'background-color':'#58a6ff','color':'#fff','label':'data(label)','text-valign':'center','text-halign':'center','width':60,'height':60,'font-size':12}},
+      {selector:'edge',style:{'width':1,'line-color':'#30363d','target-arrow-color':'#30363d','target-arrow-shape':'triangle-backcurve'}},
+    ],
+    layout:{name:'dagre','rank-dir':'LR',padding:30},
+  });
+  log.textContent='OK: '+cy.nodes().length+' nodes, '+cy.edges().length+' edges';
+}catch(e){
+  log.textContent='ERROR: '+e.message;
+}
+</script>
+</body>
+</html>

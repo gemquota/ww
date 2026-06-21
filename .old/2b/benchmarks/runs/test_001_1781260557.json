@@ -1,0 +1,22 @@
+{
+  "task_id": "test_001",
+  "task_name": "Mock Task",
+  "prompt": "Hello",
+  "success_criteria": "['Mock']",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "Mock thought",
+      "tool_name": "read_file",
+      "tool_args": {
+        "path": "test"
+      },
+      "observation": null,
+      "error": null
+    }
+  ],
+  "final_answer": "Mock result",
+  "total_steps": 1,
+  "duration": 0.0009953975677490234,
+  "status": "SUCCESS"
+}

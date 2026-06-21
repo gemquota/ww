@@ -1,0 +1,31 @@
+# Code quality checks for generated/managed code — NEW-V5-E3#4 (Amir Hassan)
+name: Code Quality
+
+on:
+  push:
+    paths: ['src/**', '.tests/**']
+  pull_request:
+    paths: ['src/**']
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install
+        run: pip install -r requirements.txt && pip install ruff
+      - name: Ruff lint
+        run: ruff check --output-format=github .
+      - name: Ruff format check
+        run: ruff format --check . || echo "Fix formatting with: ruff format ."
+      - name: Compile all source
+        run: |
+          python -m py_compile src/gemini_bridge.py
+          for f in src/*.py src/bridge/*.py src/core/*.py src/tools/*.py src/utils/*.py; do
+            [ -f "$f" ] && python -m py_compile "$f" || true
+          done
+      - name: Test
+        run: python -m pytest .tests/ -q --tb=short

@@ -1,0 +1,20 @@
+{
+  "task_id": "gold_020",
+  "task_name": "Final Summary",
+  "prompt": "Summarize what you have done in this session so far.",
+  "success_criteria": "The agent should provide a coherent summary of the current session.",
+  "steps": [
+    {
+      "step_number": 1,
+      "thought": "",
+      "tool_name": null,
+      "tool_args": null,
+      "observation": null,
+      "error": "name 'ToolCall' is not defined"
+    }
+  ],
+  "final_answer": null,
+  "total_steps": 1,
+  "duration": 0.026108264923095703,
+  "status": "FAILURE"
+}

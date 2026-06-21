@@ -1,0 +1,36 @@
+# WW Bridge Configuration
+# Override any setting via environment variable with WW_ prefix.
+# Example: WW_VERBOSE=true, WW_GEMINI__TIMEOUT=60
+
+workspace: "."
+session: "default"
+verbose: false
+context_window: 128000
+policy: "on-request"
+max_file_size_kb: 512
+
+gemini:
+  timeout: 45
+  max_retries: 3
+  rate_limit_rpm: 10
+
+memory:
+  max_tier_a: 20
+  compress_threshold: 50
+  session_name: "default"
+  max_checkpoint_count: 20
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+  log_level: "info"
+
+plugins:
+  directory: "plugins"
+  auto_load: true
+
+execution:
+  max_concurrency: 8  # Max concurrent DAG tool executions (backpressure semaphore)
+
+logging:
+  level: "INFO"
