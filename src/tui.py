@@ -13,10 +13,10 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style as PtStyle
 from prompt_toolkit.key_binding import KeyBindings
 
-from src.context import BridgeContext
+from src.core.context import BridgeContext
 
 
-from src.ui_utils import get_compact_time
+from src.ui import get_compact_time
 
 
 def log_status(ctx: BridgeContext, emoji: str, title: str, detail: str = "") -> None:

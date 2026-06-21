@@ -15,7 +15,7 @@ import asyncio
 from pathlib import Path
 from typing import Callable, Dict, Optional, Set
 from loguru import logger
-from src._constants import BASE_IGNORE
+from src.constants import BASE_IGNORE
 
 
 class FileWatcher:

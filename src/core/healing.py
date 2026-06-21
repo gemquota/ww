@@ -8,7 +8,7 @@ Supports optional PCG (Procedural Causal Graph) data from the memory
 system to provide causal chain context in failure reports.
 """
 from typing import Optional, List, Dict, Any
-from src.utils.web_client import WebGeminiClient
+from src.core.utils.web_client import WebGeminiClient
 
 
 class AutoHealer:

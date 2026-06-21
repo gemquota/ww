@@ -16,38 +16,38 @@ from typing import Any, Dict, List, Optional
 from colorama import Fore, Style
 from loguru import logger
 
-from src.smart_context import read_file_surgical, get_directory_context
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.context import read_file_surgical, get_directory_context
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from typing import TYPE_CHECKING
 from src.tools.registry import ToolRegistry
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
-from src.permissions import PermissionManager, PermissionLevel, Sandbox
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.security import PermissionManager, PermissionLevel, Sandbox
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from src.diff_engine import DiffEngine
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from src.checkpoint import CheckpointManager
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
-from src.telemetry import TelemetryManager
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.observability import TelemetryManager
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
-from src.context_manager import ConversationHistory
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.context import ConversationHistory
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
-from src.utils.validation import format_error
-from src.bridge.decision_tracer import DecisionTracer
-from src.bridge.fault_injector import FaultInjector, should_fail
+from src.core.utils.validation import format_error
+from src.core.patterns.decision_tracer import DecisionTracer
+from src.core.patterns.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 
 def log_status(emoji: str, title: str, detail: str = "", telemetry: Optional[TelemetryManager] = None) -> None:
@@ -64,8 +64,8 @@ def log_status(emoji: str, title: str, detail: str = "", telemetry: Optional[Tel
 _DEFAULT_MAX_CONCURRENCY = 8  # DAG backpressure semaphore limit
 
 if TYPE_CHECKING:
-    from src.ui_adapter import UIAdapter
-    from src.context import BridgeContext
+    from src.ui import UIAdapter
+    from src.core.context import BridgeContext
 class ToolExecutor:
     """Parses and dispatches tool blocks with causal tracking."""
 

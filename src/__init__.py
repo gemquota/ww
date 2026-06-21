@@ -21,8 +21,8 @@ __description__ = "Gemini Multi-Agent Bridge — Frontier-grade agentic coding h
 from src.core.schemas import ToolCall
 from src.core.memory import MemoryManager, SessionDatabase, MemoryEvent
 from src.core.healing import AutoHealer
-from src.core.benchmarker import BenchmarkHarness, ExecutionTrace, BenchmarkResult
-from src.core.judge import BenchmarkJudge
+#
+#
 
 # Tools
 from src.tools.registry import ToolRegistry, ToolNode
@@ -32,18 +32,18 @@ from src.tools.system_tools import (
 )
 
 # Utils
-from src.utils.web_client import WebGeminiClient, get_web_client
-from src.utils.validation import extract_tool_call
+from src.core.utils.web_client import WebGeminiClient, get_web_client
+from src.core.utils.validation import extract_tool_call
 
 # Config
 from src.config import Settings, get_settings, reload_settings
 
 # Context
-from src.context_manager import ConversationHistory, TokenCounter, RepoMapper
-from src.smart_context import get_workspace_context, read_file_surgical
+from src.core.context import ConversationHistory, TokenCounter, RepoMapper
+from src.core.context import get_workspace_context, read_file_surgical
 
 # Security
-from src.permissions import PermissionManager, ApprovalPolicy, Sandbox
+from src.security import PermissionManager, ApprovalPolicy, Sandbox
 
 # Editing
 from src.diff_engine import DiffEngine
@@ -55,12 +55,11 @@ from src.checkpoint import CheckpointManager
 from src.agents_loader import load_all_instructions
 
 # Telemetry
-from src.telemetry import TelemetryManager
+from src.observability import TelemetryManager
 
 __all__ = [
     "ToolCall", "MemoryManager", "SessionDatabase", "MemoryEvent",
-    "AutoHealer", "BenchmarkHarness", "ExecutionTrace", "BenchmarkResult",
-    "BenchmarkJudge",
+    "AutoHealer",
     "ToolRegistry", "ToolNode",
     "read_file", "write_file", "list_dir", "shell_exec", "git_tool",
     "doc_search", "request_clarification", "code_search", "file_patch", "url_fetch",

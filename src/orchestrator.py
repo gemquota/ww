@@ -22,9 +22,9 @@ from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
 from gemini_webapi import GeminiClient
-from src.smart_context import get_workspace_context, read_file_surgical, get_directory_context
-from src.context_manager import ConversationHistory, RepoMapper, TokenCounter
-from src.permissions import PermissionManager, ApprovalPolicy, PermissionLevel
+from src.core.context import get_workspace_context, read_file_surgical, get_directory_context
+from src.core.context import ConversationHistory, RepoMapper, TokenCounter
+from src.security import PermissionManager, ApprovalPolicy, PermissionLevel
 from src.diff_engine import DiffEngine
 from src.checkpoint import CheckpointManager
 from src.agents_loader import load_all_instructions
@@ -71,14 +71,14 @@ class TaskDecomposer:
 # Also add --theme CLI argument
 
 from src.file_watcher import FileWatcher
-from src.telemetry import TelemetryManager
+from src.observability import TelemetryManager
 from src.core.memory import MemoryManager
 from src.core.healing import AutoHealer
 from src.core.schemas import ToolCall
-from src.bridge.event_bus import EventBus, EventType
-from src.bridge.profile_manifest import AgentProfileManifest
-from src.utils.error_translator import ErrorTranslator
-from src.utils.deprecation import DeprecationReporter
+from src.core.patterns.event_bus import EventBus, EventType
+from src.core.patterns.profile_manifest import AgentProfileManifest
+from src.core.utils.error_translator import ErrorTranslator
+from src.core.utils.deprecation import DeprecationReporter
 from src.tools.registry import ToolRegistry
 from src.tools.system_tools import (
     read_file, list_dir, write_file, shell_exec, git_tool,
@@ -89,9 +89,9 @@ from src.tools.system_tools import (
     CodeSearchArgs, FilePatchArgs, UrlFetchArgs
 )
 # WebGeminiClient loaded via _lazy_import()
-from src.utils.validation import extract_tool_call
+from src.core.utils.validation import extract_tool_call
 from src.commands import COMMAND_TABLE
-from src.context import BridgeContext
+from src.core.context import BridgeContext
 from src.config import get_settings
 
 
@@ -147,7 +147,7 @@ tool_registry.register("url_fetch", url_fetch, "Fetch a URL via HTTP GET with co
 # Set workspace root for sandboxed tool operations
 from src.tools.system_tools import set_workspace_root as _set_tools_root
 _set_tools_root(WORKSPACE_ROOT)
-from src.tool_executor import ToolExecutor, log_status as te_log_status
+from src.executor import ToolExecutor, log_status as te_log_status
 
 
 tool_defs = tool_registry.get_definitions(minimalist=True)
@@ -221,7 +221,7 @@ async def _cleanup_and_exit():
     print(f"  {Fore.GREEN}✓ Shutdown complete.{Style.RESET_ALL}")
     sys.exit(0)
 
-from src.ui_utils import get_compact_time
+from src.ui import get_compact_time
 
 def log_status(emoji: str, title: str, detail: str = "") -> None:
     """Thin wrapper delegating to tool_executor's log_status."""
@@ -950,7 +950,7 @@ async def main():
         except KeyboardInterrupt: continue
         except EOFError: break
         except Exception as e:
-            from src.utils.validation import format_error
+            from src.core.utils.validation import format_error
             formatted = format_error(e, verbose=VERBOSE_MODE)
             for line in formatted.split("\n"):
                 print(f"  {Fore.RED}{line.strip()}{Style.RESET_ALL}")

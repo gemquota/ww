@@ -34,7 +34,7 @@ class WWClient:
         self._chat = None
     
     async def __aenter__(self) -> "WWClient":
-        from src.utils.web_client import WebGeminiClient
+        from src.core.utils.web_client import WebGeminiClient
         import os
         os.environ.setdefault("SECURE_1PSID", self.secure_1psid)
         os.environ.setdefault("SECURE_1PSIDTS", self.secure_1psidts)
