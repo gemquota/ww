@@ -1,67 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>WW Bridge — Post-Refactor Architecture (43 modules)</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WW Bridge — Full Architecture Suite</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;height:100vh;overflow:hidden}
-#cy{width:100%;height:calc(100% - 36px);margin-top:36px}
-#topbar{position:fixed;top:0;left:0;right:0;z-index:20;background:#161b22;border-bottom:1px solid #30363d;padding:4px 10px;display:flex;align-items:center;gap:3px;min-height:36px;flex-wrap:wrap}
-#topbar .brand{color:#58a6ff;font-weight:700;font-size:10px;margin-right:4px}
-#topbar .tab{background:transparent;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:10px;cursor:pointer;font-size:8px}
-#topbar .tab:hover{background:#21262d;color:#c9d1d9}
+#cy{width:100%;height:calc(100% - 38px);margin-top:38px}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:20;background:#161b22;border-bottom:1px solid #30363d;padding:3px 8px;display:flex;align-items:center;gap:2px;min-height:38px;flex-wrap:wrap}
+#topbar .brand{color:#58a6ff;font-weight:700;font-size:10px;margin-right:4px;white-space:nowrap}
+#topbar .tab{background:transparent;border:1px solid #30363d;color:#8b949e;padding:2px 7px;border-radius:10px;cursor:pointer;font-size:7px;white-space:nowrap}
+#topbar .tab:hover{background:#21262d}
 #topbar .tab.active{background:#1f6feb44;border-color:#1f6feb;color:#58a6ff;font-weight:600}
+#topbar .tab.small{padding:2px 5px;font-size:6px;border-style:dashed;color:#484f58}
 #topbar .spacer{flex:1}
-#mode-label{font-size:8px;color:#484f58;padding:2px 6px;background:#0d1117;border-radius:8px}
-#legend{position:fixed;bottom:8px;left:8px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 8px;font-size:8px;min-width:150px;max-height:160px;overflow-y:auto}
-#legend .tl{color:#8b949e;font-weight:600;margin-bottom:2px;font-size:7px;text-transform:uppercase}
-#legend .row{display:flex;align-items:center;gap:3px;margin:1px 0;font-size:7px;color:#8b949e}
-#legend .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-#status{position:fixed;bottom:8px;right:8px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:3px;padding:2px 5px;font-size:7px;color:#484f58}
+#mode-label{font-size:7px;color:#484f58;padding:2px 5px;background:#0d1117;border-radius:8px;white-space:nowrap}
+#legend{position:fixed;bottom:6px;left:6px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:5px;padding:4px 6px;font-size:7px;min-width:130px;max-height:140px;overflow-y:auto}
+#legend .tl{color:#8b949e;font-weight:600;margin-bottom:1px;font-size:6px;text-transform:uppercase}
+#legend .row{display:flex;align-items:center;gap:2px;margin:1px 0;font-size:6px;color:#8b949e}
+#legend .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+#status{position:fixed;bottom:6px;right:6px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:3px;padding:2px 4px;font-size:6px;color:#484f58}
+#info{position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:15;background:#1c2333;border:1px solid #30363d;border-radius:6px;padding:4px 10px;font-size:9px;color:#8b949e;display:none;pointer-events:none}
+#info.show{display:block}
 </style>
 </head>
 <body>
 <div id="topbar">
 <span class="brand">&#9889;WW</span>
-<button class="tab active" data-layout="overview">&#9632; Overview</button>
-<button class="tab" data-layout="modules">&#9678; Modules</button>
-<button class="tab" data-layout="hubs">&#9679; Hubs</button>
-<button class="tab" data-layout="tiers">&#8595; Tiers</button>
-<button class="tab" data-layout="circle">&#9711; Circle</button>
+<button class="tab active" data-view="overview">&#9632; Overview</button>
+<button class="tab" data-view="modules">&#9678; Modules</button>
+<button class="tab" data-view="pipeline">&#8594; Pipeline</button>
+<button class="tab" data-view="state">&#9881; State Machine</button>
+<button class="tab" data-view="hubs">&#9679; Hubs</button>
+<button class="tab" data-view="tiers">&#8595; Tiers</button>
+<button class="tab" data-view="circle">&#9711; Circle</button>
 <span class="spacer"></span>
-<span id="mode-label">43 modules in 10 groups</span>
+<span id="mode-label">43 mods | 10 grps | 62 edges</span>
 </div>
 <div id="cy"></div>
+<div id="info">Click group to drill down &#8226; Hover highlights connections</div>
 <div id="legend"></div>
-<div id="status">loading...</div>
+<div id="status">ready</div>
 <script>
-var MODS = [{"id": "agents_loader", "path": "agents_loader", "file": "agents_loader.py", "group": "root", "desc": "AGENTS.md Hierarchical Instruction Loader.", "lines": 212}, {"id": "checkpoint", "path": "checkpoint", "file": "checkpoint.py", "group": "core", "desc": "Git Checkpoint & State Reversion System.", "lines": 261}, {"id": "commands", "path": "commands", "file": "commands.py", "group": "root", "desc": "CLI commands \u2014 /docs, /help, /salvage, etc.", "lines": 106}, {"id": "config", "path": "config", "file": "config.py", "group": "root", "desc": "WW Bridge \u2014 Configuration Management", "lines": 190}, {"id": "constants", "path": "constants", "file": "constants.py", "group": "root", "desc": "Shared constants for WW Bridge.", "lines": 32}, {"id": "core", "path": "core", "file": "__init__.py", "group": "root", "desc": "", "lines": 6}, {"id": "core_backpressure", "path": "core.backpressure", "file": "backpressure.py", "group": "core", "desc": "Backpressure and resource fairness system.", "lines": 67}, {"id": "core_cache_manager", "path": "core.cache_manager", "file": "cache_manager.py", "group": "core", "desc": "Cache invalidation and management for MemoryManager \u2014 NEW-D2#1 (Daniel Park).", "lines": 358}, {"id": "core_context", "path": "core.context", "file": "context.py", "group": "core", "desc": "BridgeContext \u2014 centralized state container for the WW Bridge.", "lines": 693}, {"id": "core_healing", "path": "core.healing", "file": "healing.py", "group": "core", "desc": "Auto-healing system: escalates failures to Gemini Web API for diagnosis.", "lines": 200}, {"id": "core_memory", "path": "core.memory", "file": "memory.py", "group": "core", "desc": "Multi-tier memory system with SQLite persistence.", "lines": 703}, {"id": "core_patterns", "path": "core.patterns", "file": "__init__.py", "group": "bridge", "desc": "", "lines": 13}, {"id": "core_patterns_capability_registry", "path": "core.patterns.capability_registry", "file": "capability_registry.py", "group": "bridge", "desc": "Capability-centric tool registry.", "lines": 76}, {"id": "core_patterns_causal_graph", "path": "core.patterns.causal_graph", "file": "causal_graph.py", "group": "bridge", "desc": "Causal Event Graph \u2014 parent/child event linking with SQLite persistence.", "lines": 254}, {"id": "core_patterns_decision_tracer", "path": "core.patterns.decision_tracer", "file": "decision_tracer.py", "group": "bridge", "desc": "Decision tracing \u2014 captures why the agent made specific choices.", "lines": 122}, {"id": "core_patterns_event_bus", "path": "core.patterns.event_bus", "file": "event_bus.py", "group": "bridge", "desc": "Simple event bus for decoupled communication between components.", "lines": 95}, {"id": "core_patterns_fault_injector", "path": "core.patterns.fault_injector", "file": "fault_injector.py", "group": "bridge", "desc": "Fault injection framework for testing failure recovery.", "lines": 67}, {"id": "core_patterns_profile_manifest", "path": "core.patterns.profile_manifest", "file": "profile_manifest.py", "group": "bridge", "desc": "Agent Profile Manifest \u2014 captures agent configuration for reproducibility.", "lines": 74}, {"id": "core_schemas", "path": "core.schemas", "file": "schemas.py", "group": "core", "desc": "", "lines": 9}, {"id": "core_theme", "path": "core.theme", "file": "theme.py", "group": "core", "desc": "", "lines": 60}, {"id": "core_utils_deprecation", "path": "core.utils.deprecation", "file": "deprecation.py", "group": "utils", "desc": "Deprecation policy utilities for internal APIs.", "lines": 77}, {"id": "core_utils_error_translator", "path": "core.utils.error_translator", "file": "error_translator.py", "group": "utils", "desc": "Error translation layer: maps internal exceptions to user-facing messages.", "lines": 61}, {"id": "core_utils_validation", "path": "core.utils.validation", "file": "validation.py", "group": "utils", "desc": "Tool call extraction and validation utilities.", "lines": 221}, {"id": "core_utils_web_client", "path": "core.utils.web_client", "file": "web_client.py", "group": "utils", "desc": "", "lines": 384}, {"id": "demo_conversation", "path": "demo.conversation", "file": "conversation.py", "group": "demo", "desc": "", "lines": 65}, {"id": "diff_engine", "path": "diff_engine", "file": "diff_engine.py", "group": "core", "desc": "SEARCH/REPLACE block parsing and validation and diff engine.", "lines": 304}, {"id": "executor", "path": "executor", "file": "executor.py", "group": "core", "desc": "Tool Executor \u2014 extracted from gemini_bridge.py for modularity.", "lines": 666}, {"id": "file_watcher", "path": "file_watcher", "file": "file_watcher.py", "group": "core", "desc": "File Watcher \u2014 lightweight polling-based workspace change monitor.", "lines": 161}, {"id": "gfx_mascot_tui", "path": "gfx.mascot_tui", "file": "mascot_tui.py", "group": "gfx", "desc": "", "lines": 256}, {"id": "observability", "path": "observability", "file": "observability.py", "group": "observability", "desc": "", "lines": 834}, {"id": "orchestrator", "path": "orchestrator", "file": "orchestrator.py", "group": "core", "desc": "WW Neural Bridge - Frontier-Grade CLI Harness for Gemini Multi-Agent System.", "lines": 1056}, {"id": "plugins", "path": "plugins", "file": "__init__.py", "group": "root", "desc": "", "lines": 6}, {"id": "plugins_ww_plugin", "path": "plugins.ww_plugin", "file": "ww_plugin.py", "group": "plugins", "desc": "WW Plugin System \u2014 base interface and scanner.", "lines": 227}, {"id": "profiler", "path": "profiler", "file": "profiler.py", "group": "observability", "desc": "Simple hot-path profiler with context manager decorator.", "lines": 95}, {"id": "prompt_templates", "path": "prompt_templates", "file": "prompt_templates.py", "group": "core", "desc": "Versioned Prompt Template System.", "lines": 288}, {"id": "security", "path": "security", "file": "security.py", "group": "security", "desc": "Permission & Approval System for Tool Execution.", "lines": 220}, {"id": "tools", "path": "tools", "file": "__init__.py", "group": "root", "desc": "", "lines": 12}, {"id": "tools_registry", "path": "tools.registry", "file": "registry.py", "group": "tools", "desc": "", "lines": 178}, {"id": "tools_system_tools", "path": "tools.system_tools", "file": "system_tools.py", "group": "tools", "desc": "Tool implementations.", "lines": 492}, {"id": "tui", "path": "tui", "file": "tui.py", "group": "root", "desc": "", "lines": 122}, {"id": "tutorial", "path": "tutorial", "file": "tutorial.py", "group": "root", "desc": "Interactive tutorial mode for onboarding.", "lines": 113}, {"id": "ui", "path": "ui", "file": "ui.py", "group": "root", "desc": "UIAdapter Protocol \u2014 Decouples UI from business logic.", "lines": 490}, {"id": "ww_client", "path": "ww_client", "file": "ww_client.py", "group": "root", "desc": "Python SDK for programmatic bridge usage.", "lines": 67}];
+var MODS = [{"id": "agents_loader", "path": "agents_loader", "file": "agents_loader.py", "group": "root", "lines": 212}, {"id": "checkpoint", "path": "checkpoint", "file": "checkpoint.py", "group": "core", "lines": 261}, {"id": "commands", "path": "commands", "file": "commands.py", "group": "root", "lines": 106}, {"id": "config", "path": "config", "file": "config.py", "group": "root", "lines": 190}, {"id": "constants", "path": "constants", "file": "constants.py", "group": "root", "lines": 32}, {"id": "core", "path": "core", "file": "__init__.py", "group": "root", "lines": 6}, {"id": "core_backpressure", "path": "core.backpressure", "file": "backpressure.py", "group": "core", "lines": 67}, {"id": "core_cache_manager", "path": "core.cache_manager", "file": "cache_manager.py", "group": "core", "lines": 358}, {"id": "core_context", "path": "core.context", "file": "context.py", "group": "core", "lines": 693}, {"id": "core_healing", "path": "core.healing", "file": "healing.py", "group": "core", "lines": 200}, {"id": "core_memory", "path": "core.memory", "file": "memory.py", "group": "core", "lines": 703}, {"id": "core_patterns", "path": "core.patterns", "file": "__init__.py", "group": "bridge", "lines": 13}, {"id": "core_patterns_capability_registry", "path": "core.patterns.capability_registry", "file": "capability_registry.py", "group": "bridge", "lines": 76}, {"id": "core_patterns_causal_graph", "path": "core.patterns.causal_graph", "file": "causal_graph.py", "group": "bridge", "lines": 254}, {"id": "core_patterns_decision_tracer", "path": "core.patterns.decision_tracer", "file": "decision_tracer.py", "group": "bridge", "lines": 122}, {"id": "core_patterns_event_bus", "path": "core.patterns.event_bus", "file": "event_bus.py", "group": "bridge", "lines": 95}, {"id": "core_patterns_fault_injector", "path": "core.patterns.fault_injector", "file": "fault_injector.py", "group": "bridge", "lines": 67}, {"id": "core_patterns_profile_manifest", "path": "core.patterns.profile_manifest", "file": "profile_manifest.py", "group": "bridge", "lines": 74}, {"id": "core_schemas", "path": "core.schemas", "file": "schemas.py", "group": "core", "lines": 9}, {"id": "core_theme", "path": "core.theme", "file": "theme.py", "group": "core", "lines": 60}, {"id": "core_utils_deprecation", "path": "core.utils.deprecation", "file": "deprecation.py", "group": "utils", "lines": 77}, {"id": "core_utils_error_translator", "path": "core.utils.error_translator", "file": "error_translator.py", "group": "utils", "lines": 61}, {"id": "core_utils_validation", "path": "core.utils.validation", "file": "validation.py", "group": "utils", "lines": 221}, {"id": "core_utils_web_client", "path": "core.utils.web_client", "file": "web_client.py", "group": "utils", "lines": 384}, {"id": "demo_conversation", "path": "demo.conversation", "file": "conversation.py", "group": "demo", "lines": 65}, {"id": "diff_engine", "path": "diff_engine", "file": "diff_engine.py", "group": "core", "lines": 304}, {"id": "executor", "path": "executor", "file": "executor.py", "group": "core", "lines": 666}, {"id": "file_watcher", "path": "file_watcher", "file": "file_watcher.py", "group": "core", "lines": 161}, {"id": "gfx_mascot_tui", "path": "gfx.mascot_tui", "file": "mascot_tui.py", "group": "gfx", "lines": 256}, {"id": "observability", "path": "observability", "file": "observability.py", "group": "observability", "lines": 834}, {"id": "orchestrator", "path": "orchestrator", "file": "orchestrator.py", "group": "core", "lines": 1056}, {"id": "plugins", "path": "plugins", "file": "__init__.py", "group": "root", "lines": 6}, {"id": "plugins_ww_plugin", "path": "plugins.ww_plugin", "file": "ww_plugin.py", "group": "plugins", "lines": 227}, {"id": "profiler", "path": "profiler", "file": "profiler.py", "group": "observability", "lines": 95}, {"id": "prompt_templates", "path": "prompt_templates", "file": "prompt_templates.py", "group": "core", "lines": 288}, {"id": "security", "path": "security", "file": "security.py", "group": "security", "lines": 220}, {"id": "tools", "path": "tools", "file": "__init__.py", "group": "root", "lines": 12}, {"id": "tools_registry", "path": "tools.registry", "file": "registry.py", "group": "tools", "lines": 178}, {"id": "tools_system_tools", "path": "tools.system_tools", "file": "system_tools.py", "group": "tools", "lines": 492}, {"id": "tui", "path": "tui", "file": "tui.py", "group": "root", "lines": 122}, {"id": "tutorial", "path": "tutorial", "file": "tutorial.py", "group": "root", "lines": 113}, {"id": "ui", "path": "ui", "file": "ui.py", "group": "root", "lines": 490}, {"id": "ww_client", "path": "ww_client", "file": "ww_client.py", "group": "root", "lines": 67}];
 var EDGES = [{"source": "agents_loader", "target": "core_context"}, {"source": "checkpoint", "target": "config"}, {"source": "commands", "target": "ui"}, {"source": "core_context", "target": "checkpoint"}, {"source": "core_context", "target": "config"}, {"source": "core_context", "target": "constants"}, {"source": "core_context", "target": "core_context"}, {"source": "core_context", "target": "core_healing"}, {"source": "core_context", "target": "core_memory"}, {"source": "core_context", "target": "core_patterns_causal_graph"}, {"source": "core_context", "target": "core_utils_web_client"}, {"source": "core_context", "target": "diff_engine"}, {"source": "core_context", "target": "observability"}, {"source": "core_context", "target": "security"}, {"source": "core_context", "target": "tools_registry"}, {"source": "core_context", "target": "tools_system_tools"}, {"source": "core_healing", "target": "core_utils_web_client"}, {"source": "core_utils_web_client", "target": "config"}, {"source": "diff_engine", "target": "diff_engine"}, {"source": "executor", "target": "checkpoint"}, {"source": "executor", "target": "core_backpressure"}, {"source": "executor", "target": "core_context"}, {"source": "executor", "target": "core_patterns_decision_tracer"}, {"source": "executor", "target": "core_patterns_fault_injector"}, {"source": "executor", "target": "core_utils_validation"}, {"source": "executor", "target": "diff_engine"}, {"source": "executor", "target": "observability"}, {"source": "executor", "target": "security"}, {"source": "executor", "target": "tools_registry"}, {"source": "executor", "target": "ui"}, {"source": "file_watcher", "target": "constants"}, {"source": "observability", "target": "config"}, {"source": "orchestrator", "target": "agents_loader"}, {"source": "orchestrator", "target": "checkpoint"}, {"source": "orchestrator", "target": "commands"}, {"source": "orchestrator", "target": "config"}, {"source": "orchestrator", "target": "core_cache_manager"}, {"source": "orchestrator", "target": "core_context"}, {"source": "orchestrator", "target": "core_healing"}, {"source": "orchestrator", "target": "core_memory"}, {"source": "orchestrator", "target": "core_patterns_event_bus"}, {"source": "orchestrator", "target": "core_patterns_profile_manifest"}, {"source": "orchestrator", "target": "core_schemas"}, {"source": "orchestrator", "target": "core_theme"}, {"source": "orchestrator", "target": "core_utils_deprecation"}, {"source": "orchestrator", "target": "core_utils_error_translator"}, {"source": "orchestrator", "target": "core_utils_validation"}, {"source": "orchestrator", "target": "diff_engine"}, {"source": "orchestrator", "target": "executor"}, {"source": "orchestrator", "target": "file_watcher"}, {"source": "orchestrator", "target": "gfx_mascot_tui"}, {"source": "orchestrator", "target": "observability"}, {"source": "orchestrator", "target": "security"}, {"source": "orchestrator", "target": "tools_registry"}, {"source": "orchestrator", "target": "tools_system_tools"}, {"source": "orchestrator", "target": "ui"}, {"source": "security", "target": "ui"}, {"source": "tools_system_tools", "target": "core_context"}, {"source": "tools_system_tools", "target": "security"}, {"source": "tui", "target": "core_context"}, {"source": "tui", "target": "ui"}, {"source": "ww_client", "target": "core_utils_web_client"}];
 var GROUP_EDGES = [{"source": "bridge", "target": "core", "count": 5}, {"source": "core", "target": "gfx", "count": 1}, {"source": "core", "target": "observability", "count": 3}, {"source": "core", "target": "root", "count": 11}, {"source": "core", "target": "security", "count": 3}, {"source": "core", "target": "tools", "count": 6}, {"source": "core", "target": "utils", "count": 6}, {"source": "observability", "target": "root", "count": 1}, {"source": "root", "target": "security", "count": 1}, {"source": "root", "target": "utils", "count": 2}, {"source": "security", "target": "tools", "count": 1}];
 var GROUP_COUNTS = {"root": 11, "core": 13, "bridge": 7, "utils": 4, "demo": 1, "gfx": 1, "observability": 2, "plugins": 1, "security": 1, "tools": 2};
 var GROUP_COLORS = {"root": "#58a6ff", "core": "#a371f7", "tools": "#3fb950", "utils": "#d29922", "bridge": "#f78166", "gfx": "#56d4dd", "plugins": "#ff7b72", "demo": "#7ee787", "observability": "#f0c000", "security": "#ff7b72"};
 var GROUP_NAMES = {"root": "Root entry", "core": "Core subsystem", "tools": "Tool registry", "utils": "Utilities", "bridge": "Bridge patterns", "gfx": "Mascot GFX", "plugins": "Plugin system", "demo": "Demo mode", "observability": "Observability", "security": "Security"};
+var PIPELINE = [{"id": "input", "label": "INPUT", "modules": ["config", "constants", "ww_client", "tui", "ui"], "x": 0, "color": "#58a6ff"}, {"id": "auth", "label": "AUTH & INIT", "modules": ["security", "agents_loader", "prompt_templates", "file_watcher"], "x": 1, "color": "#a371f7"}, {"id": "context", "label": "CONTEXT", "modules": ["core.context", "core.memory", "core.cache_manager", "core.backpressure", "core.theme"], "x": 2, "color": "#3fb950"}, {"id": "orchestrate", "label": "ORCHESTRATE", "modules": ["orchestrator", "executor", "commands", "checkpoint", "diff_engine", "core.healing", "core.schemas"], "x": 3, "color": "#f78166"}, {"id": "tools", "label": "TOOLS", "modules": ["tools.registry", "tools.system_tools", "core.patterns"], "x": 4, "color": "#d29922"}, {"id": "observe", "label": "OBSERVE", "modules": ["observability", "profiler", "gfx.mascot_tui", "plugins.ww_plugin", "demo.conversation"], "x": 5, "color": "#f0c000"}, {"id": "output", "label": "OUTPUT", "modules": ["tutorial"], "x": 6, "color": "#7ee787"}];
+var STATES = [{"id": "START", "label": "START\nLoad config & env", "color": "#58a6ff", "x": 0}, {"id": "INIT", "label": "INIT\nInit subsystems", "color": "#a371f7", "x": 1}, {"id": "IDLE", "label": "IDLE\nAwait user input", "color": "#3fb950", "x": 2}, {"id": "PROCESS", "label": "PROCESS\nExecute command", "color": "#f78166", "x": 3}, {"id": "TOOL", "label": "TOOL\nRun tool chain", "color": "#d29922", "x": 4}, {"id": "OBSERVE", "label": "OBSERVE\nLog & telemetry", "color": "#f0c000", "x": 5}, {"id": "OUTPUT", "label": "OUTPUT\nRender response", "color": "#7ee787", "x": 6}, {"id": "ERROR", "label": "ERROR\nHandle failure", "color": "#ff7b72", "x": 3}, {"id": "SHUTDOWN", "label": "SHUTDOWN\nCleanup & exit", "color": "#ff3333", "x": 7}];
+var TRANSITIONS = [{"source": "START", "target": "INIT", "label": "load_settings()"}, {"source": "INIT", "target": "IDLE", "label": "init_ok"}, {"source": "IDLE", "target": "PROCESS", "label": "user_input"}, {"source": "PROCESS", "target": "TOOL", "label": "tool_call"}, {"source": "TOOL", "target": "OBSERVE", "label": "tool_complete"}, {"source": "OBSERVE", "target": "OUTPUT", "label": "log_written"}, {"source": "OUTPUT", "target": "IDLE", "label": "response_sent"}, {"source": "PROCESS", "target": "ERROR", "label": "exception"}, {"source": "TOOL", "target": "ERROR", "label": "tool_fail"}, {"source": "OBSERVE", "target": "ERROR", "label": "log_fail"}, {"source": "ERROR", "target": "IDLE", "label": "recovered"}, {"source": "ERROR", "target": "SHUTDOWN", "label": "fatal"}, {"source": "IDLE", "target": "SHUTDOWN", "label": "exit_cmd"}, {"source": "PROCESS", "target": "OUTPUT", "label": "no_tool_needed"}, {"source": "TOOL", "target": "TOOL", "label": "chained_tool"}, {"source": "OBSERVE", "target": "OUTPUT", "label": "no_response_needed"}];
 
 var MOD_MAP = {}; MODS.forEach(function(m){ MOD_MAP[m.id] = m; });
-var cy, zoomed = null;
+var cy, zoomed = null, curView = 'overview';
+
+function baseStyles() {
+  return [
+    { selector: 'node', style: { backgroundColor: '#1c2333', label: 'data(label)', color: '#c9d1d9', fontSize: '9px', fontFamily: 'system-ui,sans-serif', textWrap: 'wrap', textValign: 'center', textHalign: 'center', shape: 'round-rectangle', borderWidth: 2, borderColor: 'data(color)', backgroundOpacity: 0.9, padding: '4px' } },
+    { selector: 'edge', style: { width: 0.5, lineColor: '#30363d', targetArrowColor: '#30363d', targetArrowShape: 'triangle-backcurve', arrowScale: 0.3, curveStyle: 'bezier', opacity: 0.2 } },
+    { selector: 'node.faded', style: { opacity: 0.12 } },
+    { selector: 'node.highlight', style: { borderWidth: 3, borderColor: '#f0f6fc' } },
+    { selector: 'edge.faded', style: { opacity: 0.01 } },
+    { selector: 'edge.highlight', style: { opacity: 0.8, width: 2, lineColor: '#58a6ff', targetArrowColor: '#58a6ff' } }
+  ];
+}
+
 function init() {
-  cy = cytoscape({
-    container: document.getElementById('cy'),
-    style: [
-      { selector: 'node', style: { backgroundColor: '#1c2333', label: 'data(label)', color: '#c9d1d9', fontSize: '10px', fontFamily: 'system-ui,sans-serif', textWrap: 'wrap', textValign: 'center', textHalign: 'center', shape: 'round-rectangle', borderWidth: 2, borderColor: 'data(color)', backgroundOpacity: 0.9, padding: '6px', fontWeight: '600' } },
-      { selector: 'edge', style: { width: 0.5, lineColor: '#58a6ff', targetArrowColor: '#58a6ff', targetArrowShape: 'triangle-backcurve', arrowScale: 0.3, curveStyle: 'bezier', opacity: 0.3 } },
-      { selector: 'node.faded', style: { opacity: 0.15 } },
-      { selector: 'node.highlight', style: { borderWidth: 3, borderColor: '#f0f6fc' } },
-      { selector: 'edge.faded', style: { opacity: 0.02 } },
-      { selector: 'edge.highlight', style: { opacity: 0.9, width: 3, lineColor: '#f0f6fc' } }
-    ]
-  });
-  overview(); legend();
+  cy = cytoscape({ container: document.getElementById('cy'), style: baseStyles() });
   cy.on('tap', 'node', function(e) {
     var d = e.target.data();
-    if (zoomed && d._back) { overview(); return; }
+    if (d._view === 'pipeline' && d._modules) {
+      var ln = document.getElementById('legend');
+      ln.innerHTML = '<div class="tl" style="color:'+d.color+'">'+d.label.replace(/\\n/g,' ')+'</div>'+
+        '<div class="row">Modules: '+d._modules.join(', ')+'</div>';
+      return;
+    }
+    if (d._view === 'state') {
+      showMod({ id: d._src_id });
+      return;
+    }
+    if (zoomed && d._back) { runView(curView); return; }
     if (!zoomed && d._grp) { expand(d._grp); return; }
     showMod(d);
   });
@@ -72,73 +91,129 @@ function init() {
     cy.edges().forEach(function(oe){ if(c[oe.source().id()]&&c[oe.target().id()]) oe.addClass('highlight'); else oe.addClass('faded'); });
   });
   cy.on('mouseout', 'node', function(){ cy.nodes().removeClass('faded highlight'); cy.edges().removeClass('faded highlight'); });
+  runView('overview');
 }
 
-function overview() {
-  zoomed = null;
+function runView(name) {
+  curView = name; zoomed = null;
+  document.querySelectorAll('#topbar .tab[data-view]').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-view')==name); });
   cy.elements().remove();
+  if (name == 'overview') viewOverview();
+  else if (name == 'pipeline') viewPipeline();
+  else if (name == 'state') viewStateMachine();
+  else if (name == 'modules') viewModules();
+  else if (name == 'hubs') viewWith('concentric');
+  else if (name == 'tiers') viewWith('breadthfirst');
+  else if (name == 'circle') viewWith('circle');
+  document.getElementById('info').classList.add('show');
+  setTimeout(function(){ document.getElementById('info').classList.remove('show'); }, 3000);
+  legend();
+}
+
+function viewOverview() {
+  document.getElementById('mode-label').textContent = '43 modules in 10 groups';
   var gs = Object.keys(GROUP_COUNTS).sort();
   var mx = Math.max(1, ...gs.map(function(g){ return GROUP_COUNTS[g]; }));
   gs.forEach(function(g) {
-    cy.add({ group: 'nodes', data: { id: 'g_'+g, label: (GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+')', color: GROUP_COLORS[g]||'#58a6ff', _grp: g, _cnt: GROUP_COUNTS[g] } });
+    cy.add({ group: 'nodes', data: { id: 'g_'+g, label: (GROUP_NAMES[g]||g).substring(0,20)+' ('+GROUP_COUNTS[g]+')', color: GROUP_COLORS[g]||'#58a6ff', _grp: g, _cnt: GROUP_COUNTS[g] } });
   });
-  cy.nodes().style({ width: function(n){ return 80+((n.data('_cnt')||1)/mx)*80; }, height: function(n){ return 50+((n.data('_cnt')||1)/mx)*50; }, fontSize: function(n){ return (n.data('_cnt')||1)>6?11:9; } });
-  GROUP_EDGES.forEach(function(e){ cy.add({ group: 'edges', data: { source: 'g_'+e.source, target: 'g_'+e.target, count: e.count } }); });
-  var cols = 2, sx = 280, sy = 140;
+  cy.nodes().style({ width: function(n){ return 70+((n.data('_cnt')||1)/mx)*70; }, height: function(n){ return 40+((n.data('_cnt')||1)/mx)*40; }, fontSize: function(n){ return (n.data('_cnt')||1)>6?10:8; } });
+  GROUP_EDGES.forEach(function(e){ cy.add({ group: 'edges', data: { source: 'g_'+e.source, target: 'g_'+e.target, count: e.count }, style: { width: Math.min(e.count,6), lineColor: '#58a6ff', opacity: 0.5, label: ''+e.count, fontSize: '7px', color: '#58a6ff', textBackgroundColor: '#0d1117', textBackgroundOpacity: 0.8, textBackgroundPadding: '2px' } }); });
+  var cols = 2, sx = 250, sy = 120;
   cy.nodes().positions(function(n){ var i = gs.indexOf(n.data('_grp')); return {x:(i%cols)*sx+sx/2, y:Math.floor(i/cols)*sy+sy/2}; });
-  cy.fit(undefined, 80); update();
+  cy.fit(undefined, 60);
+  cy.nodes().style({ fontSize: 10 });
 }
 
 function expand(g) {
   zoomed = g;
-  document.getElementById('mode-label').textContent = (GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+' modules)';
-  cy.elements().remove();
-  cy.add({ group: 'nodes', data: { id: '_b', label: '← Back', _back: 1, color: '#8b949e' } });
+  document.getElementById('mode-label').textContent = GROUP_NAMES[g]+' ('+GROUP_COUNTS[g]+' modules)';
+  cy.add({ group: 'nodes', data: { id: '_b', label: '\u2190 Back', _back: 1, color: '#8b949e' } });
   var gm = MODS.filter(function(m){ return m.group == g; });
   var mx = Math.max(1, ...gm.map(function(m){ return m.lines; }));
-  gm.forEach(function(m) { cy.add({ group: 'nodes', data: { id: m.id, label: m.file, color: GROUP_COLORS[g]||'#58a6ff', _mod: 1, file: m.file, lines: m.lines } }); });
-  cy.nodes().not('#_b').style({ width: function(n){ return 20+((n.data('lines')||1)/mx)*80; }, height: function(n){ return 16+((n.data('lines')||1)/mx)*30; } });
-  cy.getElementById('_b').style({ width: 100, height: 24, fontSize: 9, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#30363d' });
+  gm.forEach(function(m){ cy.add({ group: 'nodes', data: { id: m.id, label: m.file, color: GROUP_COLORS[g]||'#58a6ff', lines: m.lines, path: m.path, desc: m.desc, file: m.file } }); });
+  cy.nodes().not('#_b').style({ width: function(n){ return 20+((n.data('lines')||1)/mx)*70; }, height: function(n){ return 16+((n.data('lines')||1)/mx)*25; }, fontSize: 7 });
+  cy.getElementById('_b').style({ width: 90, height: 22, fontSize: 8, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#30363d' });
   EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group: 'edges', data: { source: e.source, target: e.target } }); });
-  cy.layout({ name: 'cose', nodeRepulsion: 5000, gravity: 0.5, numIter: 800, fit: true, padding: 60, animate: true, animationDuration: 300 }).run();
-  update();
+  cy.layout({ name: 'cose', nodeRepulsion: 4000, gravity: 0.4, numIter: 600, fit: true, padding: 50, animate: true, animationDuration: 300 }).run();
+}
+
+function viewPipeline() {
+  document.getElementById('mode-label').textContent = 'Data Pipeline: ' + PIPELINE.length + ' stages';
+  var mx = PIPELINE.length;
+  PIPELINE.forEach(function(p) {
+    cy.add({ group: 'nodes', data: { id: 'p_'+p.id, label: p.label, color: p.color, _view: 'pipeline', _modules: p.modules, stage: p.id } });
+  });
+  // Chain them left to right
+  for (var i = 0; i < PIPELINE.length - 1; i++) {
+    cy.add({ group: 'edges', data: { source: 'p_'+PIPELINE[i].id, target: 'p_'+PIPELINE[i+1].id }, style: { width: 2, lineColor: '#58a6ff', targetArrowColor: '#58a6ff', opacity: 0.7 } });
+  }
+  cy.nodes().style({ width: 100, height: 60, fontSize: 8, fontWeight: '700', textWrap: 'wrap', textValign: 'center', textHalign: 'center' });
+  var sx = 140, sy = 100;
+  cy.nodes().positions(function(n){ var p = PIPELINE.find(function(x){ return 'p_'+x.id == n.id(); }); if(!p) return {x:0,y:0}; return {x: p.x*sx + sx, y: 0}; });
+  cy.fit(undefined, 60);
+}
+
+function viewStateMachine() {
+  document.getElementById('mode-label').textContent = 'State Machine: ' + STATES.length + ' states';
+  STATES.forEach(function(s) {
+    cy.add({ group: 'nodes', data: { id: 's_'+s.id, label: s.label, color: s.color, _view: 'state', _src_id: s.id } });
+  });
+  TRANSITIONS.forEach(function(t) {
+    cy.add({ group: 'edges', data: { source: 's_'+t.source, target: 's_'+t.target, label: t.label }, style: { width: 1.2, lineColor: '#8b949e', targetArrowColor: '#8b949e', opacity: 0.6, label: t.label, fontSize: '6px', color: '#8b949e', textBackgroundColor: '#0d1117', textBackgroundOpacity: 0.8, textBackgroundPadding: '2px', curveStyle: 'unbundled-bezier', controlPointDistances: function(edge){ return edge.source().id() < edge.target().id() ? 20 : -20; } } });
+  });
+  cy.nodes().style({ width: 110, height: 55, fontSize: 8, fontWeight: '700', textWrap: 'wrap', textValign: 'center', textHalign: 'center' });
+  var sx = 145, sy = 100;
+  cy.nodes().positions(function(n){ var s = STATES.find(function(x){ return 's_'+x.id == n.id(); }); if(!s) return {x:0,y:0}; return {x: s.x*sx - STATES.length*sx/2 + sx, y: (STATES.indexOf(s)%2)*sy*1.2 - sy*0.3}; });
+  cy.fit(undefined, 80);
+}
+
+function viewModules() {
+  document.getElementById('mode-label').textContent = 'All ' + MODS.length + ' modules (size = lines of code)';
+  var mx = Math.max(1, ...MODS.map(function(m){ return m.lines; }));
+  MODS.forEach(function(m){ cy.add({ group: 'nodes', data: { id: m.id, label: m.file, color: GROUP_COLORS[m.group]||'#58a6ff', lines: m.lines, path: m.path, desc: m.desc, file: m.file } }); });
+  cy.nodes().style({ width: function(n){ return 20+((n.data('lines')||1)/mx)*50; }, height: function(n){ return 14+((n.data('lines')||1)/mx)*20; }, fontSize: 6 });
+  EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group: 'edges', data: { source: e.source, target: e.target } }); });
+  cy.layout({ name: 'cose', nodeRepulsion: 8000, gravity: 0.2, numIter: 800, fit: true, padding: 60, animate: true, animationDuration: 400 }).run();
+}
+
+function viewWith(layoutName) {
+  document.getElementById('mode-label').textContent = layoutName.charAt(0).toUpperCase()+layoutName.slice(1);
+  var mx = Math.max(1, ...MODS.map(function(m){ return m.lines; }));
+  MODS.forEach(function(m){ cy.add({ group: 'nodes', data: { id: m.id, label: m.file, color: GROUP_COLORS[m.group]||'#58a6ff', lines: m.lines, path: m.path } }); });
+  cy.nodes().style({ width: function(n){ return 20+((n.data('lines')||1)/mx)*50; }, height: function(n){ return 14+((n.data('lines')||1)/mx)*20; }, fontSize: 6 });
+  EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group: 'edges', data: { source: e.source, target: e.target } }); });
+  var opts = { fit: true, padding: 60, animate: true, animationDuration: 400 };
+  opts.name = layoutName;
+  if (layoutName == 'concentric') { opts.concentric = function(n){ return n.connectedEdges().length; }; opts.levelWidth = function(){ return 2; }; opts.minNodeSpacing = 30; }
+  if (layoutName == 'breadthfirst') { opts.directed = true; opts.spacingFactor = 1.3; }
+  if (layoutName == 'circle') { opts.spacingFactor = 1.2; }
+  cy.layout(opts).run();
 }
 
 function showMod(d) {
-  var m = MOD_MAP[d.id]; if(!m) return;
-  var deps = []; EDGES.forEach(function(e){ if(e.source==d.id||e.target==d.id) deps.push(e.source==d.id?e.target:e.source); });
-  document.getElementById('legend').innerHTML = '<div class="tl" style="color:'+d.color+'">'+m.file+' ('+m.lines+' lines)</div>'+
-    '<div class="row" style="color:#c9d1d9">'+(m.desc||'No docstring')+'</div>'+
-    '<div class="row">src/'+m.path+' · '+(GROUP_NAMES[m.group]||m.group)+'</div>'+
-    (deps.length ? '<div class="row" style="margin-top:2px;border-top:1px solid #21262d;padding-top:2px">'+deps.map(function(di){ var dm=MOD_MAP[di]; return dm?dm.file:di; }).join(', ')+'</div>' : '');
+  var m = MOD_MAP[d.id] || { id: d._src_id, file: d.label, path: '', desc: '', group: '', lines: 0 };
+  var deps = []; EDGES.forEach(function(e){ if(e.source==m.id||e.target==m.id) deps.push(e.source==m.id?e.target:e.source); });
+  var ln = document.getElementById('legend');
+  ln.innerHTML = '<div class="tl" style="color:'+(d.color||'#58a6ff')+'">'+(m.file||'State')+'</div>'+
+    '<div class="row" style="color:#c9d1d9">'+(m.desc||m.path||'')+'</div>'+
+    (deps.length ? '<div class="row" style="margin-top:1px;border-top:1px solid #21262d;padding-top:1px">'+deps.map(function(di){ var dm=MOD_MAP[di]; return dm?dm.file:di; }).join(', ').substring(0,80)+'</div>' : '');
 }
 
 function legend() {
-  var l = '<div class="tl">Module Groups</div>';
-  Object.keys(GROUP_COUNTS).sort().forEach(function(g){ l += '<div class="row"><span class="dot" style="background:'+(GROUP_COLORS[g]||'#58a6ff')+'"></span>'+(GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+')</div>'; });
-  document.getElementById('legend').innerHTML = l;
+  if (curView == 'overview' || curView == 'modules' || curView == 'hubs' || curView == 'tiers' || curView == 'circle') {
+    var l = '<div class="tl">Groups</div>';
+    Object.keys(GROUP_COUNTS).sort().forEach(function(g){ l += '<div class="row"><span class="dot" style="background:'+(GROUP_COLORS[g]||'#58a6ff')+'"></span>'+(GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+')</div>'; });
+    document.getElementById('legend').innerHTML = l;
+  } else if (curView == 'pipeline') {
+    document.getElementById('legend').innerHTML = '<div class="tl">Data Pipeline</div><div class="row">Left to right = data flow</div><div class="row">Click a stage to see modules</div>';
+  } else if (curView == 'state') {
+    document.getElementById('legend').innerHTML = '<div class="tl">State Machine</div><div class="row">Transitions labeled with triggers</div><div class="row">Error paths in red</div>';
+  }
 }
 
-function update(){ document.getElementById('status').textContent = cy.nodes().length+' nodes, '+cy.edges().length+' edges'; }
-
-function layout(name) {
-  zoomed = null;
-  document.querySelectorAll('#topbar .tab[data-layout]').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')==name); });
-  cy.elements().remove();
-  if(name=='overview'){ overview(); return; }
-  document.getElementById('mode-label').textContent = name.charAt(0).toUpperCase()+name.slice(1);
-  var mx = Math.max(1, ...MODS.map(function(m){ return m.lines; }));
-  MODS.forEach(function(m){ cy.add({ group:'nodes', data:{ id:m.id, label:m.file, color:GROUP_COLORS[m.group]||'#58a6ff', _mod:1, lines:m.lines } }); });
-  cy.nodes().style({ width:function(n){ return 20+((n.data('lines')||1)/mx)*60; }, height:function(n){ return 16+((n.data('lines')||1)/mx)*25; } });
-  EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group:'edges', data:{ source:e.source, target:e.target } }); });
-  if(name=='hubs') cy.layout({ name:'concentric', concentric:function(n){ return n.connectedEdges().length; }, levelWidth:function(){ return 2; }, minNodeSpacing:30, fit:true, padding:60, animate:true, animationDuration:400 }).run();
-  else if(name=='tiers') cy.layout({ name:'breadthfirst', directed:true, spacingFactor:1.3, fit:true, padding:60, animate:true, animationDuration:400 }).run();
-  else if(name=='circle') cy.layout({ name:'circle', spacingFactor:1.2, fit:true, padding:60, animate:true, animationDuration:400 }).run();
-  else cy.layout({ name:'cose', nodeRepulsion:8000, gravity:0.3, numIter:1000, fit:true, padding:60, animate:true, animationDuration:400 }).run();
-  update();
-}
-var tabs = document.querySelectorAll('#topbar .tab[data-layout]');
-for(var i=0;i<tabs.length;i++) (function(t){ t.onclick=function(){ layout(this.getAttribute('data-layout')); }; })(tabs[i]);
+var tabs = document.querySelectorAll('#topbar .tab[data-view]');
+for(var i=0;i<tabs.length;i++) (function(t){ t.onclick=function(){ runView(this.getAttribute('data-view')); }; })(tabs[i]);
 init();
 </script>
 </body>
