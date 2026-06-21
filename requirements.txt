@@ -12,5 +12,5 @@ tiktoken>=0.5.0
 # Development / Security audit dependencies (install with: pip install -r requirements.txt[dev])
 # pip-audit>=2.7.0  # Uncomment for vulnerability scanning
 
-google-genai>=1.0.0  # Gemini API key auth (alternative to cookie-based gemini-webapi)
+google-genai>=2.9.0  # Gemini API key auth (alternative to cookie-based gemini-webapi)
 pytest-randomly>=4.0.0
