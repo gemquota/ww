@@ -154,31 +154,6 @@ function viewStateMachine() {
     });
   });
   
-  // Add transition edges
-  TRANSITIONS.forEach(function(t) {
-    cy.add({
-      group: 'edges',
-      data: { source: 's_'+t.source, target: 's_'+t.target, label: t.label },
-      style: {
-        width: 1.5,
-        lineColor: '#ffa657',
-        targetArrowColor: '#ffa657',
-        targetArrowShape: 'triangle-backcurve',
-        arrowScale: 0.6,
-        opacity: 0.9,
-        label: 'data(label)',
-        fontSize: '7px',
-        color: '#ffa657',
-        textBackgroundColor: '#0d1117',
-        textBackgroundOpacity: 0.85,
-        textBackgroundPadding: '2px',
-        curveStyle: 'unbundled-bezier',
-        sourceEndpoint: function(e){ return 'outside-to-node'; },
-        targetEndpoint: function(e){ return 'outside-to-node'; }
-      }
-    });
-  });
-  
   // Style nodes
   cy.nodes().style({
     width: 120,
@@ -190,17 +165,39 @@ function viewStateMachine() {
     textHalign: 'center'
   });
   
-  // Position states in a structured layout
-  // Main row: y=0, Error row: y=1, using x-position from STATE data
+  // Add transition edges (add first, style after)
+  TRANSITIONS.forEach(function(t) {
+    cy.add({
+      group: 'edges',
+      data: { source: 's_'+t.source, target: 's_'+t.target, label: t.label }
+    });
+  });
+  
+  // Style edges
+  cy.edges().style({
+    width: 1.5,
+    lineColor: '#ffa657',
+    targetArrowColor: '#ffa657',
+    targetArrowShape: 'triangle-backcurve',
+    arrowScale: 0.6,
+    opacity: 0.9,
+    label: 'data(label)',
+    fontSize: '7px',
+    color: '#ffa657',
+    textBackgroundColor: '#0d1117',
+    textBackgroundOpacity: 0.85,
+    textBackgroundPadding: '2px',
+    curveStyle: 'unbundled-bezier'
+  });
+  
+  // Position states
   var sx = 150, sy = 120;
   cy.nodes().positions(function(n) {
-    var s = STATES.find(function(x){ return 's_'+x.id == n.id(); });
+    var sid = n.id().replace('s_', '');
+    var s = STATES.find(function(x){ return x.id === sid; });
     if (!s) return {x: 0, y: 0};
-    // Put SHUTDOWN at the far right on the main row
     if (s.id === 'SHUTDOWN') return {x: sx * 7.5, y: 0};
-    // Put ERROR below the middle
     if (s.id === 'ERROR') return {x: sx * 3.5, y: sy};
-    // Main row: y offset based on position in the row
     return {x: s.x * sx + sx/2, y: s.y * sy};
   });
   
