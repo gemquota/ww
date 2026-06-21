@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>WW Bridge — Architecture</title>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WW Bridge — Post-Refactor Architecture (43 modules)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -9,439 +10,135 @@ body{background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;height:10
 #cy{width:100%;height:calc(100% - 36px);margin-top:36px}
 #topbar{position:fixed;top:0;left:0;right:0;z-index:20;background:#161b22;border-bottom:1px solid #30363d;padding:4px 10px;display:flex;align-items:center;gap:3px;min-height:36px;flex-wrap:wrap}
 #topbar .brand{color:#58a6ff;font-weight:700;font-size:10px;margin-right:4px}
-#topbar .tab{background:transparent;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:10px;cursor:pointer;font-size:8px;transition:all .1s}
+#topbar .tab{background:transparent;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:10px;cursor:pointer;font-size:8px}
 #topbar .tab:hover{background:#21262d;color:#c9d1d9}
 #topbar .tab.active{background:#1f6feb44;border-color:#1f6feb;color:#58a6ff;font-weight:600}
-#topbar .tab.small{padding:2px 5px;font-size:7px;border-style:dashed;color:#484f58}
 #topbar .spacer{flex:1}
 #mode-label{font-size:8px;color:#484f58;padding:2px 6px;background:#0d1117;border-radius:8px}
-#legend{position:fixed;bottom:8px;left:8px;z-index:12;background:#161b22ee;border:1px solid #30363d;border-radius:6px;padding:5px 7px;font-size:8px;min-width:140px}
-#legend .tl{color:#8b949e;font-weight:600;margin-bottom:1px;font-size:7px;text-transform:uppercase}
+#legend{position:fixed;bottom:8px;left:8px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 8px;font-size:8px;min-width:150px;max-height:160px;overflow-y:auto}
+#legend .tl{color:#8b949e;font-weight:600;margin-bottom:2px;font-size:7px;text-transform:uppercase}
 #legend .row{display:flex;align-items:center;gap:3px;margin:1px 0;font-size:7px;color:#8b949e}
-#legend .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+#legend .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 #status{position:fixed;bottom:8px;right:8px;z-index:12;background:#161b22;border:1px solid #30363d;border-radius:3px;padding:2px 5px;font-size:7px;color:#484f58}
-#info{position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:15;background:#1c2333ee;border:1px solid #30363d;border-radius:8px;padding:5px 14px;font-size:10px;color:#8b949e;display:none;pointer-events:none;text-align:center;max-width:90%}
-#info.show{display:block}
 </style>
 </head>
 <body>
 <div id="topbar">
 <span class="brand">&#9889;WW</span>
-<button class="tab active" data-layout="group">&#9632;&nbsp;Overview</button>
-<button class="tab" data-layout="modules">&#9678;&nbsp;Modules</button>
-<button class="tab" data-layout="hubs">&#9679;&nbsp;Hubs</button>
-<button class="tab" data-layout="tiers">&#8595;&nbsp;Tiers</button>
-<button class="tab" data-layout="circle">&#9711;&nbsp;Circle</button>
+<button class="tab active" data-layout="overview">&#9632; Overview</button>
+<button class="tab" data-layout="modules">&#9678; Modules</button>
+<button class="tab" data-layout="hubs">&#9679; Hubs</button>
+<button class="tab" data-layout="tiers">&#8595; Tiers</button>
+<button class="tab" data-layout="circle">&#9711; Circle</button>
 <span class="spacer"></span>
-<span id="mode-label">Overview</span>
+<span id="mode-label">43 modules in 10 groups</span>
 </div>
 <div id="cy"></div>
-<div id="info">Click a group node to expand &middot; Hover to highlight connections</div>
 <div id="legend"></div>
 <div id="status">loading...</div>
 <script>
-var MODS = [{"id": "src", "path": "src", "file": "__init__.py", "dir": ".", "group": "root", "desc": "WW Bridge \u2014 Gemini Multi-Agent Coding Harness.", "lines": 75}, {"id": "_constants", "path": "_constants", "file": "_constants.py", "dir": ".", "group": "root", "desc": "Shared constants for WW Bridge.", "lines": 31}, {"id": "agents_loader", "path": "agents_loader", "file": "agents_loader.py", "dir": ".", "group": "root", "desc": "AGENTS.md Hierarchical Instruction Loader.", "lines": 212}, {"id": "bridge", "path": "bridge", "file": "__init__.py", "dir": "bridge", "group": "root", "desc": "Bridge subpackage \u2014 extracted concerns from gemini_bridge.py.", "lines": 12}, {"id": "bridge_capability_registry", "path": "bridge.capability_registry", "file": "capability_registry.py", "dir": "bridge", "group": "bridge", "desc": "Capability-centric tool registry.", "lines": 76}, {"id": "bridge_causal_graph", "path": "bridge.causal_graph", "file": "causal_graph.py", "dir": "bridge", "group": "bridge", "desc": "Causal Event Graph \u2014 parent/child event linking with SQLite persistence.", "lines": 254}, {"id": "bridge_decision_tracer", "path": "bridge.decision_tracer", "file": "decision_tracer.py", "dir": "bridge", "group": "bridge", "desc": "Decision tracing \u2014 captures why the agent made specific choices.", "lines": 122}, {"id": "bridge_event_bus", "path": "bridge.event_bus", "file": "event_bus.py", "dir": "bridge", "group": "bridge", "desc": "Simple event bus for decoupled communication between components.", "lines": 95}, {"id": "bridge_fault_injector", "path": "bridge.fault_injector", "file": "fault_injector.py", "dir": "bridge", "group": "bridge", "desc": "Fault injection framework for testing failure recovery.", "lines": 67}, {"id": "bridge_profile_manifest", "path": "bridge.profile_manifest", "file": "profile_manifest.py", "dir": "bridge", "group": "bridge", "desc": "Agent Profile Manifest \u2014 captures agent configuration for reproducibility.", "lines": 74}, {"id": "checkpoint", "path": "checkpoint", "file": "checkpoint.py", "dir": ".", "group": "root", "desc": "Git Checkpoint & State Reversion System.", "lines": 261}, {"id": "command_tables", "path": "command_tables", "file": "command_tables.py", "dir": ".", "group": "root", "desc": "Additional slash commands for UX improvements.", "lines": 64}, {"id": "commands", "path": "commands", "file": "commands.py", "dir": ".", "group": "root", "desc": "CLI commands \u2014 /docs, /help, /salvage, etc.", "lines": 44}, {"id": "config", "path": "config", "file": "config.py", "dir": ".", "group": "root", "desc": "WW Bridge \u2014 Configuration Management", "lines": 190}, {"id": "context", "path": "context", "file": "context.py", "dir": ".", "group": "root", "desc": "BridgeContext \u2014 centralized state container for the WW Bridge.", "lines": 133}, {"id": "context_manager", "path": "context_manager", "file": "context_manager.py", "dir": ".", "group": "root", "desc": "Context Window Management with Token Counting and Auto-Compaction.", "lines": 329}, {"id": "core", "path": "core", "file": "__init__.py", "dir": "core", "group": "root", "desc": "", "lines": 5}, {"id": "core_agent_protocol", "path": "core.agent_protocol", "file": "agent_protocol.py", "dir": "core", "group": "core", "desc": "Agent communication protocol for multi-agent delegation.", "lines": 97}, {"id": "core_api_keys", "path": "core.api_keys", "file": "api_keys.py", "dir": "core", "group": "core", "desc": "Self-service API key management \u2014 NEW-F1#4 (Naomi Chen).", "lines": 130}, {"id": "core_architecture_fitness", "path": "core.architecture_fitness", "file": "architecture_fitness.py", "dir": "core", "group": "core", "desc": "Architecture fitness functions \u2014 automated architectural constraint validation.", "lines": 110}, {"id": "core_ast_validation", "path": "core.ast_validation", "file": "ast_validation.py", "dir": "core", "group": "core", "desc": "AST-level validation for SEARCH/REPLACE edits \u2014 NEW-V5-E1#2 (Dr. Felix Weber).", "lines": 141}, {"id": "core_backpressure", "path": "core.backpressure", "file": "backpressure.py", "dir": "core", "group": "core", "desc": "Backpressure and resource fairness system.", "lines": 67}, {"id": "core_benchmarker", "path": "core.benchmarker", "file": "benchmarker.py", "dir": "core", "group": "core", "desc": "Benchmark harness for structured task evaluation with execution traces.", "lines": 148}, {"id": "core_cache_manager", "path": "core.cache_manager", "file": "cache_manager.py", "dir": "core", "group": "core", "desc": "Cache invalidation and management for MemoryManager \u2014 NEW-D2#1 (Daniel Park).", "lines": 245}, {"id": "core_cache_ttl", "path": "core.cache_ttl", "file": "cache_ttl.py", "dir": "core", "group": "core", "desc": "Configurable cache TTL management with adaptive tuning.", "lines": 117}, {"id": "core_db", "path": "core.db", "file": "db.py", "dir": "core", "group": "core", "desc": "Shared database connection management \u2014 SPA Phase 6 consolidation.", "lines": 44}, {"id": "core_decomposition", "path": "core.decomposition", "file": "decomposition.py", "dir": "core", "group": "core", "desc": "Task decomposition fidelity \u2014 NEW-V5-C3#4 (Priya Desai).", "lines": 100}, {"id": "core_edit_tracker", "path": "core.edit_tracker", "file": "edit_tracker.py", "dir": "core", "group": "core", "desc": "Edit precision metrics for SEARCH/REPLACE operations \u2014 NEW-E1#3 (Dr. Felix Weber).", "lines": 110}, {"id": "core_evaluation", "path": "core.evaluation", "file": "evaluation.py", "dir": "core", "group": "core", "desc": "Evaluation framework for AI quality assessment.", "lines": 145}, {"id": "core_healing", "path": "core.healing", "file": "healing.py", "dir": "core", "group": "core", "desc": "Auto-healing system: escalates failures to Gemini Web API for diagnosis.", "lines": 71}, {"id": "core_incident_response", "path": "core.incident_response", "file": "incident_response.py", "dir": "core", "group": "core", "desc": "Incident response and chaos engineering framework.", "lines": 134}, {"id": "core_judge", "path": "core.judge", "file": "judge.py", "dir": "core", "group": "core", "desc": "Benchmark evaluation judge using Gemini Web API.", "lines": 50}, {"id": "core_logchain", "path": "core.logchain", "file": "logchain.py", "dir": "core", "group": "core", "desc": "Tamper-evident Merkle-chain for log entries.", "lines": 265}, {"id": "core_lsp_diagnostics", "path": "core.lsp_diagnostics", "file": "lsp_diagnostics.py", "dir": "core", "group": "core", "desc": "LSP-style diagnostics for code quality analysis.", "lines": 114}, {"id": "core_memory", "path": "core.memory", "file": "memory.py", "dir": "core", "group": "core", "desc": "Multi-tier memory system with SQLite persistence.", "lines": 571}, {"id": "core_memory_audit", "path": "core.memory_audit", "file": "memory_audit.py", "dir": "core", "group": "core", "desc": "Memory allocation auditing and leak detection.", "lines": 98}, {"id": "core_metrics", "path": "core.metrics", "file": "metrics.py", "dir": "core", "group": "core", "desc": "Metrics tracking for development lifecycle.", "lines": 92}, {"id": "core_postgen", "path": "core.postgen", "file": "postgen.py", "dir": "core", "group": "core", "desc": "Post-generation quality pipeline for code generation.", "lines": 91}, {"id": "core_profiler", "path": "core.profiler", "file": "profiler.py", "dir": "core", "group": "core", "desc": "Performance profiling with flame graph output support.", "lines": 109}, {"id": "core_schemas", "path": "core.schemas", "file": "schemas.py", "dir": "core", "group": "core", "desc": "", "lines": 9}, {"id": "core_startup_optimizer", "path": "core.startup_optimizer", "file": "startup_optimizer.py", "dir": "core", "group": "core", "desc": "Startup time optimization and hot-path profiling.", "lines": 93}, {"id": "core_test_coverage", "path": "core.test_coverage", "file": "test_coverage.py", "dir": "core", "group": "core", "desc": "Test coverage analysis and culture tooling.", "lines": 79}, {"id": "core_theme", "path": "core.theme", "file": "theme.py", "dir": "core", "group": "core", "desc": "Theme definitions for TUI \u2014 SPA extraction from gemini_bridge.py.", "lines": 59}, {"id": "core_ux_patterns", "path": "core.ux_patterns", "file": "ux_patterns.py", "dir": "core", "group": "core", "desc": "UX pattern library for terminal interaction design.", "lines": 119}, {"id": "dashboard", "path": "dashboard", "file": "__init__.py", "dir": "dashboard", "group": "root", "desc": "WW Dashboard \u2014 FastAPI application for querying bridge state and history.", "lines": 5}, {"id": "dashboard_app", "path": "dashboard.app", "file": "app.py", "dir": "dashboard", "group": "dashboard", "desc": "FastAPI application for WW Bridge \u2014 REST API + dashboard.", "lines": 343}, {"id": "dashboard_db", "path": "dashboard.db", "file": "db.py", "dir": "dashboard", "group": "dashboard", "desc": "Database path resolution for dashboard.", "lines": 28}, {"id": "dashboard_routes_auth", "path": "dashboard.routes_auth", "file": "routes_auth.py", "dir": "dashboard", "group": "dashboard", "desc": "Authentication and rate limiting for dashboard API.", "lines": 54}, {"id": "demo_conversation", "path": "demo.conversation", "file": "conversation.py", "dir": "demo", "group": "demo", "desc": "Demo mode \u2014 canned conversation showing the full agentic workflow.", "lines": 64}, {"id": "diff_engine", "path": "diff_engine", "file": "diff_engine.py", "dir": ".", "group": "root", "desc": "SEARCH/REPLACE block parsing and validation and diff engine.", "lines": 82}, {"id": "file_watcher", "path": "file_watcher", "file": "file_watcher.py", "dir": ".", "group": "root", "desc": "File Watcher \u2014 lightweight polling-based workspace change monitor.", "lines": 161}, {"id": "gemini_bridge", "path": "gemini_bridge", "file": "gemini_bridge.py", "dir": ".", "group": "root", "desc": "WW Neural Bridge - Frontier-Grade CLI Harness for Gemini Multi-Agent System.", "lines": 967}, {"id": "gfx_mascot_tui", "path": "gfx.mascot_tui", "file": "mascot_tui.py", "dir": "gfx", "group": "gfx", "desc": "", "lines": 255}, {"id": "permissions", "path": "permissions", "file": "permissions.py", "dir": ".", "group": "root", "desc": "Permission & Approval System for Tool Execution.", "lines": 220}, {"id": "plugins", "path": "plugins", "file": "__init__.py", "dir": "plugins", "group": "root", "desc": "WW Bridge subpackage.", "lines": 5}, {"id": "plugins_ww_plugin", "path": "plugins.ww_plugin", "file": "ww_plugin.py", "dir": "plugins", "group": "plugins", "desc": "WW Plugin System \u2014 base interface and scanner.", "lines": 227}, {"id": "profiler", "path": "profiler", "file": "profiler.py", "dir": ".", "group": "root", "desc": "Simple hot-path profiler with context manager decorator.", "lines": 95}, {"id": "prompt_templates", "path": "prompt_templates", "file": "prompt_templates.py", "dir": ".", "group": "root", "desc": "Versioned Prompt Template System.", "lines": 288}, {"id": "smart_context", "path": "smart_context", "file": "smart_context.py", "dir": ".", "group": "root", "desc": "Smart Context Gathering with Git-Awareness and Repo Mapping.", "lines": 232}, {"id": "telemetry", "path": "telemetry", "file": "telemetry.py", "dir": ".", "group": "root", "desc": "", "lines": 390}, {"id": "tool_executor", "path": "tool_executor", "file": "tool_executor.py", "dir": ".", "group": "root", "desc": "Tool Executor \u2014 extracted from gemini_bridge.py for modularity.", "lines": 583}, {"id": "tools", "path": "tools", "file": "__init__.py", "dir": "tools", "group": "root", "desc": "", "lines": 11}, {"id": "tools_args", "path": "tools.args", "file": "args.py", "dir": "tools", "group": "tools", "desc": "Tool implementations with Pydantic schemas.", "lines": 76}, {"id": "tools_registry", "path": "tools.registry", "file": "registry.py", "dir": "tools", "group": "tools", "desc": "", "lines": 178}, {"id": "tools_system_tools", "path": "tools.system_tools", "file": "system_tools.py", "dir": "tools", "group": "tools", "desc": "Tool implementations.", "lines": 345}, {"id": "tools_workspace", "path": "tools.workspace", "file": "workspace.py", "dir": "tools", "group": "tools", "desc": "Workspace root management.", "lines": 20}, {"id": "tui", "path": "tui", "file": "tui.py", "dir": ".", "group": "root", "desc": "TUI Module \u2014 Terminal UI components for the WW Bridge.", "lines": 121}, {"id": "tutorial", "path": "tutorial", "file": "tutorial.py", "dir": ".", "group": "root", "desc": "Interactive tutorial mode for onboarding.", "lines": 113}, {"id": "ui_adapter", "path": "ui_adapter", "file": "ui_adapter.py", "dir": ".", "group": "root", "desc": "UIAdapter Protocol \u2014 Decouples UI from business logic.", "lines": 157}, {"id": "ui_utils", "path": "ui_utils", "file": "ui_utils.py", "dir": ".", "group": "root", "desc": "UI utilities: visual hierarchy, output folding, theming, progress display.", "lines": 218}, {"id": "utils", "path": "utils", "file": "__init__.py", "dir": "utils", "group": "root", "desc": "WW Bridge subpackage.", "lines": 5}, {"id": "utils_deprecation", "path": "utils.deprecation", "file": "deprecation.py", "dir": "utils", "group": "utils", "desc": "Deprecation policy utilities for internal APIs.", "lines": 77}, {"id": "utils_diff_renderer", "path": "utils.diff_renderer", "file": "diff_renderer.py", "dir": "utils", "group": "utils", "desc": "Side-by-side diff rendering \u2014 NEW-V5-E2#2 (Ingrid Larsen).", "lines": 123}, {"id": "utils_error_translator", "path": "utils.error_translator", "file": "error_translator.py", "dir": "utils", "group": "utils", "desc": "Error translation layer: maps internal exceptions to user-facing messages.", "lines": 61}, {"id": "utils_sensitivity", "path": "utils.sensitivity", "file": "sensitivity.py", "dir": "utils", "group": "utils", "desc": "Sensitivity analysis for prompt variations \u2014 NEW-C1#3 (Dr. Rajesh Patel).", "lines": 137}, {"id": "utils_validation", "path": "utils.validation", "file": "validation.py", "dir": "utils", "group": "utils", "desc": "Tool call extraction and validation utilities.", "lines": 93}, {"id": "utils_web_client", "path": "utils.web_client", "file": "web_client.py", "dir": "utils", "group": "utils", "desc": "Clean Gemini Web API client abstraction with retry logic.", "lines": 262}, {"id": "utils_write_batcher", "path": "utils.write_batcher", "file": "write_batcher.py", "dir": "utils", "group": "utils", "desc": "Unified write-batcher for coalescing SQLite writes.", "lines": 72}, {"id": "ww_client", "path": "ww_client", "file": "ww_client.py", "dir": ".", "group": "root", "desc": "Python SDK for programmatic bridge usage.", "lines": 67}];
-var EDGES = [{"source": "agents_loader", "target": "smart_context"}, {"source": "checkpoint", "target": "config"}, {"source": "commands", "target": "command_tables"}, {"source": "context", "target": "config"}, {"source": "context_manager", "target": "_constants"}, {"source": "core_healing", "target": "utils_web_client"}, {"source": "dashboard_app", "target": "core_api_keys"}, {"source": "dashboard_app", "target": "dashboard_db"}, {"source": "dashboard_app", "target": "dashboard_routes_auth"}, {"source": "dashboard_app", "target": "telemetry"}, {"source": "dashboard_app", "target": "tools_registry"}, {"source": "dashboard_app", "target": "utils_web_client"}, {"source": "gemini_bridge", "target": "agents_loader"}, {"source": "gemini_bridge", "target": "bridge_event_bus"}, {"source": "gemini_bridge", "target": "bridge_profile_manifest"}, {"source": "gemini_bridge", "target": "checkpoint"}, {"source": "gemini_bridge", "target": "commands"}, {"source": "gemini_bridge", "target": "config"}, {"source": "gemini_bridge", "target": "context"}, {"source": "gemini_bridge", "target": "context_manager"}, {"source": "gemini_bridge", "target": "core_cache_manager"}, {"source": "gemini_bridge", "target": "core_healing"}, {"source": "gemini_bridge", "target": "core_memory"}, {"source": "gemini_bridge", "target": "core_schemas"}, {"source": "gemini_bridge", "target": "core_theme"}, {"source": "gemini_bridge", "target": "diff_engine"}, {"source": "gemini_bridge", "target": "file_watcher"}, {"source": "gemini_bridge", "target": "gfx_mascot_tui"}, {"source": "gemini_bridge", "target": "permissions"}, {"source": "gemini_bridge", "target": "plugins_ww_plugin"}, {"source": "gemini_bridge", "target": "prompt_templates"}, {"source": "gemini_bridge", "target": "smart_context"}, {"source": "gemini_bridge", "target": "telemetry"}, {"source": "gemini_bridge", "target": "tool_executor"}, {"source": "gemini_bridge", "target": "tui"}, {"source": "gemini_bridge", "target": "ui_adapter"}, {"source": "gemini_bridge", "target": "ui_utils"}, {"source": "gemini_bridge", "target": "utils_deprecation"}, {"source": "gemini_bridge", "target": "utils_error_translator"}, {"source": "gemini_bridge", "target": "utils_validation"}, {"source": "gemini_bridge", "target": "utils_web_client"}, {"source": "permissions", "target": "ui_adapter"}, {"source": "smart_context", "target": "_constants"}, {"source": "smart_context", "target": "context_manager"}, {"source": "telemetry", "target": "config"}, {"source": "tool_executor", "target": "bridge_decision_tracer"}, {"source": "tool_executor", "target": "bridge_fault_injector"}, {"source": "tool_executor", "target": "checkpoint"}, {"source": "tool_executor", "target": "context"}, {"source": "tool_executor", "target": "context_manager"}, {"source": "tool_executor", "target": "core_backpressure"}, {"source": "tool_executor", "target": "diff_engine"}, {"source": "tool_executor", "target": "permissions"}, {"source": "tool_executor", "target": "smart_context"}, {"source": "tool_executor", "target": "telemetry"}, {"source": "tool_executor", "target": "tools_registry"}, {"source": "tool_executor", "target": "ui_adapter"}, {"source": "tool_executor", "target": "utils_validation"}, {"source": "tools_system_tools", "target": "permissions"}, {"source": "tools_system_tools", "target": "smart_context"}, {"source": "tools_system_tools", "target": "tools_args"}, {"source": "tools_system_tools", "target": "tools_workspace"}, {"source": "tui", "target": "ui_utils"}, {"source": "tutorial", "target": "utils_web_client"}, {"source": "ww_client", "target": "utils_web_client"}];
-var GROUPS = [{"id": "grp_bridge", "group": "bridge", "name": "Bridge Patterns", "color": "#f78166", "count": 6, "total_lines": 688, "modules": ["bridge_capability_registry", "bridge_causal_graph", "bridge_decision_tracer", "bridge_event_bus", "bridge_fault_injector", "bridge_profile_manifest"]}, {"id": "grp_core", "group": "core", "name": "Core Subsystem", "color": "#a371f7", "count": 27, "total_lines": 3408, "modules": ["core_agent_protocol", "core_api_keys", "core_architecture_fitness", "core_ast_validation", "core_backpressure", "core_benchmarker", "core_cache_manager", "core_cache_ttl", "core_db", "core_decomposition", "core_edit_tracker", "core_evaluation", "core_healing", "core_incident_response", "core_judge", "core_logchain", "core_lsp_diagnostics", "core_memory", "core_memory_audit", "core_metrics", "core_postgen", "core_profiler", "core_schemas", "core_startup_optimizer", "core_test_coverage", "core_theme", "core_ux_patterns"]}, {"id": "grp_dashboard", "group": "dashboard", "name": "Web Dashboard", "color": "#db6d28", "count": 3, "total_lines": 425, "modules": ["dashboard_app", "dashboard_db", "dashboard_routes_auth"]}, {"id": "grp_demo", "group": "demo", "name": "Demo Mode", "color": "#7ee787", "count": 1, "total_lines": 64, "modules": ["demo_conversation"]}, {"id": "grp_gfx", "group": "gfx", "name": "Mascot GFX", "color": "#56d4dd", "count": 1, "total_lines": 255, "modules": ["gfx_mascot_tui"]}, {"id": "grp_plugins", "group": "plugins", "name": "Plugin System", "color": "#ff7b72", "count": 1, "total_lines": 227, "modules": ["plugins_ww_plugin"]}, {"id": "grp_root", "group": "root", "name": "Root (src/)", "color": "#58a6ff", "count": 29, "total_lines": 5076, "modules": ["src", "_constants", "agents_loader", "bridge", "checkpoint", "command_tables", "commands", "config", "context", "context_manager", "core", "dashboard", "diff_engine", "file_watcher", "gemini_bridge", "permissions", "plugins", "profiler", "prompt_templates", "smart_context", "telemetry", "tool_executor", "tools", "tui", "tutorial", "ui_adapter", "ui_utils", "utils", "ww_client"]}, {"id": "grp_tools", "group": "tools", "name": "Tool Registry", "color": "#3fb950", "count": 4, "total_lines": 619, "modules": ["tools_args", "tools_registry", "tools_system_tools", "tools_workspace"]}, {"id": "grp_utils", "group": "utils", "name": "Utilities", "color": "#d29922", "count": 7, "total_lines": 825, "modules": ["utils_deprecation", "utils_diff_renderer", "utils_error_translator", "utils_sensitivity", "utils_validation", "utils_web_client", "utils_write_batcher"]}];
-var GROUP_EDGES = [{"source": "grp_bridge", "target": "grp_root", "count": 4}, {"source": "grp_core", "target": "grp_dashboard", "count": 1}, {"source": "grp_core", "target": "grp_root", "count": 6}, {"source": "grp_core", "target": "grp_utils", "count": 1}, {"source": "grp_dashboard", "target": "grp_root", "count": 1}, {"source": "grp_dashboard", "target": "grp_tools", "count": 1}, {"source": "grp_dashboard", "target": "grp_utils", "count": 1}, {"source": "grp_gfx", "target": "grp_root", "count": 1}, {"source": "grp_plugins", "target": "grp_root", "count": 1}, {"source": "grp_root", "target": "grp_tools", "count": 3}, {"source": "grp_root", "target": "grp_utils", "count": 7}];
-
-var GROUP_COLORS = {"root": "#58a6ff", "core": "#a371f7", "tools": "#3fb950", "utils": "#d29922", "bridge": "#f78166", "dashboard": "#db6d28", "gfx": "#56d4dd", "plugins": "#ff7b72", "demo": "#7ee787"};
-var GROUP_NAMES = {"root": "Root (src/)", "core": "Core Subsystem", "tools": "Tool Registry", "utils": "Utilities", "bridge": "Bridge Patterns", "dashboard": "Web Dashboard", "gfx": "Mascot GFX", "plugins": "Plugin System", "demo": "Demo Mode"};
+var MODS = [{"id": "agents_loader", "path": "agents_loader", "file": "agents_loader.py", "group": "root", "desc": "AGENTS.md Hierarchical Instruction Loader.", "lines": 212}, {"id": "checkpoint", "path": "checkpoint", "file": "checkpoint.py", "group": "core", "desc": "Git Checkpoint & State Reversion System.", "lines": 261}, {"id": "commands", "path": "commands", "file": "commands.py", "group": "root", "desc": "CLI commands \u2014 /docs, /help, /salvage, etc.", "lines": 106}, {"id": "config", "path": "config", "file": "config.py", "group": "root", "desc": "WW Bridge \u2014 Configuration Management", "lines": 190}, {"id": "constants", "path": "constants", "file": "constants.py", "group": "root", "desc": "Shared constants for WW Bridge.", "lines": 32}, {"id": "core", "path": "core", "file": "__init__.py", "group": "root", "desc": "", "lines": 6}, {"id": "core_backpressure", "path": "core.backpressure", "file": "backpressure.py", "group": "core", "desc": "Backpressure and resource fairness system.", "lines": 67}, {"id": "core_cache_manager", "path": "core.cache_manager", "file": "cache_manager.py", "group": "core", "desc": "Cache invalidation and management for MemoryManager \u2014 NEW-D2#1 (Daniel Park).", "lines": 358}, {"id": "core_context", "path": "core.context", "file": "context.py", "group": "core", "desc": "BridgeContext \u2014 centralized state container for the WW Bridge.", "lines": 693}, {"id": "core_healing", "path": "core.healing", "file": "healing.py", "group": "core", "desc": "Auto-healing system: escalates failures to Gemini Web API for diagnosis.", "lines": 200}, {"id": "core_memory", "path": "core.memory", "file": "memory.py", "group": "core", "desc": "Multi-tier memory system with SQLite persistence.", "lines": 703}, {"id": "core_patterns", "path": "core.patterns", "file": "__init__.py", "group": "bridge", "desc": "", "lines": 13}, {"id": "core_patterns_capability_registry", "path": "core.patterns.capability_registry", "file": "capability_registry.py", "group": "bridge", "desc": "Capability-centric tool registry.", "lines": 76}, {"id": "core_patterns_causal_graph", "path": "core.patterns.causal_graph", "file": "causal_graph.py", "group": "bridge", "desc": "Causal Event Graph \u2014 parent/child event linking with SQLite persistence.", "lines": 254}, {"id": "core_patterns_decision_tracer", "path": "core.patterns.decision_tracer", "file": "decision_tracer.py", "group": "bridge", "desc": "Decision tracing \u2014 captures why the agent made specific choices.", "lines": 122}, {"id": "core_patterns_event_bus", "path": "core.patterns.event_bus", "file": "event_bus.py", "group": "bridge", "desc": "Simple event bus for decoupled communication between components.", "lines": 95}, {"id": "core_patterns_fault_injector", "path": "core.patterns.fault_injector", "file": "fault_injector.py", "group": "bridge", "desc": "Fault injection framework for testing failure recovery.", "lines": 67}, {"id": "core_patterns_profile_manifest", "path": "core.patterns.profile_manifest", "file": "profile_manifest.py", "group": "bridge", "desc": "Agent Profile Manifest \u2014 captures agent configuration for reproducibility.", "lines": 74}, {"id": "core_schemas", "path": "core.schemas", "file": "schemas.py", "group": "core", "desc": "", "lines": 9}, {"id": "core_theme", "path": "core.theme", "file": "theme.py", "group": "core", "desc": "", "lines": 60}, {"id": "core_utils_deprecation", "path": "core.utils.deprecation", "file": "deprecation.py", "group": "utils", "desc": "Deprecation policy utilities for internal APIs.", "lines": 77}, {"id": "core_utils_error_translator", "path": "core.utils.error_translator", "file": "error_translator.py", "group": "utils", "desc": "Error translation layer: maps internal exceptions to user-facing messages.", "lines": 61}, {"id": "core_utils_validation", "path": "core.utils.validation", "file": "validation.py", "group": "utils", "desc": "Tool call extraction and validation utilities.", "lines": 221}, {"id": "core_utils_web_client", "path": "core.utils.web_client", "file": "web_client.py", "group": "utils", "desc": "", "lines": 384}, {"id": "demo_conversation", "path": "demo.conversation", "file": "conversation.py", "group": "demo", "desc": "", "lines": 65}, {"id": "diff_engine", "path": "diff_engine", "file": "diff_engine.py", "group": "core", "desc": "SEARCH/REPLACE block parsing and validation and diff engine.", "lines": 304}, {"id": "executor", "path": "executor", "file": "executor.py", "group": "core", "desc": "Tool Executor \u2014 extracted from gemini_bridge.py for modularity.", "lines": 666}, {"id": "file_watcher", "path": "file_watcher", "file": "file_watcher.py", "group": "core", "desc": "File Watcher \u2014 lightweight polling-based workspace change monitor.", "lines": 161}, {"id": "gfx_mascot_tui", "path": "gfx.mascot_tui", "file": "mascot_tui.py", "group": "gfx", "desc": "", "lines": 256}, {"id": "observability", "path": "observability", "file": "observability.py", "group": "observability", "desc": "", "lines": 834}, {"id": "orchestrator", "path": "orchestrator", "file": "orchestrator.py", "group": "core", "desc": "WW Neural Bridge - Frontier-Grade CLI Harness for Gemini Multi-Agent System.", "lines": 1056}, {"id": "plugins", "path": "plugins", "file": "__init__.py", "group": "root", "desc": "", "lines": 6}, {"id": "plugins_ww_plugin", "path": "plugins.ww_plugin", "file": "ww_plugin.py", "group": "plugins", "desc": "WW Plugin System \u2014 base interface and scanner.", "lines": 227}, {"id": "profiler", "path": "profiler", "file": "profiler.py", "group": "observability", "desc": "Simple hot-path profiler with context manager decorator.", "lines": 95}, {"id": "prompt_templates", "path": "prompt_templates", "file": "prompt_templates.py", "group": "core", "desc": "Versioned Prompt Template System.", "lines": 288}, {"id": "security", "path": "security", "file": "security.py", "group": "security", "desc": "Permission & Approval System for Tool Execution.", "lines": 220}, {"id": "tools", "path": "tools", "file": "__init__.py", "group": "root", "desc": "", "lines": 12}, {"id": "tools_registry", "path": "tools.registry", "file": "registry.py", "group": "tools", "desc": "", "lines": 178}, {"id": "tools_system_tools", "path": "tools.system_tools", "file": "system_tools.py", "group": "tools", "desc": "Tool implementations.", "lines": 492}, {"id": "tui", "path": "tui", "file": "tui.py", "group": "root", "desc": "", "lines": 122}, {"id": "tutorial", "path": "tutorial", "file": "tutorial.py", "group": "root", "desc": "Interactive tutorial mode for onboarding.", "lines": 113}, {"id": "ui", "path": "ui", "file": "ui.py", "group": "root", "desc": "UIAdapter Protocol \u2014 Decouples UI from business logic.", "lines": 490}, {"id": "ww_client", "path": "ww_client", "file": "ww_client.py", "group": "root", "desc": "Python SDK for programmatic bridge usage.", "lines": 67}];
+var EDGES = [{"source": "agents_loader", "target": "core_context"}, {"source": "checkpoint", "target": "config"}, {"source": "commands", "target": "ui"}, {"source": "core_context", "target": "checkpoint"}, {"source": "core_context", "target": "config"}, {"source": "core_context", "target": "constants"}, {"source": "core_context", "target": "core_context"}, {"source": "core_context", "target": "core_healing"}, {"source": "core_context", "target": "core_memory"}, {"source": "core_context", "target": "core_patterns_causal_graph"}, {"source": "core_context", "target": "core_utils_web_client"}, {"source": "core_context", "target": "diff_engine"}, {"source": "core_context", "target": "observability"}, {"source": "core_context", "target": "security"}, {"source": "core_context", "target": "tools_registry"}, {"source": "core_context", "target": "tools_system_tools"}, {"source": "core_healing", "target": "core_utils_web_client"}, {"source": "core_utils_web_client", "target": "config"}, {"source": "diff_engine", "target": "diff_engine"}, {"source": "executor", "target": "checkpoint"}, {"source": "executor", "target": "core_backpressure"}, {"source": "executor", "target": "core_context"}, {"source": "executor", "target": "core_patterns_decision_tracer"}, {"source": "executor", "target": "core_patterns_fault_injector"}, {"source": "executor", "target": "core_utils_validation"}, {"source": "executor", "target": "diff_engine"}, {"source": "executor", "target": "observability"}, {"source": "executor", "target": "security"}, {"source": "executor", "target": "tools_registry"}, {"source": "executor", "target": "ui"}, {"source": "file_watcher", "target": "constants"}, {"source": "observability", "target": "config"}, {"source": "orchestrator", "target": "agents_loader"}, {"source": "orchestrator", "target": "checkpoint"}, {"source": "orchestrator", "target": "commands"}, {"source": "orchestrator", "target": "config"}, {"source": "orchestrator", "target": "core_cache_manager"}, {"source": "orchestrator", "target": "core_context"}, {"source": "orchestrator", "target": "core_healing"}, {"source": "orchestrator", "target": "core_memory"}, {"source": "orchestrator", "target": "core_patterns_event_bus"}, {"source": "orchestrator", "target": "core_patterns_profile_manifest"}, {"source": "orchestrator", "target": "core_schemas"}, {"source": "orchestrator", "target": "core_theme"}, {"source": "orchestrator", "target": "core_utils_deprecation"}, {"source": "orchestrator", "target": "core_utils_error_translator"}, {"source": "orchestrator", "target": "core_utils_validation"}, {"source": "orchestrator", "target": "diff_engine"}, {"source": "orchestrator", "target": "executor"}, {"source": "orchestrator", "target": "file_watcher"}, {"source": "orchestrator", "target": "gfx_mascot_tui"}, {"source": "orchestrator", "target": "observability"}, {"source": "orchestrator", "target": "security"}, {"source": "orchestrator", "target": "tools_registry"}, {"source": "orchestrator", "target": "tools_system_tools"}, {"source": "orchestrator", "target": "ui"}, {"source": "security", "target": "ui"}, {"source": "tools_system_tools", "target": "core_context"}, {"source": "tools_system_tools", "target": "security"}, {"source": "tui", "target": "core_context"}, {"source": "tui", "target": "ui"}, {"source": "ww_client", "target": "core_utils_web_client"}];
+var GROUP_EDGES = [{"source": "bridge", "target": "core", "count": 5}, {"source": "core", "target": "gfx", "count": 1}, {"source": "core", "target": "observability", "count": 3}, {"source": "core", "target": "root", "count": 11}, {"source": "core", "target": "security", "count": 3}, {"source": "core", "target": "tools", "count": 6}, {"source": "core", "target": "utils", "count": 6}, {"source": "observability", "target": "root", "count": 1}, {"source": "root", "target": "security", "count": 1}, {"source": "root", "target": "utils", "count": 2}, {"source": "security", "target": "tools", "count": 1}];
+var GROUP_COUNTS = {"root": 11, "core": 13, "bridge": 7, "utils": 4, "demo": 1, "gfx": 1, "observability": 2, "plugins": 1, "security": 1, "tools": 2};
+var GROUP_COLORS = {"root": "#58a6ff", "core": "#a371f7", "tools": "#3fb950", "utils": "#d29922", "bridge": "#f78166", "gfx": "#56d4dd", "plugins": "#ff7b72", "demo": "#7ee787", "observability": "#f0c000", "security": "#ff7b72"};
+var GROUP_NAMES = {"root": "Root entry", "core": "Core subsystem", "tools": "Tool registry", "utils": "Utilities", "bridge": "Bridge patterns", "gfx": "Mascot GFX", "plugins": "Plugin system", "demo": "Demo mode", "observability": "Observability", "security": "Security"};
 
 var MOD_MAP = {}; MODS.forEach(function(m){ MOD_MAP[m.id] = m; });
-var GROUP_MAP = {}; GROUPS.forEach(function(g){ GROUP_MAP[g.group] = g; });
-
-var cy, currentLayout = 'group', zoomedGroup = null;
-
+var cy, zoomed = null;
 function init() {
   cy = cytoscape({
     container: document.getElementById('cy'),
-    layout: { name: 'grid' },
     style: [
-      { selector: 'node', style: {
-        'background-color': '#1c2333',
-        'label': 'data(label)',
-        'color': '#c9d1d9',
-        'font-size': '10px',
-        'font-family': 'system-ui, sans-serif',
-        'text-wrap': 'wrap',
-        'text-valign': 'center',
-        'text-halign': 'center',
-        'shape': 'round-rectangle',
-        'border-width': 2,
-        'border-color': 'data(color)',
-        'background-opacity': 0.9,
-        'padding': '6px',
-        'font-weight': '600'
-      }},
-      { selector: 'node.mod', style: {
-        'font-size': '7px',
-        'font-family': 'monospace',
-        'font-weight': '400',
-        'border-width': 1.5,
-        'text-valign': 'bottom',
-        'text-halign': 'center',
-        'text-margin-y': '8px',
-        'shape': 'round-rectangle',
-        'background-color': '#1c2333',
-        'width': 70,
-        'height': 30,
-        'padding': '0'
-      }},
-      { selector: 'edge', style: {
-        'width': 1,
-        'line-color': '#58a6ff',
-        'target-arrow-color': '#58a6ff',
-        'target-arrow-shape': 'triangle-backcurve',
-        'arrow-scale': 0.4,
-        'curve-style': 'bezier',
-        'opacity': 0.5,
-        'line-style': 'solid'
-      }},
-      { selector: 'edge.group-edge', style: {
-        'width': 'mapData(count, 1, 30, 2, 8)',
-        'opacity': 0.6,
-        'line-color': '#58a6ff',
-        'target-arrow-color': '#58a6ff',
-        'label': 'data(count)',
-        'font-size': '8px',
-        'color': '#58a6ff',
-        'text-background-color': '#0d1117',
-        'text-background-opacity': 0.9,
-        'text-background-padding': '2px',
-        'curve-style': 'unbundled-bezier'
-      }},
-      { selector: 'edge.faded-edge', style: { 'opacity': 0.05 } },
-      { selector: 'node.faded', style: { 'opacity': 0.15 } },
-      { selector: 'node.highlight', style: { 'border-width': 3, 'border-color': '#f0f6fc' } },
-      { selector: 'edge.highlight-edge', style: { 'opacity': 0.9, 'width': 3, 'line-color': '#f0f6fc', 'target-arrow-color': '#f0f6fc' } }
+      { selector: 'node', style: { backgroundColor: '#1c2333', label: 'data(label)', color: '#c9d1d9', fontSize: '10px', fontFamily: 'system-ui,sans-serif', textWrap: 'wrap', textValign: 'center', textHalign: 'center', shape: 'round-rectangle', borderWidth: 2, borderColor: 'data(color)', backgroundOpacity: 0.9, padding: '6px', fontWeight: '600' } },
+      { selector: 'edge', style: { width: 0.5, lineColor: '#58a6ff', targetArrowColor: '#58a6ff', targetArrowShape: 'triangle-backcurve', arrowScale: 0.3, curveStyle: 'bezier', opacity: 0.3 } },
+      { selector: 'node.faded', style: { opacity: 0.15 } },
+      { selector: 'node.highlight', style: { borderWidth: 3, borderColor: '#f0f6fc' } },
+      { selector: 'edge.faded', style: { opacity: 0.02 } },
+      { selector: 'edge.highlight', style: { opacity: 0.9, width: 3, lineColor: '#f0f6fc' } }
     ]
   });
-  
-  // Show info banner
-  document.getElementById('info').classList.add('show');
-  setTimeout(function(){ document.getElementById('info').classList.remove('show'); }, 5000);
-  
-  // Render default overview
-  renderOverview();
-  
-  // Click handler
+  overview(); legend();
   cy.on('tap', 'node', function(e) {
-    if (currentLayout === 'group' && !zoomedGroup) {
-      var d = e.target.data();
-      if (d._type === 'group') {
-        expandGroup(d.group_name);
-      }
-    } else if (currentLayout === 'group' && zoomedGroup) {
-      // Click a module in expanded view
-      var d = e.target.data();
-      if (d._type === 'module') {
-        showModuleDetail(d);
-      } else if (d._isBack) {
-        renderOverview();
-      }
-    } else {
-      // Module view - show detail
-      var d = e.target.data();
-      if (d._type === 'module') showModuleDetail(d);
-    }
+    var d = e.target.data();
+    if (zoomed && d._back) { overview(); return; }
+    if (!zoomed && d._grp) { expand(d._grp); return; }
+    showMod(d);
   });
-  
-  // Hover highlight
   cy.on('mouseover', 'node', function(e) {
-    var n = e.target;
-    if (currentLayout === 'group' && !zoomedGroup) {
-      // Group overview: highlight connected groups
-      var connected = {};
-      n.connectedEdges().forEach(function(ce){
-        connected[ce.source().id()] = true;
-        connected[ce.target().id()] = true;
-      });
-      cy.nodes().forEach(function(on){
-        if(on.id() === n.id()) { on.addClass('highlight'); return; }
-        if(connected[on.id()]) on.addClass('highlight');
-        else on.addClass('faded');
-      });
-      cy.edges().forEach(function(oe){
-        var src = oe.source().id(), tgt = oe.target().id();
-        if(src === n.id() || tgt === n.id()) oe.addClass('highlight-edge');
-        else oe.addClass('faded-edge');
-      });
-    } else {
-      // Module view: highlight neighbors
-      var nb = {};
-      n.neighborhood().nodes().forEach(function(x){ nb[x.id()] = true; });
-      cy.nodes().forEach(function(on){
-        if(on.id() === n.id()) return;
-        if(nb[on.id()]) on.addClass('highlight');
-        else on.addClass('faded');
-      });
-      cy.edges().forEach(function(oe){
-        if(nb[oe.source().id()] && nb[oe.target().id()]) oe.addClass('highlight-edge');
-        else oe.addClass('faded-edge');
-      });
-    }
+    var n = e.target, c = {};
+    n.connectedEdges().forEach(function(ce){ c[ce.source().id()]=1; c[ce.target().id()]=1; });
+    cy.nodes().forEach(function(on){ if(on.id()==n.id()||c[on.id()]) on.addClass('highlight'); else on.addClass('faded'); });
+    cy.edges().forEach(function(oe){ if(c[oe.source().id()]&&c[oe.target().id()]) oe.addClass('highlight'); else oe.addClass('faded'); });
   });
-  cy.on('mouseout', 'node', function(){
-    cy.nodes().removeClass('faded highlight');
-    cy.edges().removeClass('faded-edge highlight-edge');
-  });
-  
-  // Build legend
-  buildLegend();
+  cy.on('mouseout', 'node', function(){ cy.nodes().removeClass('faded highlight'); cy.edges().removeClass('faded highlight'); });
 }
 
-function renderOverview() {
-  zoomedGroup = null;
-  currentLayout = 'group';
-  document.getElementById('mode-label').textContent = 'Overview';
+function overview() {
+  zoomed = null;
   cy.elements().remove();
-  
-  // Add group nodes
-  GROUPS.forEach(function(g) {
-    var label = g.name;
-    cy.add({
-      group: 'nodes',
-      data: {
-        id: g.id,
-        label: label,
-        color: g.color,
-        _type: 'group',
-        group_name: g.group,
-        count: g.count,
-        lines: g.total_lines
-      },
-      classes: 'group-node'
-    });
+  var gs = Object.keys(GROUP_COUNTS).sort();
+  var mx = Math.max(1, ...gs.map(function(g){ return GROUP_COUNTS[g]; }));
+  gs.forEach(function(g) {
+    cy.add({ group: 'nodes', data: { id: 'g_'+g, label: (GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+')', color: GROUP_COLORS[g]||'#58a6ff', _grp: g, _cnt: GROUP_COUNTS[g] } });
   });
-  
-  // Style group nodes with size = module count
-  var maxCount = 1;
-  GROUPS.forEach(function(g){ if(g.count > maxCount) maxCount = g.count; });
-  cy.nodes().style({
-    'width': function(n){ var c = n.data('count') || 1; return 60 + (c/maxCount) * 100; },
-    'height': function(n){ var c = n.data('count') || 1; return 40 + (c/maxCount) * 60; },
-    'font-size': function(n){ var c = n.data('count') || 1; return c > 10 ? 11 : 9; }
-  });
-  
-  // Add group edges
-  GROUP_EDGES.forEach(function(e) {
-    cy.add({
-      group: 'edges',
-      data: {
-        source: e.source,
-        target: e.target,
-        count: e.count
-      },
-      classes: 'group-edge'
-    });
-  });
-  
-  // Layout: use grid positioning with groups in logical order
-  var order = ['root','core','tools','utils','bridge','dashboard','gfx','plugins','demo'];
-  var cols = 3;
-  var spacingX = 200, spacingY = 130;
-  cy.nodes().positions(function(n){
-    var d = n.data(), idx = order.indexOf(d.group_name);
-    if(idx < 0) idx = 0;
-    var col = idx % cols, row = Math.floor(idx / cols);
-    return { x: col * spacingX + spacingX/2, y: row * spacingY + spacingY/2 };
-  });
-  cy.fit(undefined, 80);
-  
-  updateStatus();
+  cy.nodes().style({ width: function(n){ return 80+((n.data('_cnt')||1)/mx)*80; }, height: function(n){ return 50+((n.data('_cnt')||1)/mx)*50; }, fontSize: function(n){ return (n.data('_cnt')||1)>6?11:9; } });
+  GROUP_EDGES.forEach(function(e){ cy.add({ group: 'edges', data: { source: 'g_'+e.source, target: 'g_'+e.target, count: e.count } }); });
+  var cols = 2, sx = 280, sy = 140;
+  cy.nodes().positions(function(n){ var i = gs.indexOf(n.data('_grp')); return {x:(i%cols)*sx+sx/2, y:Math.floor(i/cols)*sy+sy/2}; });
+  cy.fit(undefined, 80); update();
 }
 
-function expandGroup(groupName) {
-  var g = GROUP_MAP[groupName];
-  if (!g) return;
-  zoomedGroup = groupName;
+function expand(g) {
+  zoomed = g;
+  document.getElementById('mode-label').textContent = (GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+' modules)';
   cy.elements().remove();
-  
-  // Add back button
-  cy.add({ group: 'nodes', data: { id: '_back', label: '← Back to Overview', _isBack: true, color: '#8b949e' } });
-  
-  // Add module nodes for this group
-  var gMods = MODS.filter(function(m){ return m.group === groupName; });
-  gMods.forEach(function(m) {
-    cy.add({
-      group: 'nodes',
-      data: {
-        id: m.id,
-        label: m.file,
-        color: g.color,
-        _type: 'module',
-        file: m.file,
-        path: m.path,
-        desc: m.desc,
-        group: m.group,
-        lines: m.lines
-      },
-      classes: 'mod'
-    });
-  });
-  
-  // Add edges between modules in this group
-  EDGES.forEach(function(e) {
-    var s = e.source, t = e.target;
-    var sm = MOD_MAP[s], tm = MOD_MAP[t];
-    if (sm && tm && sm.group === groupName && tm.group === groupName) {
-      cy.add({ group: 'edges', data: { source: s, target: t } });
-    }
-  });
-  
-  // Also add edges TO modules outside this group (lighter)
-  var outsideEdges = [];
-  EDGES.forEach(function(e) {
-    var s = e.source, t = e.target;
-    var sm = MOD_MAP[s], tm = MOD_MAP[t];
-    if (sm && tm) {
-      if (sm.group === groupName && tm.group !== groupName) outsideEdges.push({s: s, t: t});
-      if (tm.group === groupName && sm.group !== groupName) outsideEdges.push({s: s, t: t});
-    }
-  });
-  outsideEdges.forEach(function(e) {
-    // Only add if target node exists in graph
-    if (cy.getElementById(e.s).length && cy.getElementById(e.t).length) {
-      cy.add({ group: 'edges', data: { source: e.s, target: e.t } });
-    }
-  });
-  
-  // Layout
-  var maxLines = 1;
-  gMods.forEach(function(m){ if(m.lines > maxLines) maxLines = m.lines; });
-  cy.nodes().forEach(function(n){
-    if (n.data()._isBack) {
-      n.style({ 'width': 120, 'height': 24, 'font-size': 9, 'background-color': 'transparent', 'border-width': 1, 'border-color': '#30363d', 'text-valign': 'center', 'text-halign': 'center' });
-    } else {
-      var lines = n.data('lines') || 1;
-      n.style({ 'width': 20 + (lines/maxLines)*80, 'height': 18 + (lines/maxLines)*30 });
-    }
-  });
-  
-  document.getElementById('mode-label').textContent = g.name + ' (' + gMods.length + ' modules)';
-  
+  cy.add({ group: 'nodes', data: { id: '_b', label: '← Back', _back: 1, color: '#8b949e' } });
+  var gm = MODS.filter(function(m){ return m.group == g; });
+  var mx = Math.max(1, ...gm.map(function(m){ return m.lines; }));
+  gm.forEach(function(m) { cy.add({ group: 'nodes', data: { id: m.id, label: m.file, color: GROUP_COLORS[g]||'#58a6ff', _mod: 1, file: m.file, lines: m.lines } }); });
+  cy.nodes().not('#_b').style({ width: function(n){ return 20+((n.data('lines')||1)/mx)*80; }, height: function(n){ return 16+((n.data('lines')||1)/mx)*30; } });
+  cy.getElementById('_b').style({ width: 100, height: 24, fontSize: 9, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#30363d' });
+  EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group: 'edges', data: { source: e.source, target: e.target } }); });
   cy.layout({ name: 'cose', nodeRepulsion: 5000, gravity: 0.5, numIter: 800, fit: true, padding: 60, animate: true, animationDuration: 300 }).run();
-  updateStatus();
+  update();
 }
 
-function showModuleDetail(d) {
-  var m = MOD_MAP[d.id];
-  if (!m) return;
-  // Highlight the module and show info in legend area
-  var deps = [];
-  EDGES.forEach(function(e){
-    if(e.source === d.id) deps.push(e.target);
-    if(e.target === d.id) deps.push(e.source);
-  });
-  var depNames = deps.map(function(depId){
-    var dm = MOD_MAP[depId];
-    return dm ? dm.file : depId;
-  });
-  var legend = document.getElementById('legend');
-  legend.innerHTML = '<div class="tl" style="color:' + d.color + '">' + m.file + '</div>' +
-    '<div class="row" style="color:#c9d1d9;margin-bottom:3px">' + (m.desc || 'No docstring') + '</div>' +
-    '<div class="row">Path: src/' + m.path + '</div>' +
-    '<div class="row">Lines: ' + m.lines + '</div>' +
-    '<div class="row">Group: ' + (GROUP_NAMES[m.group] || m.group) + '</div>' +
-    '<div class="row" style="margin-top:2px;border-top:1px solid #21262d;padding-top:2px">Connections: ' + depNames.join(', ') + '</div>';
-  
-  // Highlight node
-  cy.nodes().removeClass('highlight faded');
-  var n = cy.getElementById(d.id);
-  if (n.length) n.addClass('highlight');
-  cy.fit(n, 100);
+function showMod(d) {
+  var m = MOD_MAP[d.id]; if(!m) return;
+  var deps = []; EDGES.forEach(function(e){ if(e.source==d.id||e.target==d.id) deps.push(e.source==d.id?e.target:e.source); });
+  document.getElementById('legend').innerHTML = '<div class="tl" style="color:'+d.color+'">'+m.file+' ('+m.lines+' lines)</div>'+
+    '<div class="row" style="color:#c9d1d9">'+(m.desc||'No docstring')+'</div>'+
+    '<div class="row">src/'+m.path+' · '+(GROUP_NAMES[m.group]||m.group)+'</div>'+
+    (deps.length ? '<div class="row" style="margin-top:2px;border-top:1px solid #21262d;padding-top:2px">'+deps.map(function(di){ var dm=MOD_MAP[di]; return dm?dm.file:di; }).join(', ')+'</div>' : '');
 }
 
-function buildLegend() {
-  var l = '<div class="tl">Groups</div>';
-  var order = ['root','core','tools','utils','bridge','dashboard','gfx','plugins','demo'];
-  order.forEach(function(g){
-    var grp = GROUP_MAP[g];
-    if (grp) l += '<div class="row"><span class="dot" style="background:' + grp.color + '"></span>' + grp.name + ' (' + grp.count + ')</div>';
-  });
+function legend() {
+  var l = '<div class="tl">Module Groups</div>';
+  Object.keys(GROUP_COUNTS).sort().forEach(function(g){ l += '<div class="row"><span class="dot" style="background:'+(GROUP_COLORS[g]||'#58a6ff')+'"></span>'+(GROUP_NAMES[g]||g)+' ('+GROUP_COUNTS[g]+')</div>'; });
   document.getElementById('legend').innerHTML = l;
 }
 
-function updateStatus() {
-  document.getElementById('status').textContent = cy.nodes().length + ' nodes | ' + cy.edges().length + ' edges';
-}
+function update(){ document.getElementById('status').textContent = cy.nodes().length+' nodes, '+cy.edges().length+' edges'; }
 
-// Layout switching
-function runLayout(name) {
-  currentLayout = name;
-  zoomedGroup = null;
-  document.querySelectorAll('#topbar .tab[data-layout]').forEach(function(t){
-    t.classList.toggle('active', t.getAttribute('data-layout') === name);
-  });
-  
+function layout(name) {
+  zoomed = null;
+  document.querySelectorAll('#topbar .tab[data-layout]').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')==name); });
   cy.elements().remove();
-  
-  if (name === 'group') {
-    renderOverview();
-    return;
-  }
-  
-  document.getElementById('mode-label').textContent = name.charAt(0).toUpperCase() + name.slice(1);
-  
-  // Add all module nodes
-  var maxLines = 1;
-  MODS.forEach(function(m){ if(m.lines > maxLines) maxLines = m.lines; });
-  MODS.forEach(function(m) {
-    var g = GROUP_MAP[m.group];
-    cy.add({
-      group: 'nodes',
-      data: {
-        id: m.id,
-        label: m.file,
-        color: g ? g.color : '#58a6ff',
-        _type: 'module',
-        file: m.file,
-        path: m.path,
-        desc: m.desc,
-        group: m.group,
-        lines: m.lines
-      },
-      classes: 'mod'
-    });
-  });
-  // Size nodes
-  cy.nodes().style({
-    'width': function(n){ return 20 + ((n.data('lines')||1)/maxLines)*60; },
-    'height': function(n){ return 16 + ((n.data('lines')||1)/maxLines)*25; }
-  });
-  
-  // Add all edges
-  EDGES.forEach(function(e) {
-    if (cy.getElementById(e.source).length && cy.getElementById(e.target).length) {
-      cy.add({ group: 'edges', data: { source: e.source, target: e.target } });
-    }
-  });
-  
-  // Run layout
-  if (name === 'hubs') {
-    cy.layout({ name: 'concentric', concentric: function(n){ return n.connectedEdges().length; }, levelWidth: function(){ return 2; }, minNodeSpacing: 30, fit: true, padding: 60, animate: true, animationDuration: 400 }).run();
-  } else if (name === 'tiers') {
-    cy.layout({ name: 'breadthfirst', directed: true, spacingFactor: 1.3, fit: true, padding: 60, animate: true, animationDuration: 400 }).run();
-  } else if (name === 'circle') {
-    cy.layout({ name: 'circle', spacingFactor: 1.2, fit: true, padding: 60, animate: true, animationDuration: 400 }).run();
-  } else if (name === 'modules') {
-    cy.layout({ name: 'cose', nodeRepulsion: 8000, gravity: 0.3, numIter: 1000, idealEdgeLength: 100, fit: true, padding: 60, animate: true, animationDuration: 400 }).run();
-  }
-  updateStatus();
+  if(name=='overview'){ overview(); return; }
+  document.getElementById('mode-label').textContent = name.charAt(0).toUpperCase()+name.slice(1);
+  var mx = Math.max(1, ...MODS.map(function(m){ return m.lines; }));
+  MODS.forEach(function(m){ cy.add({ group:'nodes', data:{ id:m.id, label:m.file, color:GROUP_COLORS[m.group]||'#58a6ff', _mod:1, lines:m.lines } }); });
+  cy.nodes().style({ width:function(n){ return 20+((n.data('lines')||1)/mx)*60; }, height:function(n){ return 16+((n.data('lines')||1)/mx)*25; } });
+  EDGES.forEach(function(e){ if(cy.getElementById(e.source).length&&cy.getElementById(e.target).length) cy.add({ group:'edges', data:{ source:e.source, target:e.target } }); });
+  if(name=='hubs') cy.layout({ name:'concentric', concentric:function(n){ return n.connectedEdges().length; }, levelWidth:function(){ return 2; }, minNodeSpacing:30, fit:true, padding:60, animate:true, animationDuration:400 }).run();
+  else if(name=='tiers') cy.layout({ name:'breadthfirst', directed:true, spacingFactor:1.3, fit:true, padding:60, animate:true, animationDuration:400 }).run();
+  else if(name=='circle') cy.layout({ name:'circle', spacingFactor:1.2, fit:true, padding:60, animate:true, animationDuration:400 }).run();
+  else cy.layout({ name:'cose', nodeRepulsion:8000, gravity:0.3, numIter:1000, fit:true, padding:60, animate:true, animationDuration:400 }).run();
+  update();
 }
-
-// Tab handlers
 var tabs = document.querySelectorAll('#topbar .tab[data-layout]');
-for (var i = 0; i < tabs.length; i++) {
-  (function(tab){
-    tab.onclick = function() {
-      runLayout(this.getAttribute('data-layout'));
-    };
-  })(tabs[i]);
-}
-
-// Init
+for(var i=0;i<tabs.length;i++) (function(t){ t.onclick=function(){ layout(this.getAttribute('data-layout')); }; })(tabs[i]);
 init();
 </script>
 </body>

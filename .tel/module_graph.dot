@@ -1,0 +1,230 @@
+digraph WW {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname=monospace, fontsize=10];
+  edge [color=gray, arrowhead=vee, arrowsize=0.5];
+  subgraph cluster_agents_loader {
+    label="agents_loader";
+    style=filled;
+    fillcolor=lightgray;
+    agents_loader_agents_loader [label="agents_loader.py"];
+  }
+  subgraph cluster_bridge {
+    label="bridge";
+    style=filled;
+    fillcolor=lightgray;
+    bridge_core_patterns [label="__init__.py"];
+    bridge_core_patterns_capability_registry [label="capability_registry.py"];
+    bridge_core_patterns_causal_graph [label="causal_graph.py"];
+    bridge_core_patterns_decision_tracer [label="decision_tracer.py"];
+    bridge_core_patterns_event_bus [label="event_bus.py"];
+    bridge_core_patterns_fault_injector [label="fault_injector.py"];
+    bridge_core_patterns_profile_manifest [label="profile_manifest.py"];
+  }
+  subgraph cluster_checkpoint {
+    label="checkpoint";
+    style=filled;
+    fillcolor=lightgray;
+    checkpoint_checkpoint [label="checkpoint.py"];
+  }
+  subgraph cluster_commands {
+    label="commands";
+    style=filled;
+    fillcolor=lightgray;
+    commands_commands [label="commands.py"];
+  }
+  subgraph cluster_config {
+    label="config";
+    style=filled;
+    fillcolor=lightgray;
+    config_config [label="config.py"];
+  }
+  subgraph cluster_constants {
+    label="constants";
+    style=filled;
+    fillcolor=lightgray;
+    constants_constants [label="constants.py"];
+  }
+  subgraph cluster_core {
+    label="core";
+    style=filled;
+    fillcolor=lightgray;
+    core_core [label="__init__.py"];
+    core_core_backpressure [label="backpressure.py"];
+    core_core_cache_manager [label="cache_manager.py"];
+    core_core_context [label="context.py"];
+    core_core_healing [label="healing.py"];
+    core_core_memory [label="memory.py"];
+    core_core_schemas [label="schemas.py"];
+    core_core_theme [label="theme.py"];
+  }
+  subgraph cluster_demo {
+    label="demo";
+    style=filled;
+    fillcolor=lightgray;
+    demo_demo_conversation [label="conversation.py"];
+  }
+  subgraph cluster_diff_engine {
+    label="diff_engine";
+    style=filled;
+    fillcolor=lightgray;
+    diff_engine_diff_engine [label="diff_engine.py"];
+  }
+  subgraph cluster_executor {
+    label="executor";
+    style=filled;
+    fillcolor=lightgray;
+    executor_executor [label="executor.py"];
+  }
+  subgraph cluster_file_watcher {
+    label="file_watcher";
+    style=filled;
+    fillcolor=lightgray;
+    file_watcher_file_watcher [label="file_watcher.py"];
+  }
+  subgraph cluster_gfx {
+    label="gfx";
+    style=filled;
+    fillcolor=lightgray;
+    gfx_gfx_mascot_tui [label="mascot_tui.py"];
+  }
+  subgraph cluster_observability {
+    label="observability";
+    style=filled;
+    fillcolor=lightgray;
+    observability_observability [label="observability.py"];
+  }
+  subgraph cluster_orchestrator {
+    label="orchestrator";
+    style=filled;
+    fillcolor=lightgray;
+    orchestrator_orchestrator [label="orchestrator.py"];
+  }
+  subgraph cluster_plugins {
+    label="plugins";
+    style=filled;
+    fillcolor=lightgray;
+    plugins_plugins [label="__init__.py"];
+    plugins_plugins_ww_plugin [label="ww_plugin.py"];
+  }
+  subgraph cluster_profiler {
+    label="profiler";
+    style=filled;
+    fillcolor=lightgray;
+    profiler_profiler [label="profiler.py"];
+  }
+  subgraph cluster_prompt_templates {
+    label="prompt_templates";
+    style=filled;
+    fillcolor=lightgray;
+    prompt_templates_prompt_templates [label="prompt_templates.py"];
+  }
+  subgraph cluster_security {
+    label="security";
+    style=filled;
+    fillcolor=lightgray;
+    security_security [label="security.py"];
+  }
+  subgraph cluster_tools {
+    label="tools";
+    style=filled;
+    fillcolor=lightgray;
+    tools_tools [label="__init__.py"];
+    tools_tools_registry [label="registry.py"];
+    tools_tools_system_tools [label="system_tools.py"];
+  }
+  subgraph cluster_tui {
+    label="tui";
+    style=filled;
+    fillcolor=lightgray;
+    tui_tui [label="tui.py"];
+  }
+  subgraph cluster_tutorial {
+    label="tutorial";
+    style=filled;
+    fillcolor=lightgray;
+    tutorial_tutorial [label="tutorial.py"];
+  }
+  subgraph cluster_ui {
+    label="ui";
+    style=filled;
+    fillcolor=lightgray;
+    ui_ui [label="ui.py"];
+  }
+  subgraph cluster_utils {
+    label="utils";
+    style=filled;
+    fillcolor=lightgray;
+    utils_core_utils_deprecation [label="deprecation.py"];
+    utils_core_utils_error_translator [label="error_translator.py"];
+    utils_core_utils_validation [label="validation.py"];
+    utils_core_utils_web_client [label="web_client.py"];
+  }
+  subgraph cluster_ww_client {
+    label="ww_client";
+    style=filled;
+    fillcolor=lightgray;
+    ww_client_ww_client [label="ww_client.py"];
+  }
+  agents_loader_agents_loader -> core_core_context;
+  checkpoint_checkpoint -> config_config;
+  commands_commands -> ui_ui;
+  core_core_context -> checkpoint_checkpoint;
+  core_core_context -> config_config;
+  core_core_context -> constants_constants;
+  core_core_context -> core_core_context;
+  core_core_context -> core_core_healing;
+  core_core_context -> core_core_memory;
+  core_core_context -> bridge_core_patterns_causal_graph;
+  core_core_context -> utils_core_utils_web_client;
+  core_core_context -> diff_engine_diff_engine;
+  core_core_context -> observability_observability;
+  core_core_context -> security_security;
+  core_core_context -> tools_tools_registry;
+  core_core_context -> tools_tools_system_tools;
+  core_core_healing -> utils_core_utils_web_client;
+  utils_core_utils_web_client -> config_config;
+  diff_engine_diff_engine -> diff_engine_diff_engine;
+  executor_executor -> checkpoint_checkpoint;
+  executor_executor -> core_core_backpressure;
+  executor_executor -> core_core_context;
+  executor_executor -> bridge_core_patterns_decision_tracer;
+  executor_executor -> bridge_core_patterns_fault_injector;
+  executor_executor -> utils_core_utils_validation;
+  executor_executor -> diff_engine_diff_engine;
+  executor_executor -> observability_observability;
+  executor_executor -> security_security;
+  executor_executor -> tools_tools_registry;
+  executor_executor -> ui_ui;
+  file_watcher_file_watcher -> constants_constants;
+  observability_observability -> config_config;
+  orchestrator_orchestrator -> agents_loader_agents_loader;
+  orchestrator_orchestrator -> checkpoint_checkpoint;
+  orchestrator_orchestrator -> commands_commands;
+  orchestrator_orchestrator -> config_config;
+  orchestrator_orchestrator -> core_core_cache_manager;
+  orchestrator_orchestrator -> core_core_context;
+  orchestrator_orchestrator -> core_core_healing;
+  orchestrator_orchestrator -> core_core_memory;
+  orchestrator_orchestrator -> bridge_core_patterns_event_bus;
+  orchestrator_orchestrator -> bridge_core_patterns_profile_manifest;
+  orchestrator_orchestrator -> core_core_schemas;
+  orchestrator_orchestrator -> core_core_theme;
+  orchestrator_orchestrator -> utils_core_utils_deprecation;
+  orchestrator_orchestrator -> utils_core_utils_error_translator;
+  orchestrator_orchestrator -> utils_core_utils_validation;
+  orchestrator_orchestrator -> diff_engine_diff_engine;
+  orchestrator_orchestrator -> executor_executor;
+  orchestrator_orchestrator -> file_watcher_file_watcher;
+  orchestrator_orchestrator -> gfx_gfx_mascot_tui;
+  orchestrator_orchestrator -> observability_observability;
+  orchestrator_orchestrator -> security_security;
+  orchestrator_orchestrator -> tools_tools_registry;
+  orchestrator_orchestrator -> tools_tools_system_tools;
+  orchestrator_orchestrator -> ui_ui;
+  security_security -> ui_ui;
+  tools_tools_system_tools -> core_core_context;
+  tools_tools_system_tools -> security_security;
+  tui_tui -> core_core_context;
+  tui_tui -> ui_ui;
+  ww_client_ww_client -> utils_core_utils_web_client;
+}
