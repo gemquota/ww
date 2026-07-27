@@ -1,0 +1,21 @@
+name: Deploy Progress Dashboard
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'progress-dashboard.html'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          destination_dir: progress-dashboard
+          include_files: progress-dashboard.html
