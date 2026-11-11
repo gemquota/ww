@@ -65,9 +65,12 @@ async def run_terminal(
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
-                print(f"gemini> {await client.ask(message)}")
+                print("gemini> ", end="", flush=True)
+                async for chunk in client.ask_stream(message):
+                    print(chunk, end="", flush=True)
+                print()
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
-                print(f"Request error: {exc}", file=sys.stderr)
+                print(f"\\nRequest error: {exc}", file=sys.stderr)
     finally:
         await client.close()
     return 0
