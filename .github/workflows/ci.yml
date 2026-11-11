@@ -35,6 +35,10 @@ jobs:
               async def send_message(self, prompt):
                   self.messages.append(prompt)
                   return SimpleNamespace(text="reply: " + prompt)
+              async def send_message_stream(self, prompt):
+                  self.messages.append(prompt)
+                  yield SimpleNamespace(text_delta="stream ")
+                  yield SimpleNamespace(text_delta="reply")
 
           class FakeGemini:
               def __init__(self, *_):
@@ -62,6 +66,10 @@ jobs:
               await ww.new_conversation()
               assert ww._chat is not previous_chat
               assert len(instances[0].chats) == 2
+              streamed = []
+              async for part in ww.ask_stream("stream this"):
+                  streamed.append(part)
+              assert streamed == ["stream ", "reply"]
               try:
                   await ww.ask(" ")
               except ValueError:
