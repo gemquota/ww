@@ -1,66 +1,103 @@
-"""
-Python SDK for programmatic bridge usage.
-Addresses V4-I4: Python SDK
-"""
+"""Minimal stateful transport for Gemini Web Chat.
 
+No agent framework, tool execution, API-key backend, workspace access, or
+orchestration belongs in this module. One WWClient owns one remote chat.
+"""
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
+import inspect
+import os
+from typing import Any, AsyncIterator, Callable
 
 
 class WWClient:
-    """Programmatic client for WW Bridge.
-    
-    Usage:
-        async with WWClient(api_key="...") as bridge:
-            result = await bridge.ask("List files")
-    """
-    
+    """Authenticate to Gemini Web Chat and exchange conversational messages."""
+
     def __init__(
         self,
-        api_key: str = "",
         secure_1psid: str = "",
         secure_1psidts: str = "",
-        workspace: str = ".",
-        verbose: bool = False,
-    ):
-        self.api_key = api_key
-        self.secure_1psid = secure_1psid
-        self.secure_1psidts = secure_1psidts
-        self.workspace = workspace
-        self.verbose = verbose
-        self._client = None
-        self._chat = None
-    
-    async def __aenter__(self) -> "WWClient":
-        from src.utils.web_client import WebGeminiClient
-        import os
-        os.environ.setdefault("SECURE_1PSID", self.secure_1psid)
-        os.environ.setdefault("SECURE_1PSIDTS", self.secure_1psidts)
-        os.environ.setdefault("GEMINI_API_KEY", self.api_key)
-        
-        self._client = WebGeminiClient(
-            secure_1psid=self.secure_1psid,
-            secure_1psidts=self.secure_1psidts,
-            api_key=self.api_key,
-        )
-        if not await self._client.init():
-            raise RuntimeError("Failed to initialize Gemini client")
-        self._chat = self._client.chat
-        return self
-    
-    async def __aexit__(self, *args) -> None:
-        pass
-    
-    async def ask(self, prompt: str) -> Optional[str]:
-        """Send a prompt and get a response."""
-        if self._client:
-            return await self._client.ask(prompt)
-        return None
-    
+        client_factory: Callable[..., Any] | None = None,
+    ) -> None:
+        self.secure_1psid = secure_1psid or os.getenv("SECURE_1PSID", "")
+        self.secure_1psidts = secure_1psidts or os.getenv("SECURE_1PSIDTS", "")
+        self._client_factory = client_factory
+        self._client: Any = None
+        self._chat: Any = None
+
+    async def connect(self) -> None:
+        """Initialize the authenticated web client and its conversation."""
+        if self._chat is not None:
+            return
+        if not self.secure_1psid or not self.secure_1psidts:
+            raise RuntimeError(
+                "Gemini Web Chat credentials are missing. Set SECURE_1PSID "
+                "and SECURE_1PSIDTS in your environment or .env file."
+            )
+        factory = self._client_factory
+        if factory is None:
+            try:
+                from gemini_webapi import GeminiClient
+            except ImportError as exc:
+                raise RuntimeError(
+                    "gemini-webapi is not installed. Run: pip install -r requirements.txt"
+                ) from exc
+            factory = GeminiClient
+        client = factory(self.secure_1psid, self.secure_1psidts)
+        try:
+            await client.init(timeout=45, auto_refresh=True)
+            chat = client.start_chat()
+        except Exception as exc:
+            raise ConnectionError(f"Could not connect to Gemini Web Chat: {exc}") from exc
+        self._client, self._chat = client, chat
+
+    async def ask(self, prompt: str) -> str:
+        """Send a prompt and return Gemini's complete response."""
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Prompt must not be empty.")
+        await self.connect()
+        try:
+            response = await self._chat.send_message(prompt)
+        except Exception as exc:
+            raise ConnectionError(f"Gemini Web Chat request failed: {exc}") from exc
+        response_text = getattr(response, "text", None)
+        return response_text if response_text is not None else str(response)
+
+    async def new_conversation(self) -> None:
+        """Start a new remote conversation without reauthenticating."""
+        await self.connect()
+        self._chat = self._client.start_chat()
+
     async def ask_stream(self, prompt: str) -> AsyncIterator[str]:
-        """Send a prompt and stream the response."""
-        if self._client:
-            async for chunk in self._client.ask_stream(prompt):
-                yield chunk
+        """Yield response chunks when the web library supports streaming."""
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Prompt must not be empty.")
+        await self.connect()
+        streamer = getattr(self._chat, "send_message_stream", None)
+        if streamer is None:
+            yield await self.ask(prompt)
+            return
+        try:
+            async for chunk in streamer(prompt):
+                if chunk:
+                    yield chunk if isinstance(chunk, str) else getattr(chunk, "text", str(chunk))
+        except Exception as exc:
+            raise ConnectionError(f"Gemini Web Chat stream failed: {exc}") from exc
+
+    async def close(self) -> None:
+        """Close the transport if the installed library exposes a close method."""
+        if self._client is None:
+            return
+        closer = getattr(self._client, "close", None)
+        if closer is not None:
+            result = closer()
+            if inspect.isawaitable(result):
+                await result
+        self._client = self._chat = None
+
+    async def __aenter__(self) -> "WWClient":
+        await self.connect()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
