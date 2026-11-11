@@ -70,7 +70,7 @@ async def run_terminal(
                     print(chunk, end="", flush=True)
                 print()
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
-                print(f"\\nRequest error: {exc}", file=sys.stderr)
+                print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
         await client.close()
     return 0
