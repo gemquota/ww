@@ -32,10 +32,10 @@ jobs:
           with TemporaryDirectory() as directory:
               path = Path(directory) / "cookies.txt"
               path.write_text(
-                  "# Netscape HTTP Cookie File\\n"
-                  ".google.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSID\\tprimary-secret\\n"
-                  "#HttpOnly_.google.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSIDTS\\ttimestamp-secret\\n"
-                  ".example.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSID\\twrong-domain\\n",
+                  "# Netscape HTTP Cookie File\n"
+                  ".google.com\tTRUE\t/\tTRUE\t0\t__Secure-1PSID\tprimary-secret\n"
+                  "#HttpOnly_.google.com\tTRUE\t/\tTRUE\t0\t__Secure-1PSIDTS\ttimestamp-secret\n"
+                  ".example.com\tTRUE\t/\tTRUE\t0\t__Secure-1PSID\twrong-domain\n",
                   encoding="utf-8",
               )
               cookies = extract_gemini_cookies(path)
