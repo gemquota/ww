@@ -8,7 +8,7 @@ from __future__ import annotations
 import inspect
 import os
 from collections.abc import AsyncIterator, Callable
-from typing import Any, Self
+from typing import Any
 
 
 class WWClient:
@@ -102,9 +102,3 @@ class WWClient:
                 await result
         self._client = self._chat = None
 
-    async def __aenter__(self) -> Self:
-        await self.connect()
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        await self.close()
