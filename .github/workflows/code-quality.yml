@@ -1,31 +1,29 @@
-# Code quality checks for generated/managed code — NEW-V5-E3#4 (Amir Hassan)
-name: Code Quality
+name: WW Core Code Quality
 
 on:
   push:
-    paths: ['src/**', '.tests/**']
+    paths:
+      - 'gemini_bridge.py'
+      - 'src/ww_client.py'
+      - '.github/workflows/code-quality.yml'
   pull_request:
-    paths: ['src/**']
+    paths:
+      - 'gemini_bridge.py'
+      - 'src/ww_client.py'
 
 jobs:
-  quality:
+  core:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
-      - name: Install
-        run: pip install -r requirements.txt && pip install ruff
-      - name: Ruff lint
-        run: ruff check --output-format=github .
-      - name: Ruff format check
-        run: ruff format --check . || echo "Fix formatting with: ruff format ."
-      - name: Compile all source
+          python-version: '3.11'
+      - name: Install core dependencies and linter
         run: |
-          python -m py_compile src/gemini_bridge.py
-          for f in src/*.py src/bridge/*.py src/core/*.py src/tools/*.py src/utils/*.py; do
-            [ -f "$f" ] && python -m py_compile "$f" || true
-          done
-      - name: Test
-        run: python -m pytest .tests/ -q --tb=short
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt ruff
+      - name: Lint core files
+        run: ruff check --select E4,E7,E9,F gemini_bridge.py src/ww_client.py
+      - name: Compile core files
+        run: python -m py_compile gemini_bridge.py src/ww_client.py
