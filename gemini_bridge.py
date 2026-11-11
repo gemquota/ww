@@ -85,10 +85,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-banner", action="store_true", help="hide the startup banner")
     args = parser.parse_args(argv)
 
-    if not os.getenv("SECURE_1PSID") or not os.getenv("SECURE_1PSIDTS"):
+    if not os.getenv("SECURE_1PSID"):
         print(
-            "Missing Gemini Web Chat credentials. Set SECURE_1PSID and "
-            "SECURE_1PSIDTS in your environment or local .env file.",
+            "Missing Gemini Web Chat credentials. Set SECURE_1PSID in your "
+            "environment or local .env file. SECURE_1PSIDTS is optional.",
             file=sys.stderr,
         )
         return 2
