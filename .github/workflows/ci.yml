@@ -21,7 +21,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Compile the core entry points
-        run: python -m py_compile gemini_bridge.py src/ww_client.py src/__init__.py
+        run: python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py src/__init__.py
+      - name: Verify Netscape cookie extraction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from src.cookie_loader import extract_gemini_cookies
+
+          with TemporaryDirectory() as directory:
+              path = Path(directory) / "cookies.txt"
+              path.write_text(
+                  "# Netscape HTTP Cookie File\\n"
+                  ".google.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSID\\tprimary-secret\\n"
+                  "#HttpOnly_.google.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSIDTS\\ttimestamp-secret\\n"
+                  ".example.com\\tTRUE\\t/\\tTRUE\\t0\\t__Secure-1PSID\\twrong-domain\\n",
+                  encoding="utf-8",
+              )
+              cookies = extract_gemini_cookies(path)
+              assert cookies == {
+                  "SECURE_1PSID": "primary-secret",
+                  "SECURE_1PSIDTS": "timestamp-secret",
+              }
+          PY
       - name: Verify the transport contract
         run: |
           python - <<'PY'
