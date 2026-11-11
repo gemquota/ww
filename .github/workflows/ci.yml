@@ -21,7 +21,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Compile the core entry points
-        run: python -m py_compile gemini_bridge.py src/ww_client.py
+        run: python -m py_compile gemini_bridge.py src/ww_client.py src/__init__.py
       - name: Verify the transport contract
         run: |
           python - <<'PY'
@@ -38,12 +38,14 @@ jobs:
 
           class FakeGemini:
               def __init__(self, *_):
-                  self.chat = FakeChat()
+                  self.chats = []
                   self.init_count = 0
               async def init(self, **_):
                   self.init_count += 1
               def start_chat(self):
-                  return self.chat
+                  chat = FakeChat()
+                  self.chats.append(chat)
+                  return chat
 
           async def check():
               instances = []
@@ -56,9 +58,9 @@ jobs:
               assert await ww.ask("second") == "reply: second"
               assert instances[0].init_count == 1
               assert instances[0].chats[0].messages == ["first", "second"]
-              old_chat = ww._chat
+              previous_chat = ww._chat
               await ww.new_conversation()
-              assert ww._chat is not old_chat
+              assert ww._chat is not previous_chat
               assert len(instances[0].chats) == 2
               try:
                   await ww.ask(" ")
@@ -66,5 +68,7 @@ jobs:
                   pass
               else:
                   raise AssertionError("empty prompt should be rejected")
+              await ww.close()
+              assert ww._client is None
           asyncio.run(check())
           PY
