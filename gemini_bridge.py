@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """WW: a small terminal client for Gemini Web Chat.
 
 The core entry point intentionally does not import the agent orchestrator,
@@ -12,6 +11,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
+
 from src.ww_client import WWClient
 
 
@@ -19,11 +19,12 @@ BANNER = """WW | Gemini Web Chat
 Send a prompt and press Enter. Commands: /new, /help, /exit"""
 
 
-async def run_terminal(client: WWClient, prompt: str | None = None,
-                       show_banner: bool = True) -> int:
+async def run_terminal(
+    client: WWClient, prompt: str | None = None, show_banner: bool = True
+) -> int:
     try:
         await client.connect()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CLI boundary reports transport errors.
         print(f"Connection error: {exc}", file=sys.stderr)
         return 1
 
@@ -31,7 +32,7 @@ async def run_terminal(client: WWClient, prompt: str | None = None,
         try:
             print(await client.ask(prompt))
             return 0
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
             print(f"Request error: {exc}", file=sys.stderr)
             return 1
         finally:
@@ -44,7 +45,7 @@ async def run_terminal(client: WWClient, prompt: str | None = None,
             try:
                 message = await asyncio.to_thread(input, "you> ")
             except (EOFError, KeyboardInterrupt):
-                print("\nGoodbye.")
+                print("\\nGoodbye.")
                 break
             message = message.strip()
             if not message:
@@ -60,12 +61,12 @@ async def run_terminal(client: WWClient, prompt: str | None = None,
                 try:
                     await client.new_conversation()
                     print("Started a new Gemini conversation.")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - CLI boundary reports errors.
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
                 print(f"gemini> {await client.ask(message)}")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"Request error: {exc}", file=sys.stderr)
     finally:
         await client.close()
@@ -93,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
             run_terminal(WWClient(), prompt=args.prompt, show_banner=not args.no_banner)
         )
     except KeyboardInterrupt:
-        print("\nGoodbye.")
+        print("\\nGoodbye.")
         return 130
 
 
