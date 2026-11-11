@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import inspect
 import os
-from typing import Any, AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any, Self
 
 
 class WWClient:
@@ -80,7 +81,11 @@ class WWClient:
         try:
             async for chunk in streamer(prompt):
                 if chunk:
-                    yield chunk if isinstance(chunk, str) else getattr(chunk, "text", str(chunk))
+                    yield (
+                        chunk
+                        if isinstance(chunk, str)
+                        else getattr(chunk, "text", str(chunk))
+                    )
         except Exception as exc:
             raise ConnectionError(f"Gemini Web Chat stream failed: {exc}") from exc
 
@@ -95,7 +100,7 @@ class WWClient:
                 await result
         self._client = self._chat = None
 
-    async def __aenter__(self) -> "WWClient":
+    async def __aenter__(self) -> Self:
         await self.connect()
         return self
 
