@@ -30,10 +30,10 @@ class WWClient:
         """Initialize the authenticated web client and its conversation."""
         if self._chat is not None:
             return
-        if not self.secure_1psid or not self.secure_1psidts:
+        if not self.secure_1psid:
             raise RuntimeError(
                 "Gemini Web Chat credentials are missing. Set SECURE_1PSID "
-                "and SECURE_1PSIDTS in your environment or .env file."
+                "in your environment or .env file. SECURE_1PSIDTS is optional."
             )
         factory = self._client_factory
         if factory is None:
