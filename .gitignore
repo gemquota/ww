@@ -8,11 +8,13 @@ build/
 venv/
 .venv/
 
-# Environment
+# Environment and browser session credentials
 .env
 .env.*
 !.env.example
 *.env
+cookies.txt
+cookies*.txt
 
 # WW internal state
 .ww/

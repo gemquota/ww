@@ -12,6 +12,7 @@ import sys
 
 from dotenv import load_dotenv
 
+from src.cookie_loader import extract_gemini_cookies
 from src.ww_client import WWClient
 
 
@@ -82,13 +83,26 @@ def main(argv: list[str] | None = None) -> int:
         prog="ww", description="A simple terminal client for Gemini Web Chat."
     )
     parser.add_argument("-p", "--prompt", help="send one prompt and exit")
+    parser.add_argument(
+        "--cookies",
+        default=os.getenv("WW_COOKIE_FILE", "cookies.txt"),
+        help="Netscape-format cookie file (default: cookies.txt or WW_COOKIE_FILE)",
+    )
     parser.add_argument("--no-banner", action="store_true", help="hide the startup banner")
     args = parser.parse_args(argv)
 
+    try:
+        for key, value in extract_gemini_cookies(args.cookies).items():
+            os.environ.setdefault(key, value)
+    except ValueError as exc:
+        print(f"Cookie file error: {exc}", file=sys.stderr)
+        return 2
+
     if not os.getenv("SECURE_1PSID"):
         print(
-            "Missing Gemini Web Chat credentials. Set SECURE_1PSID in your "
-            "environment or local .env file. SECURE_1PSIDTS is optional.",
+            "Missing Gemini Web Chat credentials. Put a Netscape-format "
+            "cookies.txt beside gemini_bridge.py, pass --cookies PATH, or set "
+            "SECURE_1PSID in your environment/.env file. SECURE_1PSIDTS is optional.",
             file=sys.stderr,
         )
         return 2

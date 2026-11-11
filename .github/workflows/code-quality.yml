@@ -5,11 +5,13 @@ on:
     paths:
       - 'gemini_bridge.py'
       - 'src/ww_client.py'
+      - 'src/cookie_loader.py'
       - '.github/workflows/code-quality.yml'
   pull_request:
     paths:
       - 'gemini_bridge.py'
       - 'src/ww_client.py'
+      - 'src/cookie_loader.py'
 
 jobs:
   core:
@@ -24,6 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt ruff
       - name: Lint core files
-        run: ruff check --select E4,E7,E9,F gemini_bridge.py src/ww_client.py
+        run: ruff check --select E4,E7,E9,F gemini_bridge.py src/ww_client.py src/cookie_loader.py
       - name: Compile core files
-        run: python -m py_compile gemini_bridge.py src/ww_client.py
+        run: python -m py_compile gemini_bridge.py src/ww_client.py src/cookie_loader.py
