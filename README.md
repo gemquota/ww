@@ -8,9 +8,9 @@ The Overseer, specialist agents, orchestration, tool execution, workspace scanni
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - An authenticated Google Gemini Web session
-- The session cookies `SECURE_1PSID` and `SECURE_1PSIDTS`
+- The `SECURE_1PSID` session cookie; `SECURE_1PSIDTS` is optional
 
 ## Install
 
@@ -22,7 +22,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Set the two cookie values in your shell environment or in a local `.env` file:
+Set your `SECURE_1PSID` cookie and, if available, `SECURE_1PSIDTS` in your shell environment or local `.env` file:
 
 ```dotenv
 SECURE_1PSID=your_cookie_value
