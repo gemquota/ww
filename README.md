@@ -37,7 +37,7 @@ Never commit real session cookies. They grant access to your signed-in Google se
 python gemini_bridge.py
 ```
 
-Enter prompts at `you>`; Gemini responses appear at `gemini>`. The same chat is retained for the process lifetime.
+Enter prompts at `you>`; Gemini responses appear at `gemini>` as they stream in. The same chat is retained for the process lifetime.
 
 ### Commands
 
