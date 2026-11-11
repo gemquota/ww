@@ -141,13 +141,15 @@ def render_response(
     if parsed.markdown:
         console.print(Markdown(parsed.markdown, code_theme="monokai"))
 
+    choice_number = 1
     for group in parsed.groups:
         lines: list[Text] = []
         if group.message:
             lines.append(Text(group.message, style="bold"))
             lines.append(Text(""))
-        for index, option in enumerate(group.options, 1):
-            lines.append(Text(f"{index}. ", style="bold cyan") + Text(option.label))
+        for option in group.options:
+            lines.append(Text(f"{choice_number}. ", style="bold cyan") + Text(option.label))
+            choice_number += 1
         console.print(Panel.fit(Group(*lines), title="Next actions", border_style="cyan"))
 
     return parsed.options
