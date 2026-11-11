@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -135,7 +136,11 @@ def render_response(
 ) -> tuple[Elicitation, ...]:
     """Render Markdown and follow-up choices; return choices for terminal input."""
     if console is None:
-        console = Console(file=file or sys.stdout, highlight=False)
+        # Android/proot terminals can report a misleading width to Rich.
+        # Pin the renderer to the actual terminal column count so Markdown
+        # paragraphs wrap before reaching the physical right edge.
+        terminal_width = max(20, shutil.get_terminal_size(fallback=(80, 24)).columns)
+        console = Console(file=file or sys.stdout, width=terminal_width, highlight=False)
 
     parsed = parse_response(source)
     if parsed.markdown:

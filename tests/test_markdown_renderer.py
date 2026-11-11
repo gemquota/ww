@@ -1,5 +1,7 @@
 import io
 import unittest
+from os import terminal_size
+from unittest.mock import patch
 
 from rich.console import Console
 
@@ -64,6 +66,23 @@ A **formatted** answer.
         )
         self.assertIsNone(resolve_elicitation_selection("3", options))
         self.assertIsNone(resolve_elicitation_selection("not a number", options))
+
+    def test_default_renderer_wraps_at_detected_terminal_width(self):
+        output = io.StringIO()
+        source = (
+            "This is a longer sentence where every word must remain whole "
+            "when the terminal reaches its right edge."
+        )
+        with patch("src.markdown_renderer.shutil.get_terminal_size",
+                   return_value=terminal_size((20, 24))):
+            render_response(source, file=output)
+
+        rendered = output.getvalue()
+        self.assertEqual(rendered.split(), source.split())
+        self.assertTrue(
+            all(len(line) <= 20 for line in rendered.splitlines() if line),
+            rendered,
+        )
 
     def test_renderer_displays_markdown_and_choices(self):
         output = io.StringIO()
