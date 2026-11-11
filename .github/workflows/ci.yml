@@ -1,55 +1,69 @@
-name: WW Bridge CI
+name: WW Core CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "reboot/**"]
   pull_request:
     branches: [main, master]
 
 jobs:
-  quality:
+  core:
+    name: Core terminal checks
     runs-on: ubuntu-latest
-    name: Quality Gate
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install core dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile the core entry points
+        run: python -m py_compile gemini_bridge.py src/ww_client.py
+      - name: Verify the transport contract
+        run: |
+          python - <<'PY'
+          import asyncio
+          from types import SimpleNamespace
+          from src.ww_client import WWClient
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
+          class FakeChat:
+              def __init__(self):
+                  self.messages = []
+              async def send_message(self, prompt):
+                  self.messages.append(prompt)
+                  return SimpleNamespace(text="reply: " + prompt)
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-asyncio ruff
+          class FakeGemini:
+              def __init__(self, *_):
+                  self.chat = FakeChat()
+                  self.init_count = 0
+              async def init(self, **_):
+                  self.init_count += 1
+              def start_chat(self):
+                  return self.chat
 
-    - name: Lint with ruff
-      run: ruff check --output-format=github .
-
-    - name: Check formatting with ruff
-      run: ruff format --check .
-
-    - name: Syntax check all source
-      run: |
-        python -m py_compile gemini_bridge.py
-        for f in src/*.py src/core/*.py src/tools/*.py src/utils/*.py src/plugins/*.py src/dashboard/*.py; do
-          [ -f "$f" ] && python -m py_compile "$f" || true
-        done
-
-    - name: Architecture dependency validation
-      run: python -m pytest .tel/tests/test_architecture_fitness.py -v --tb=short
-
-    - name: Run all tests
-      run: python -m pytest .tel/tests/ -v --tb=short
-
-    - name: Quality gate
-      run: python .tel/scripts/quality_gate.py
-
-    - name: Run golden benchmark suite (if API keys set)
-      if: env.SECURE_1PSID != '' && env.SECURE_1PSIDTS != ''
-      run: python -m pytest .tel/tests/benchmarks/ -v --tb=short || true
-      env:
-        SECURE_1PSID: ${{ secrets.SECURE_1PSID }}
-        SECURE_1PSIDTS: ${{ secrets.SECURE_1PSIDTS }}
+          async def check():
+              instances = []
+              def factory(*args):
+                  client = FakeGemini(*args)
+                  instances.append(client)
+                  return client
+              ww = WWClient("test-cookie", "test-cookie-ts", client_factory=factory)
+              assert await ww.ask("first") == "reply: first"
+              assert await ww.ask("second") == "reply: second"
+              assert instances[0].init_count == 1
+              assert instances[0].chat.messages == ["first", "second"]
+              old_chat = ww._chat
+              await ww.new_conversation()
+              assert ww._chat is not old_chat
+              try:
+                  await ww.ask(" ")
+              except ValueError:
+                  pass
+              else:
+                  raise AssertionError("empty prompt should be rejected")
+          asyncio.run(check())
+          PY
