@@ -34,6 +34,8 @@ async def run_terminal(client: WWClient, prompt: str | None = None,
         except Exception as exc:
             print(f"Request error: {exc}", file=sys.stderr)
             return 1
+        finally:
+            await client.close()
 
     if show_banner:
         print(BANNER)
