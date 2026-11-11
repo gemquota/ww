@@ -45,7 +45,7 @@ async def run_terminal(
             try:
                 message = await asyncio.to_thread(input, "you> ")
             except (EOFError, KeyboardInterrupt):
-                print("\\nGoodbye.")
+                print("\nGoodbye.")
                 break
             message = message.strip()
             if not message:
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
             run_terminal(WWClient(), prompt=args.prompt, show_banner=not args.no_banner)
         )
     except KeyboardInterrupt:
-        print("\\nGoodbye.")
+        print("\nGoodbye.")
         return 130
 
 
