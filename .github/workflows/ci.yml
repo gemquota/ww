@@ -55,10 +55,11 @@ jobs:
               assert await ww.ask("first") == "reply: first"
               assert await ww.ask("second") == "reply: second"
               assert instances[0].init_count == 1
-              assert instances[0].chat.messages == ["first", "second"]
+              assert instances[0].chats[0].messages == ["first", "second"]
               old_chat = ww._chat
               await ww.new_conversation()
               assert ww._chat is not old_chat
+              assert len(instances[0].chats) == 2
               try:
                   await ww.ask(" ")
               except ValueError:
