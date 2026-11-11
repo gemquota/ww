@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 
@@ -19,6 +20,27 @@ from src.ww_client import WWClient
 
 BANNER = """WW | Gemini Web Chat
 Send a prompt and press Enter. Commands: /new, /help, /exit"""
+
+
+def configure_logging() -> None:
+    """Keep normal terminal output focused on responses, not library chatter.
+
+    Gemini Web API INFO/SUCCESS messages (quota refreshes, initialization
+    details, etc.) are operational diagnostics rather than chat output.
+    Warnings and errors remain visible so failures are still actionable.
+    """
+    logging.basicConfig(level=logging.WARNING)
+    for name in ("gemini_webapi", "httpx", "httpcore", "websockets"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+    # gemini-webapi currently uses Loguru. Keep this optional so WW's CLI
+    # remains importable even if the transport dependency changes its logger.
+    try:
+        from loguru import logger
+    except ImportError:
+        return
+    logger.remove()
+    logger.add(sys.stderr, level="WARNING")
 
 
 async def run_terminal(
@@ -48,7 +70,7 @@ async def run_terminal(
             try:
                 message = await asyncio.to_thread(input, "you> ")
             except (EOFError, KeyboardInterrupt):
-                print("\nGoodbye.")
+                print("\\nGoodbye.")
                 break
             message = message.strip()
             if not message:
@@ -78,7 +100,7 @@ async def run_terminal(
                     chunks.append(chunk)
                 pending_options = render_response("".join(chunks))
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
-                print(f"\nRequest error: {exc}", file=sys.stderr)
+                print(f"\\nRequest error: {exc}", file=sys.stderr)
     finally:
         await client.close()
     return 0
@@ -86,6 +108,7 @@ async def run_terminal(
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
+    configure_logging()
     parser = argparse.ArgumentParser(
         prog="ww", description="A simple terminal client for Gemini Web Chat."
     )
@@ -118,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
             run_terminal(WWClient(), prompt=args.prompt, show_banner=not args.no_banner)
         )
     except KeyboardInterrupt:
-        print("\nGoodbye.")
+        print("\\nGoodbye.")
         return 130
 
 
