@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import TextIO
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
@@ -148,7 +148,7 @@ def render_response(
             lines.append(Text(""))
         for index, option in enumerate(group.options, 1):
             lines.append(Text(f"{index}. ", style="bold cyan") + Text(option.label))
-        console.print(Panel.fit(*lines, title="Next actions", border_style="cyan"))
+        console.print(Panel.fit(Group(*lines), title="Next actions", border_style="cyan"))
 
     return parsed.options
 
