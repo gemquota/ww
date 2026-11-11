@@ -62,7 +62,7 @@ SECURE_1PSIDTS=your_cookie_timestamp_value
 python gemini_bridge.py
 \`\`\`
 
-Enter prompts at \`you>\`; Gemini responses appear at \`gemini>\` as they stream in. The same chat is retained for the process lifetime.
+Enter prompts at \`you>\`; Gemini responses appear at \`gemini>\` as they stream in. The same chat is retained for the process lifetime. Gemini responses are rendered as Markdown (headings, lists, tables, links, and fenced code blocks). Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions are shown as numbered choices; enter the number to send that option's exact `query` as your next prompt.
 
 ### Commands
 
@@ -96,5 +96,5 @@ WW uses the unofficial \`gemini-webapi\` integration. Google can change its web 
 
 \`\`\`bash
 python -m pip install -r requirements.txt
-python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py
+python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py src/markdown_renderer.py
 \`\`\`

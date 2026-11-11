@@ -13,6 +13,7 @@ import sys
 from dotenv import load_dotenv
 
 from src.cookie_loader import extract_gemini_cookies
+from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
 
 
@@ -31,7 +32,7 @@ async def run_terminal(
 
     if prompt is not None:
         try:
-            print(await client.ask(prompt))
+            render_response(await client.ask(prompt))
             return 0
         except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
             print(f"Request error: {exc}", file=sys.stderr)
@@ -41,6 +42,7 @@ async def run_terminal(
 
     if show_banner:
         print(BANNER)
+    pending_options = ()
     try:
         while True:
             try:
@@ -51,12 +53,17 @@ async def run_terminal(
             message = message.strip()
             if not message:
                 continue
+            selection = resolve_elicitation_selection(message, pending_options)
+            if selection is not None:
+                message = selection.query
+                print(f"Selected: {selection.label}")
+            pending_options = ()
             command = message.lower()
             if command in {"/exit", "/quit"}:
                 print("Goodbye.")
                 break
             if command == "/help":
-                print("Enter a prompt to chat. /new starts a fresh chat. /exit quits.")
+                print("Enter a prompt to chat. Reply with an option number to choose a Gemini suggestion. /new starts a fresh chat. /exit quits.")
                 continue
             if command == "/new":
                 try:
@@ -66,10 +73,10 @@ async def run_terminal(
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
-                print("gemini> ", end="", flush=True)
+                chunks = []
                 async for chunk in client.ask_stream(message):
-                    print(chunk, end="", flush=True)
-                print()
+                    chunks.append(chunk)
+                pending_options = render_response("".join(chunks))
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
