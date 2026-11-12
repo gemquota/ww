@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,21 @@ def _safe_segment(value: str | None, fallback: str = "unassigned") -> str:
 
 def conversation_artifact_dir(chat_id: str | None) -> Path:
     return artifact_root() / _safe_segment(chat_id)
+
+
+def preview_image(path: Path) -> bool:
+    """Render an image in capable terminals; leave opening to the user otherwise."""
+    if shutil.which("chafa"):
+        command = ["chafa", "--size=60x25", str(path)]
+    elif shutil.which("viu"):
+        command = ["viu", "-w", "60", str(path)]
+    else:
+        return False
+    try:
+        subprocess.run(command, check=False)
+        return True
+    except OSError:
+        return False
 
 
 def save_research_document(document: Any, chat_id: str | None = None) -> Path | None:
@@ -72,7 +89,9 @@ async def save_model_artifacts(
             try:
                 path = await item.save(path=str(directory), filename=f"image-{index:02}.png")
                 if path:
-                    saved.append(Path(path))
+                    image_path = Path(path)
+                    saved.append(image_path)
+                    preview_image(image_path)
             except Exception as exc:
                 print(f"Could not save image {index}: {exc}")
 
@@ -130,6 +149,15 @@ async def render_model_output(
         title = getattr(document, "title", None) or "Deep Research report"
         print(f"\nDeep Research report: {title}")
         render_response(markdown)
+
+    for index, item in enumerate(getattr(output, "images", ()) or (), 1):
+        title = getattr(item, "title", None) or f"Image {index}"
+        alt = getattr(item, "alt", None)
+        print(f"\n{title}" + (f": {alt}" if alt else ""))
+    for index, item in enumerate(getattr(output, "videos", ()) or (), 1):
+        print(f"\nGenerated video {index}: {getattr(item, 'title', None) or 'Untitled'}")
+    for index, item in enumerate(getattr(output, "media", ()) or (), 1):
+        print(f"\nGenerated audio {index}: {getattr(item, 'title', None) or 'Untitled'}")
 
     saved = await save_model_artifacts(output, chat_id, media_mode=media_mode)
     if saved:
