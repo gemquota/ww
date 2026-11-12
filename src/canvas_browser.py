@@ -163,7 +163,7 @@ def run_webview(url: str = CANVAS_URL) -> int:
 
         webview = tg.WebView(activity, root)
         webview.setlinearlayoutparams(1)
-        webview.setheight(tg.View.MATCH_PARENT)
+        webview.setheight(0)  # Weight 1 fills the remaining Activity height.
 
         footer = tg.TextView(
             activity,
