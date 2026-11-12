@@ -19,10 +19,12 @@ class WWClient:
         secure_1psid: str = "",
         secure_1psidts: str = "",
         client_factory: Callable[..., Any] | None = None,
+        recent_chats: int = 20,
     ) -> None:
         self.secure_1psid = secure_1psid or os.getenv("SECURE_1PSID", "")
         self.secure_1psidts = secure_1psidts or os.getenv("SECURE_1PSIDTS", "")
         self._client_factory = client_factory
+        self.recent_chats = max(13, min(int(recent_chats), 100))
         self._client: Any = None
         self._chat: Any = None
 
@@ -47,6 +49,9 @@ class WWClient:
         client = factory(self.secure_1psid, self.secure_1psidts)
         try:
             await client.init(timeout=45, auto_refresh=True)
+            refresh_recent = getattr(client, "_fetch_recent_chats", None)
+            if refresh_recent is not None:
+                await refresh_recent(recent=self.recent_chats)
             chat = client.start_chat()
         except Exception as exc:
             raise ConnectionError(f"Could not connect to Gemini Web Chat: {exc}") from exc
@@ -106,7 +111,8 @@ class WWClient:
                 None,
             )
             metadata = getattr(latest_output, "metadata", None)
-            rcid = getattr(latest_output, "rcid", None)
+            candidates = getattr(latest_output, "candidates", ()) or ()
+            rcid = getattr(candidates[0], "rcid", None) if candidates else None
             if not metadata or len(metadata) < 2 or not rcid:
                 raise RuntimeError(
                     "Gemini did not return resumable metadata for this conversation."
