@@ -181,6 +181,28 @@ class WWClient:
         except Exception as exc:
             raise ConnectionError(f"Deep Research polling failed: {exc}") from exc
 
+
+    async def latest_research_document(self) -> Any | None:
+        """Find a completed Deep Research report in the active chat history."""
+        await self.connect()
+        if not self.active_chat_id:
+            return None
+        reader = getattr(self._client, "read_chat", None)
+        if reader is None:
+            return None
+        history = await reader(self.active_chat_id, limit=20)
+        for turn in getattr(history, "turns", ()) or ():
+            if getattr(turn, "role", None) != "model":
+                continue
+            output = getattr(turn, "model_output", None)
+            document = getattr(output, "deep_research_document", None)
+            if document is not None and getattr(
+                document, "ready", bool(getattr(document, "content", ""))
+            ):
+                return document
+        return None
+
+
     async def new_conversation(self, model: Any = None, gem: Any = None) -> None:
         await self.connect()
         options = {}
