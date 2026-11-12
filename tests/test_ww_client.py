@@ -84,6 +84,25 @@ class WWClientStructuredTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(output.text, "response: hello")
         await ww.close()
 
+    async def test_ask_stream_yields_incremental_text(self):
+        ww = WWClient("cookie", client_factory=FakeResearchGemini)
+        await ww.connect()
+
+        async def stream(prompt):
+            yield SimpleNamespace(text_delta="hello")
+            yield SimpleNamespace(text=" world")
+
+        ww._chat.send_message_stream = stream
+        chunks = [chunk async for chunk in ww.ask_stream("hello")]
+        self.assertEqual(chunks, ["hello", " world"])
+        await ww.close()
+
+    async def test_ask_stream_falls_back_to_complete_response(self):
+        ww = WWClient("cookie", client_factory=FakeResearchGemini)
+        chunks = [chunk async for chunk in ww.ask_stream("fallback")]
+        self.assertEqual(chunks, ["response: fallback"])
+        await ww.close()
+
     async def test_deep_research_wrappers_use_active_chat(self):
         ww = WWClient("cookie", client_factory=FakeResearchGemini)
         plan = await ww.create_research_plan("Compare two ecosystems")
