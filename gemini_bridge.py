@@ -242,32 +242,47 @@ async def run_terminal(
         finally:
             await client.close()
 
+    settings = load_settings()
     if show_banner:
         print(BANNER)
     try:
         chats = client.list_chats()
-        selected = choose_startup_chat(chats)
+        selected = choose_startup_chat(
+            chats,
+            int(settings.get("chat_page_size", 15)),
+            settings.get("chat_folders", {}),
+        )
+        if selected == -1:
+            await client.close()
+            return 0
         if selected is not None:
             chosen = chats[selected]
             await client.resume_conversation(chosen.cid)
-            print(f"\\nResumed: {chosen.title or '(untitled conversation)'}")
+            print(f"\nResumed: {chosen.title or '(untitled conversation)'}")
         else:
-            await client.new_conversation()
-            print("\\nStarted a new Gemini conversation.")
+            await client.new_conversation(
+                model=settings.get("default_model"),
+                gem=settings.get("default_gem"),
+            )
+            print("\nStarted a new Gemini conversation.")
     except (EOFError, KeyboardInterrupt):
         await client.close()
         return 130
     except Exception as exc:
         print(f"Could not load chat history: {exc}", file=sys.stderr)
         print("Starting a new conversation instead.")
-        await client.new_conversation()
+        await client.new_conversation(
+            model=settings.get("default_model"),
+            gem=settings.get("default_gem"),
+        )
+
     pending_options = ()
     try:
         while True:
             try:
                 message = await asyncio.to_thread(input, "you> ")
             except (EOFError, KeyboardInterrupt):
-                print("\\nGoodbye.")
+                print("\nGoodbye.")
                 break
             message = message.strip()
             if not message:
@@ -282,22 +297,79 @@ async def run_terminal(
                 print("Goodbye.")
                 break
             if command == "/help":
-                print("Enter a prompt to chat. Reply with an option number to choose a Gemini suggestion. /new starts a fresh chat. /chats lists and switches conversations. /exit quits.")
+                print(
+                    "Commands: /new, /chats [folder], /folders, /folder NAME, "
+                    "/folder clear, /gems, /customize, /help, /exit. "
+                    "Reply with an option number to choose a Gemini suggestion."
+                )
                 continue
-            if command == "/chats":
+            if command == "/customize":
+                try:
+                    customize_menu(client, settings)
+                except Exception as exc:
+                    print(f"Could not open customization: {exc}")
+                continue
+            if command == "/gems":
+                await manage_gems(client, settings)
+                continue
+            if command == "/folders":
+                names = folder_names(settings)
+                if names:
+                    print("Chat folders: " + ", ".join(names))
+                else:
+                    print("No folders yet. Use /folder NAME while a chat is active.")
+                continue
+            if command.startswith("/folder"):
+                argument = message[len("/folder"):].strip()
+                if not argument:
+                    names = folder_names(settings)
+                    print("Folders: " + (", ".join(names) if names else "(none)"))
+                elif argument.lower() in {"clear", "remove", "none"}:
+                    chat_id = getattr(client._chat, "cid", None)
+                    if chat_id:
+                        assign_chat_folder(settings, chat_id, None)
+                        save_settings(settings)
+                        print("Removed the active chat from its folder.")
+                    else:
+                        print("No active chat to move.")
+                else:
+                    chat_id = getattr(client._chat, "cid", None)
+                    if chat_id:
+                        assign_chat_folder(settings, chat_id, argument)
+                        save_settings(settings)
+                        print(f"Moved the active chat into '{argument}'.")
+                    else:
+                        print("No active chat to organise.")
+                continue
+            if command.startswith("/chats"):
                 try:
                     chats = client.list_chats()
-                    selected = choose_startup_chat(chats)
+                    argument = message[len("/chats"):].strip()
+                    if argument:
+                        chats = chats_in_folder(chats, settings, argument)
+                        if not chats:
+                            print(f"No conversations in folder '{argument}'.")
+                            continue
+                    selected = choose_startup_chat(
+                        chats,
+                        int(settings.get("chat_page_size", 15)),
+                        settings.get("chat_folders", {}),
+                    )
+                    if selected == -1:
+                        continue
                     if selected is not None:
                         chosen = chats[selected]
                         await client.resume_conversation(chosen.cid)
-                        print(f"\\nResumed: {chosen.title or '(untitled conversation)'}")
+                        print(f"\nResumed: {chosen.title or '(untitled conversation)'}")
                 except Exception as exc:
                     print(f"Could not switch conversation: {exc}")
                 continue
             if command == "/new":
                 try:
-                    await client.new_conversation()
+                    await client.new_conversation(
+                        model=settings.get("default_model"),
+                        gem=settings.get("default_gem"),
+                    )
                     print("Started a new Gemini conversation.")
                 except Exception as exc:  # noqa: BLE001 - CLI boundary reports errors.
                     print(f"Could not start a new conversation: {exc}")
@@ -308,11 +380,11 @@ async def run_terminal(
                     chunks.append(chunk)
                 pending_options = render_response("".join(chunks))
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
-                print(f"\\nRequest error: {exc}", file=sys.stderr)
+                print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
+        save_settings(settings)
         await client.close()
     return 0
-
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
