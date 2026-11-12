@@ -16,8 +16,11 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 from rich.console import Console
+from rich.live import Live
+from rich.text import Text
 
 from dotenv import load_dotenv
 
@@ -27,6 +30,7 @@ from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, render_user_message, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.project_context import export_project, find_project_root
+from src.terminal import configure_line_editor, get_line_history, save_line_history, search_line_history
 from src.ww_settings import (
     assign_chat_folder,
     chats_in_folder,
@@ -467,6 +471,26 @@ async def run_project_context_command(client: WWClient, argument: str, settings:
         print(f"Project context operation failed: {exc}", file=sys.stderr)
 
 
+async def render_streamed_response(client: WWClient, prompt: str) -> tuple[str, tuple]:
+    """Stream a text response live, then render its complete Markdown once."""
+    console = Console(highlight=False)
+    chunks: list[str] = []
+    last_refresh = 0.0
+    with Live(Text(""), console=console, transient=True, refresh_per_second=12) as live:
+        async for chunk in client.ask_stream(prompt):
+            chunks.append(chunk)
+            now = time.monotonic()
+            if now - last_refresh >= 0.08:
+                live.update(Text("".join(chunks)), refresh=True)
+                last_refresh = now
+        if chunks:
+            live.update(Text("".join(chunks)), refresh=True)
+    response = "".join(chunks)
+    from src.markdown_renderer import render_chat_response
+    options = render_chat_response(response, console=console)
+    return response, options
+
+
 async def run_terminal(
     client: WWClient, prompt: str | None = None, show_banner: bool = True
 ) -> int:
@@ -524,10 +548,14 @@ async def run_terminal(
     pending_options = ()
     last_prompt = ""
     last_response = ""
+    readline_module, history_file = configure_line_editor()
+    fallback_history: list[str] = []
     try:
         while True:
             try:
                 message = await asyncio.to_thread(input, "› ")
+                if readline_module is None and message.strip():
+                    fallback_history.append(message.rstrip("\n"))
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
