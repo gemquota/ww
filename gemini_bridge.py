@@ -568,6 +568,54 @@ async def run_terminal(
                 print(f"Selected: {selection.label}")
             pending_options = ()
             command = message.lower()
+            if command == "/history":
+                entries = get_line_history(readline_module, fallback_history)
+                if not entries:
+                    print("No prompt history yet.")
+                else:
+                    print("\nRecent input history")
+                    first = max(1, len(entries) - 19)
+                    for index in range(first, len(entries) + 1):
+                        print(f"  {index:>4}. {entries[index - 1]}")
+                continue
+            if command.startswith("/search"):
+                query = message[len("/search"):].strip()
+                if not query:
+                    print("Usage: /search TEXT")
+                else:
+                    matches = search_line_history(
+                        get_line_history(readline_module, fallback_history), query
+                    )
+                    if not matches:
+                        print(f"No history entries match {query!r}.")
+                    else:
+                        print(f"\nHistory matches for {query!r}")
+                        for index, value in matches:
+                            print(f"  {index:>4}. {value}")
+                continue
+            if command.startswith("/repeat"):
+                argument = message[len("/repeat"):].strip()
+                entries = get_line_history(readline_module, fallback_history)
+                if not argument.isdigit() or not 1 <= int(argument) <= len(entries):
+                    print("Usage: /repeat N  (use /history to see entry numbers)")
+                    continue
+                message = entries[int(argument) - 1]
+                if message.lstrip().startswith("/") or not message.strip():
+                    print("That history entry is a command or empty input, not a prompt.")
+                    continue
+                command = ""
+            if command == "/stream" or command.startswith("/stream "):
+                value = message[len("/stream"):].strip().lower()
+                if value in {"on", "true", "1"}:
+                    settings["stream_responses"] = True
+                elif value in {"off", "false", "0"}:
+                    settings["stream_responses"] = False
+                elif value:
+                    print("Usage: /stream [on|off]")
+                    continue
+                state = "on" if settings.get("stream_responses", True) else "off"
+                print(f"Live response streaming: {state}")
+                continue
             if command == "/clear":
                 print("\033[2J\033[H", end="", flush=True)
                 continue
@@ -690,7 +738,7 @@ async def run_terminal(
                 print(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, /context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
                     "/models, /model NAME|default, /last, /copy, /clear, /folder clear, /gems, /customize, /research [topic|--latest], "
-                    "/image [prompt], /video [prompt], /music [prompt], "
+                    /chats search TEXT, /image [prompt], /video [prompt], /music [prompt], "
                     "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
                 )
@@ -737,7 +785,17 @@ async def run_terminal(
                 try:
                     chats = client.list_chats()
                     argument = message[len("/chats"):].strip()
-                    if argument:
+                    if argument.casefold().startswith("search "):
+                        query = argument[7:].strip().casefold()
+                        chats = [
+                            chat for chat in chats
+                            if query in str(getattr(chat, "title", "")).casefold()
+                            or query in str(getattr(chat, "cid", "")).casefold()
+                        ]
+                        if not chats:
+                            print(f"No conversations match '{query}'.")
+                            continue
+                    elif argument:
                         chats = chats_in_folder(chats, settings, argument)
                         if not chats:
                             print(f"No conversations in folder '{argument}'.")
@@ -769,13 +827,17 @@ async def run_terminal(
             try:
                 render_user_message(message)
                 last_prompt = message
-                output = await client.ask_output(message)
-                last_response = getattr(output, "text", None) or ""
-                pending_options, _saved = await render_model_output(output, client.active_chat_id)
+                if settings.get("stream_responses", True):
+                    last_response, pending_options = await render_streamed_response(client, message)
+                else:
+                    output = await client.ask_output(message)
+                    last_response = getattr(output, "text", None) or ""
+                    pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
         save_settings(settings)
+        save_line_history(readline_module, history_file)
         await client.close()
     return 0
 
