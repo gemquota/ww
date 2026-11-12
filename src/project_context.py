@@ -76,7 +76,7 @@ def _text_file(path: Path, size: int, full_limit: int, sample_bytes: int) -> dic
                 prefix.decode("utf-8")
             except UnicodeDecodeError:
                 return {"kind": "binary", "content": None, "sampled": False}
-        if size <= full_limit:
+        if size <= full_limit or size <= sample_bytes * 2:
             stream.seek(0)
             data = stream.read(full_limit + 1)
             return {
@@ -112,7 +112,7 @@ def export_project(
     *,
     full_limit: int = 256 * 1024,
     sample_bytes: int = 32 * 1024,
-    hash_limit: int = 64 * 1024 * 1024,
+    hash_limit: int = 8 * 1024 * 1024,
     max_content_bytes: int = 12 * 1024 * 1024,
     ignores: set[str] | None = None,
     include_sensitive: bool = False,
@@ -125,10 +125,18 @@ def export_project(
 
     for current, dirs, filenames in os.walk(root, topdown=True, followlinks=False):
         base = Path(current)
-        dirs[:] = sorted(
-            name for name in dirs
-            if name not in ignored and not (base / name).is_symlink()
-        )
+        retained_dirs = []
+        for name in dirs:
+            directory_path = base / name
+            if directory_path.is_symlink():
+                entries.append({
+                    "type": "symlink",
+                    "path": directory_path.relative_to(root).as_posix(),
+                    "target": os.readlink(directory_path),
+                })
+            elif name not in ignored:
+                retained_dirs.append(name)
+        dirs[:] = sorted(retained_dirs)
         relative_dir = base.relative_to(root)
         if relative_dir != Path("."):
             entries.append({"type": "directory", "path": relative_dir.as_posix()})
@@ -240,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", help="Output JSON path; defaults to .ww/project-context.json.")
     parser.add_argument("--full-limit", type=int, default=256 * 1024)
     parser.add_argument("--sample-bytes", type=int, default=32 * 1024)
-    parser.add_argument("--hash-limit", type=int, default=64 * 1024 * 1024)
+    parser.add_argument("--hash-limit", type=int, default=8 * 1024 * 1024)
     parser.add_argument("--max-content-bytes", type=int, default=12 * 1024 * 1024)
     parser.add_argument("--ignore", action="append", default=[])
     args = parser.parse_args(argv)
