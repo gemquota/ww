@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime
 import logging
+from datetime import datetime
 import os
 import sys
 
@@ -17,7 +17,13 @@ from dotenv import load_dotenv
 from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
-from src.ww_settings import (assign_chat_folder, chats_in_folder, folder_names, load_settings, save_settings)
+from src.ww_settings import (
+    assign_chat_folder,
+    chats_in_folder,
+    folder_names,
+    load_settings,
+    save_settings,
+)
 
 
 BANNER = """WW | Gemini Web Chat
@@ -325,7 +331,7 @@ async def run_terminal(
                     names = folder_names(settings)
                     print("Folders: " + (", ".join(names) if names else "(none)"))
                 elif argument.lower() in {"clear", "remove", "none"}:
-                    chat_id = getattr(client._chat, "cid", None)
+                    chat_id = client.active_chat_id
                     if chat_id:
                         assign_chat_folder(settings, chat_id, None)
                         save_settings(settings)
