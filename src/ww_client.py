@@ -57,6 +57,11 @@ class WWClient:
             raise ConnectionError(f"Could not connect to Gemini Web Chat: {exc}") from exc
         self._client, self._chat = client, chat
 
+    @property
+    def active_chat_id(self) -> str | None:
+        """Return the ID of the currently selected remote conversation."""
+        return getattr(self._chat, "cid", None)
+
     def list_chats(self) -> list[Any]:
         """Return recent Gemini conversations loaded during client initialization."""
         if self._client is None:
@@ -73,7 +78,7 @@ class WWClient:
         """Fetch and return the account's visible Gemini Gems."""
         if self._client is None:
             raise RuntimeError("Connect before listing Gems.")
-        gems = await self._client.fetch_gems(include_hidden=False, language="en")
+        gems = await self._client.fetch_gems(include_hidden=False)
         try:
             return list(gems)
         except TypeError:
