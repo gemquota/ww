@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from src.artifacts import list_artifacts, render_model_output, save_research_document
 from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
-from src.markdown_renderer import render_chat_response, render_response, render_user_message, resolve_elicitation_selection
+from src.markdown_renderer import render_response, render_user_message, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.project_context import export_project, find_project_root
 from src.ww_settings import (
@@ -36,8 +36,9 @@ from src.ww_settings import (
 )
 
 
-BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
+BANNER = """WW  ·  GEMINI WEB CHAT
+A focused terminal for Gemini conversations
+Type a prompt to chat  ·  /help for commands"""
 
 
 def configure_logging() -> None:
