@@ -19,6 +19,7 @@ from rich.console import Console
 from dotenv import load_dotenv
 
 from src.artifacts import list_artifacts, render_model_output, save_research_document
+from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
@@ -32,7 +33,7 @@ from src.ww_settings import (
 
 
 BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /research, /image, /video, /music, /artifacts, /help, /exit"""
+Send a prompt and press Enter. Commands: /research, /image, /video, /music, /canvas, /artifacts, /help, /exit"""
 
 
 def configure_logging() -> None:
@@ -449,6 +450,15 @@ async def run_terminal(
                 except Exception as exc:
                     print(f"Music generation failed: {exc}", file=sys.stderr)
                 continue
+            if command == "/canvas" or command.startswith("/canvas "):
+                try:
+                    url = message[len("/canvas"):].strip() or "https://gemini.google.com/app"
+                    interpreter = launch_canvas_browser(url)
+                    print(f"Gemini Canvas WebView launched with {interpreter}.")
+                    print("Sign in inside the WebView if prompted; its cookies are separate from Chrome.")
+                except Exception as exc:
+                    print(f"Could not launch the Canvas WebView: {exc}", file=sys.stderr)
+                continue
             if command == "/artifacts":
                 show_artifacts()
                 continue
@@ -460,7 +470,7 @@ async def run_terminal(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, "
                     "/folder clear, /gems, /customize, /research [topic|--latest], "
                     "/image [prompt], /video [prompt], /music [prompt], "
-                    "/artifacts, /open N, /help, /exit. "
+                    "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
                 )
                 continue
