@@ -21,6 +21,8 @@ import time
 from rich.console import Console
 from rich.live import Live
 from rich.text import Text
+from rich.panel import Panel
+from rich.table import Table
 
 from dotenv import load_dotenv
 
@@ -47,7 +49,10 @@ Type a prompt to chat  ·  /help for commands"""
 
 def configure_logging(debug: bool = False) -> None:
     """Hide diagnostic chatter by default; expose it only in debug mode."""
-    level = logging.DEBUG if debug else logging.WARNING
+    # Transport libraries are noisy even at WARNING (polling, retries and
+    # connection diagnostics). WW reports actionable failures itself.
+    level = logging.DEBUG if debug else logging.CRITICAL
+    logging.disable(logging.NOTSET if debug else logging.CRITICAL)
     logging.basicConfig(level=level, force=True)
     logging.getLogger().setLevel(level)
     for name in ("gemini_webapi", "httpx", "httpcore", "websockets"):
@@ -60,7 +65,8 @@ def configure_logging(debug: bool = False) -> None:
     except ImportError:
         return
     logger.remove()
-    logger.add(sys.stderr, level="DEBUG" if debug else "WARNING")
+    if debug:
+        logger.add(sys.stderr, level="DEBUG")
 
 
 def format_chat_date(timestamp: object) -> str:
@@ -79,8 +85,9 @@ def choose_startup_chat(
     folder_map: dict[str, str] | None = None,
 ) -> int | None:
     """Display paginated recent chats and let the user resume one or start fresh."""
+    console = Console()
     if not chats:
-        print("No previous Gemini conversations found. Starting a new chat.")
+        console.print(Panel("No previous conversations found. A new chat will be started.", title="WW", border_style="cyan"))
         return None
     page_size = max(1, min(int(page_size), 50))
     folder_map = folder_map or {}
@@ -89,17 +96,23 @@ def choose_startup_chat(
     while True:
         first = page * page_size
         visible = chats[first:first + page_size]
-        print(f"\nRecent Gemini conversations  (page {page + 1}/{page_count})")
-        print("  DATE        #  CONVERSATION")
-        print("  " + "-" * 66)
+        table = Table(title=f"Recent conversations · page {page + 1}/{page_count}", expand=True, header_style="bold cyan")
+        table.add_column("#", justify="right", style="dim", width=3)
+        table.add_column("Last active", style="dim", width=14)
+        table.add_column("Conversation", ratio=1)
+        table.add_column("Folder", style="magenta")
         for offset, chat in enumerate(visible):
             title = getattr(chat, "title", None) or "(untitled conversation)"
-            date_label = format_chat_date(getattr(chat, "timestamp", None))
+            date_label = format_chat_date(getattr(chat, "timestamp", None)).strip()
             folder = folder_map.get(getattr(chat, "cid", ""), "")
-            folder_label = f"  [{folder}]" if folder else ""
-            print(f"  {date_label}  {offset + 1:>2}. {title}{folder_label}")
-        print("\nEnter = most recent | number = open | > = next page | < = previous page")
-        print("n = new chat | q = cancel")
+            table.add_row(str(offset + 1), date_label, title, folder)
+        console.print(table)
+        console.print(Panel(
+            "[bold]Enter[/bold] resume most recent   [bold]number[/bold] open conversation   "
+            "[bold]>[/bold]/[bold]<[/bold] change page\n"
+            "[bold]n[/bold] new conversation   [bold]q[/bold] cancel",
+            border_style="dim",
+        ))
         try:
             choice = input("Continue [1]? ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -510,7 +523,7 @@ async def run_terminal(
 
     settings = load_settings()
     if show_banner:
-        print(BANNER)
+        Console().print(Panel(BANNER, border_style="cyan", padding=(1, 2)))
     try:
         chats = client.list_chats()
         selected = choose_startup_chat(
@@ -863,7 +876,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     # load_dotenv() ran before argument parsing, so .env settings are included.
     env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
-    configure_logging(args.debug or env_debug)
+    debug = args.debug or env_debug
+    if debug:
+        os.environ["WW_DEBUG"] = "1"
+    configure_logging(debug)
 
     try:
         for key, value in extract_gemini_cookies(args.cookies).items():
