@@ -129,6 +129,29 @@ You can omit the prompt after a command and paste a multi-line prompt, ending wi
 
 Generated images, videos, and audio are downloaded using the media objects' own save methods. Images are previewed inline when `chafa` or `viu` is installed; otherwise WW prints their saved paths. On Android, `/open N` hands a file to `termux-open` when available. Desktop environments can use `xdg-open`.
 
+
+### Gemini Canvas in an Android WebView
+
+On Android, `/canvas` launches Gemini in a separate native WebView Activity through [Termux:GUI](https://github.com/termux/termux-gui). The Android WebView is the actual browser engine: it parses and renders HTML/CSS and executes JavaScript, rather than WW trying to imitate browser layout in the terminal.
+
+Setup is optional:
+
+1. Install the **Termux:GUI** Android add-on from [F-Droid](https://f-droid.org/packages/com.termux.gui/) or its official releases.
+2. In regular Termux (outside the Debian proot), install the Python bindings:
+
+   ```bash
+   pkg install python
+   python -m pip install termuxgui
+   ```
+
+3. Start WW in Debian and run `/canvas`.
+
+The first launch asks for permission to enable JavaScript. WW keeps WebView navigation restricted to HTTPS Google-owned hosts used by Gemini and sign-in; other HTTP(S) links are handed to Android's external browser. Sign in inside this WebView if prompted: its cookie store is separate from Chrome's.
+
+If WW cannot find the Termux host interpreter, set `WW_TERMUX_PYTHON` to its path, normally `/data/data/com.termux/files/usr/bin/python`. If your Termux home is mounted somewhere other than the default shared-home path, set `WW_TERMUX_HOME` as well.
+
+This is a browser-backed Canvas route, not a direct Gemini Canvas API. It depends on the installed Android WebView, Termux:GUI, Google's current Gemini web UI, and Canvas being enabled for the account. If Google blocks embedded sign-in on a particular device/account, open Gemini in the regular Android browser instead.
+
 ### Artifact storage
 
 Artifacts are stored locally, grouped by Gemini conversation ID:
