@@ -787,6 +787,9 @@ async def run_terminal(
                     argument = message[len("/chats"):].strip()
                     if argument.casefold().startswith("search "):
                         query = argument[7:].strip().casefold()
+                        if not query:
+                            print("Usage: /chats search TEXT")
+                            continue
                         chats = [
                             chat for chat in chats
                             if query in str(getattr(chat, "title", "")).casefold()
