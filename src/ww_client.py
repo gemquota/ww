@@ -278,7 +278,8 @@ class WWClient:
             return
         closer = getattr(self._client, "close", None)
         if closer is not None:
-            result = closer()
-            if inspect.isawaitable(result):
-                await result
+            with _quiet_transport_output():
+                result = closer()
+                if inspect.isawaitable(result):
+                    await result
         self._client = self._chat = None
