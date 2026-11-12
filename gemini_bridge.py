@@ -555,7 +555,7 @@ async def run_terminal(
             try:
                 message = await asyncio.to_thread(input, "› ")
                 if readline_module is None and message.strip():
-                    fallback_history.append(message.rstrip("\n"))
+                    fallback_history.append(message)
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
