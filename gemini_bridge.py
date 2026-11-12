@@ -425,7 +425,7 @@ async def run_project_context_command(client: WWClient, argument: str, settings:
     elif action == "build":
         root_argument = " ".join(parts[1:]) if parts else None
     else:
-        root_argument = argument.strip()
+        root_argument = " ".join(parts) if parts else None
 
     try:
         output_path, summary, root = await asyncio.to_thread(
