@@ -61,7 +61,7 @@ On startup, WW loads up to 20 recent Gemini conversations and displays them in p
 - Enter `>` or `<` to move between pages.
 - Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-Prompts are entered at a compact `›` input marker, then echoed as a labelled `You:` block with an indented body. Gemini output appears under `Gemini:` with the same line-break and indentation treatment. Transcript-style `gemini>` and `you>` prefixes are parsed into separate speaker blocks (prefix-like text inside fenced code is left untouched). Markdown and interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions remain supported; enter a number to send that option's exact `query` as the next prompt.
+Prompts are entered at a compact `›` input marker, then echoed as a labelled `You:` block with an indented body. Gemini output appears under `Gemini:` with the same line-break and indentation treatment. Transcript-style `gemini>` and `you>` prefixes are parsed into separate speaker blocks (prefix-like text inside fenced code is left untouched). Markdown and interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions remain supported; enter a number to send that option's exact `query` as the next prompt.\n\nTab completion and arrow-key history are enabled when Python's `readline` module is available. WW stores up to 5,000 local input lines under `$XDG_STATE_HOME/ww/history` (normally `~/.local/state/ww/history`) with owner-only file permissions. Live streaming is opt-in because the upstream streaming interface returns text chunks rather than the full structured multimodal response; leave it off when you need generated media and artifact downloads.
 
 ### Commands
 
@@ -78,9 +78,14 @@ Prompts are entered at a compact `›` input marker, then echoed as a labelled `
 | `/last` | Resend the previous prompt in the active conversation |
 | `/copy` | Copy the last Gemini text response using the available system clipboard helper |
 | `/clear` | Clear the terminal display without closing the conversation |
+| `/history` | Show recent local input history |
+| `/search TEXT` | Search saved local input history |
+| `/repeat N` | Resend a numbered prompt from `/history` |
+| `/stream on` / `/stream off` | Enable live text streaming or restore structured response rendering |
 | `/doctor` | Check local WW runtime capabilities without making network requests |
 | `/chats` | Browse and switch conversations |
 | `/chats FOLDER` | Browse only conversations assigned to a local folder |
+| `/chats search TEXT` | Find conversations by title or conversation ID |
 | `/folders` | List folders currently in use |
 | `/folder NAME` | Assign the active conversation to a folder (creates it if needed) |
 | `/folder clear` | Remove the active conversation's folder assignment |
