@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from src.artifacts import list_artifacts, render_model_output, save_research_document
 from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
-from src.markdown_renderer import render_response, resolve_elicitation_selection
+from src.markdown_renderer import render_chat_response, render_response, render_user_message, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.project_context import export_project, find_project_root
 from src.ww_settings import (
@@ -521,10 +521,12 @@ async def run_terminal(
         )
 
     pending_options = ()
+    last_prompt = ""
+    last_response = ""
     try:
         while True:
             try:
-                message = await asyncio.to_thread(input, "you> ")
+                message = await asyncio.to_thread(input, "› ")
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
@@ -680,7 +682,10 @@ async def run_terminal(
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
+                render_user_message(message)
+                last_prompt = message
                 output = await client.ask_output(message)
+                last_response = getattr(output, "text", None) or ""
                 pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
