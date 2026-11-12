@@ -52,6 +52,38 @@ class WWClient:
             raise ConnectionError(f"Could not connect to Gemini Web Chat: {exc}") from exc
         self._client, self._chat = client, chat
 
+    def list_chats(self) -> list[Any]:
+        """Return recent Gemini conversations loaded during client initialization."""
+        if self._client is None:
+            raise RuntimeError("Connect before listing conversations.")
+        return list(self._client.list_chats() or [])
+
+    async def resume_conversation(self, cid: str) -> None:
+        """Resume a remote conversation using its latest turn metadata."""
+        await self.connect()
+        try:
+            history = await self._client.read_chat(cid, limit=1)
+            turns = getattr(history, "turns", ()) if history else ()
+            latest_output = next(
+                (getattr(turn, "model_output", None) for turn in turns
+                 if getattr(turn, "role", None) == "model"
+                 and getattr(turn, "model_output", None) is not None),
+                None,
+            )
+            metadata = getattr(latest_output, "metadata", None)
+            rcid = getattr(latest_output, "rcid", None)
+            if not metadata or len(metadata) < 2 or not rcid:
+                raise RuntimeError(
+                    "Gemini did not return resumable metadata for this conversation."
+                )
+            self._chat = self._client.start_chat(
+                metadata=[metadata[0], metadata[1], rcid]
+            )
+        except Exception as exc:
+            if isinstance(exc, RuntimeError):
+                raise
+            raise ConnectionError(f"Could not resume Gemini conversation: {exc}") from exc
+
     async def ask(self, prompt: str) -> str:
         """Send a prompt and return Gemini's complete response."""
         if not isinstance(prompt, str) or not prompt.strip():
