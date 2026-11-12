@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
+from src.ww_settings import (assign_chat_folder, chats_in_folder, folder_names, load_settings, save_settings)
 
 
 BANNER = """WW | Gemini Web Chat
@@ -44,37 +45,182 @@ def configure_logging() -> None:
     logger.add(sys.stderr, level="WARNING")
 
 
-def choose_startup_chat(chats: list[object]) -> int | None:
-    """Display recent chats and let the user resume one or start fresh."""
+def format_chat_date(timestamp: object) -> str:
+    """Format a chat timestamp as a fixed-width, year-free local date."""
+    if not timestamp:
+        return " " * 11
+    try:
+        return datetime.fromtimestamp(float(timestamp)).strftime("%d/%m %H:%M")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return " " * 11
+
+
+def choose_startup_chat(
+    chats: list[object],
+    page_size: int = 15,
+    folder_map: dict[str, str] | None = None,
+) -> int | None:
+    """Display paginated recent chats and let the user resume one or start fresh."""
     if not chats:
         print("No previous Gemini conversations found. Starting a new chat.")
         return None
-    print("\\nRecent Gemini conversations:")
-    for index, chat in enumerate(chats, start=1):
-        title = getattr(chat, "title", None) or "(untitled conversation)"
-        timestamp = getattr(chat, "timestamp", None)
-        date_label = ""
-        if timestamp:
-            try:
-                date_label = datetime.fromtimestamp(float(timestamp)).strftime("%Y-%m-%d %H:%M")
-            except (TypeError, ValueError, OSError, OverflowError):
-                pass
-        suffix = f"  [{date_label}]" if date_label else ""
-        print(f"  {index:>2}. {title}{suffix}")
-    print("\\nEnter = continue the most recent chat | number = open that chat | n = new chat")
+    page_size = max(1, min(int(page_size), 50))
+    folder_map = folder_map or {}
+    page = 0
+    page_count = (len(chats) + page_size - 1) // page_size
     while True:
+        first = page * page_size
+        visible = chats[first:first + page_size]
+        print(f"\nRecent Gemini conversations  (page {page + 1}/{page_count})")
+        print("  DATE        #  CONVERSATION")
+        print("  " + "-" * 66)
+        for offset, chat in enumerate(visible):
+            title = getattr(chat, "title", None) or "(untitled conversation)"
+            date_label = format_chat_date(getattr(chat, "timestamp", None))
+            folder = folder_map.get(getattr(chat, "cid", ""), "")
+            folder_label = f"  [{folder}]" if folder else ""
+            print(f"  {date_label}  {offset + 1:>2}. {title}{folder_label}")
+        print("\nEnter = most recent | number = open | > = next page | < = previous page")
+        print("n = new chat | q = cancel")
         try:
             choice = input("Continue [1]? ").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print("\\nGoodbye.")
+            print("\nGoodbye.")
             raise
         if not choice:
-            return 0
+            return first
         if choice in {"n", "new"}:
             return None
-        if choice.isdigit() and 1 <= int(choice) <= len(chats):
-            return int(choice) - 1
-        print(f"Enter a number from 1 to {len(chats)}, or n for a new chat.")
+        if choice in {"q", "quit", "cancel"}:
+            return -1
+        if choice in {">", "next"} and page + 1 < page_count:
+            page += 1
+            continue
+        if choice in {"<", "prev", "previous"} and page > 0:
+            page -= 1
+            continue
+        if choice.isdigit() and 1 <= int(choice) <= len(visible):
+            return first + int(choice) - 1
+        print("Choose a visible number, >, <, n, or q.")
+
+
+def customize_menu(client: WWClient, settings: dict[str, object]) -> None:
+    """Edit local display preferences and the default model for new chats."""
+    while True:
+        current_size = int(settings.get("chat_page_size", 15))
+        current_model = settings.get("default_model") or "Gemini account default"
+        print("\nWW customization")
+        print(f"  1. Conversations per page: {current_size}")
+        print(f"  2. Default model: {current_model}")
+        print("  0. Back")
+        choice = input("Customize> ").strip().lower()
+        if choice in {"0", "q", "back"}:
+            save_settings(settings)
+            return
+        if choice == "1":
+            raw = input("Conversations per page (5-50) [15]: ").strip()
+            if not raw:
+                settings["chat_page_size"] = 15
+            elif raw.isdigit() and 5 <= int(raw) <= 50:
+                settings["chat_page_size"] = int(raw)
+            else:
+                print("Enter a whole number from 5 to 50.")
+        elif choice == "2":
+            models = client.list_models()
+            available = [model for model in models if getattr(model, "is_available", True)]
+            print("  0. Gemini account default")
+            for index, model in enumerate(available, 1):
+                label = getattr(model, "display_name", None) or getattr(model, "model_name", "Unknown")
+                print(f"  {index}. {label}")
+            selected = input("Default model [0]: ").strip()
+            if selected in {"", "0"}:
+                settings["default_model"] = None
+            elif selected.isdigit() and 1 <= int(selected) <= len(available):
+                settings["default_model"] = getattr(available[int(selected) - 1], "model_name", None)
+            else:
+                print("Invalid model selection.")
+        else:
+            print("Choose 1, 2, or 0.")
+
+
+async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
+    """List, select, create, edit, and delete account Gems."""
+    while True:
+        try:
+            gems = await client.list_gems()
+        except Exception as exc:
+            print(f"Could not load Gemini Gems: {exc}")
+            return
+        print("\nGemini Gems")
+        if not gems:
+            print("  No visible Gems found.")
+        for index, gem in enumerate(gems, 1):
+            name = getattr(gem, "name", None) or "(unnamed Gem)"
+            kind = "built-in" if getattr(gem, "predefined", False) else "custom"
+            active = "  [default]" if getattr(gem, "id", None) == settings.get("default_gem") else ""
+            print(f"  {index}. {name} ({kind}){active}")
+        print("  s N = use Gem for new chats | c = create | e N = edit | d N = delete")
+        print("  0 = no default Gem | q = back")
+        command = input("Gems> ").strip()
+        if command.lower() in {"q", "quit", "back"}:
+            save_settings(settings)
+            return
+        if command == "0":
+            settings["default_gem"] = None
+            save_settings(settings)
+            continue
+        parts = command.split(maxsplit=1)
+        action = parts[0].lower() if parts else ""
+        if action == "c":
+            name = input("Gem name: ").strip()
+            prompt = input("System instructions: ").strip()
+            description = input("Description (optional): ").strip()
+            if name and prompt:
+                try:
+                    await client.create_gem(name, prompt, description)
+                    print(f"Created Gem: {name}")
+                except Exception as exc:
+                    print(f"Could not create Gem: {exc}")
+            else:
+                print("A Gem needs both a name and system instructions.")
+            continue
+        if action in {"s", "e", "d"} and len(parts) == 2 and parts[1].isdigit():
+            index = int(parts[1]) - 1
+            if not 0 <= index < len(gems):
+                print("No Gem at that number.")
+                continue
+            gem = gems[index]
+            gem_id = str(getattr(gem, "id", ""))
+            if action == "s":
+                settings["default_gem"] = gem_id
+                save_settings(settings)
+                print(f"Default Gem set to {getattr(gem, 'name', gem_id)} for new chats.")
+            elif getattr(gem, "predefined", False):
+                print("Built-in Gems cannot be edited or deleted.")
+            elif action == "e":
+                name = input(f"Name [{getattr(gem, 'name', '')}]: ").strip() or getattr(gem, "name", "")
+                prompt = input("System instructions (enter to keep current): ").strip()
+                description = input(f"Description [{getattr(gem, 'description', '')}]: ").strip() or getattr(gem, "description", "")
+                prompt = prompt or getattr(gem, "prompt", "")
+                if prompt:
+                    try:
+                        await client.update_gem(gem_id, name, prompt, description)
+                        print("Gem updated.")
+                    except Exception as exc:
+                        print(f"Could not update Gem: {exc}")
+            else:
+                confirm = input(f"Delete '{getattr(gem, 'name', gem_id)}' from Google? [y/N] ")
+                if confirm.lower() == "y":
+                    try:
+                        await client.delete_gem(gem_id)
+                        if settings.get("default_gem") == gem_id:
+                            settings["default_gem"] = None
+                        save_settings(settings)
+                        print("Gem deleted.")
+                    except Exception as exc:
+                        print(f"Could not delete Gem: {exc}")
+            continue
+        print("Invalid command.")
 
 
 async def run_terminal(
