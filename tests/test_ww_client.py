@@ -116,5 +116,35 @@ class WWClientStructuredTests(unittest.IsolatedAsyncioTestCase):
         await ww.close()
 
 
+class NoisyGemini(FakeGemini):
+    async def init(self, **_):
+        print("transport startup diagnostic")
+        print("transport warning", file=__import__("sys").stderr)
+
+    async def _fetch_recent_chats(self, recent):
+        print("heartbeat: fetching recent chats")
+
+    def start_chat(self, **kwargs):
+        print("raw transport chat setup")
+        return super().start_chat(**kwargs)
+
+
+class WWClientQuietOutputTests(unittest.IsolatedAsyncioTestCase):
+    async def test_transport_startup_output_is_suppressed_by_default(self):
+        import io
+        from contextlib import redirect_stderr, redirect_stdout
+        import os
+
+        os.environ.pop("WW_DEBUG", None)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        ww = WWClient("cookie", client_factory=NoisyGemini)
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            await ww.connect()
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "")
+        await ww.close()
+
+
 if __name__ == "__main__":
     unittest.main()
