@@ -63,19 +63,16 @@ class WWClient:
         return getattr(self._chat, "cid", None)
 
     def list_chats(self) -> list[Any]:
-        """Return recent Gemini conversations loaded during client initialization."""
         if self._client is None:
             raise RuntimeError("Connect before listing conversations.")
         return list(self._client.list_chats() or [])
 
     def list_models(self) -> list[Any]:
-        """Return models discovered for the authenticated account."""
         if self._client is None:
             raise RuntimeError("Connect before listing models.")
         return list(self._client.list_models() or [])
 
     async def list_gems(self) -> list[Any]:
-        """Fetch and return the account's visible Gemini Gems."""
         if self._client is None:
             raise RuntimeError("Connect before listing Gems.")
         gems = await self._client.fetch_gems(include_hidden=False)
@@ -130,20 +127,61 @@ class WWClient:
                 raise
             raise ConnectionError(f"Could not resume Gemini conversation: {exc}") from exc
 
-    async def ask(self, prompt: str) -> str:
-        """Send a prompt and return Gemini's complete response."""
+    async def ask_output(self, prompt: str) -> Any:
+        """Send a prompt and preserve Gemini's complete structured ModelOutput."""
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("Prompt must not be empty.")
         await self.connect()
         try:
-            response = await self._chat.send_message(prompt)
+            return await self._chat.send_message(prompt)
         except Exception as exc:
             raise ConnectionError(f"Gemini Web Chat request failed: {exc}") from exc
+
+    async def ask(self, prompt: str) -> str:
+        """Backward-compatible text-only convenience wrapper."""
+        response = await self.ask_output(prompt)
         response_text = getattr(response, "text", None)
         return response_text if response_text is not None else str(response)
 
+    async def create_research_plan(self, prompt: str) -> Any:
+        """Create a Deep Research plan in the currently active conversation."""
+        await self.connect()
+        method = getattr(self._client, "create_deep_research_plan", None)
+        if method is None:
+            raise RuntimeError(
+                "This installed gemini-webapi version does not expose Deep Research. "
+                "Update it with: pip install -U gemini-webapi"
+            )
+        try:
+            return await method(prompt, chat=self._chat)
+        except Exception as exc:
+            raise ConnectionError(f"Could not create a Deep Research plan: {exc}") from exc
+
+    async def start_research(self, plan: Any) -> Any:
+        """Confirm and start a previously reviewed Deep Research plan."""
+        await self.connect()
+        method = getattr(self._client, "start_deep_research", None)
+        if method is None:
+            raise RuntimeError("The installed gemini-webapi does not support starting research.")
+        try:
+            return await method(plan, chat=self._chat)
+        except Exception as exc:
+            raise ConnectionError(f"Could not start Deep Research: {exc}") from exc
+
+    async def wait_for_research(
+        self, plan: Any, poll_interval: float = 10.0, timeout: float = 1800.0
+    ) -> Any:
+        """Wait for the report document; Gemini exposes no granular progress percentage."""
+        await self.connect()
+        method = getattr(self._client, "wait_for_deep_research", None)
+        if method is None:
+            raise RuntimeError("The installed gemini-webapi does not support research polling.")
+        try:
+            return await method(plan, poll_interval=poll_interval, timeout=timeout)
+        except Exception as exc:
+            raise ConnectionError(f"Deep Research polling failed: {exc}") from exc
+
     async def new_conversation(self, model: Any = None, gem: Any = None) -> None:
-        """Start a new remote conversation with optional model and Gem settings."""
         await self.connect()
         options = {}
         if model is not None:
@@ -153,7 +191,7 @@ class WWClient:
         self._chat = self._client.start_chat(**options)
 
     async def ask_stream(self, prompt: str) -> AsyncIterator[str]:
-        """Yield response chunks when the web library supports streaming."""
+        """Yield text chunks for callers that explicitly want text-only streaming."""
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("Prompt must not be empty.")
         await self.connect()
@@ -184,4 +222,3 @@ class WWClient:
             if inspect.isawaitable(result):
                 await result
         self._client = self._chat = None
-
