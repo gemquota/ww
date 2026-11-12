@@ -61,7 +61,9 @@ On startup, WW loads up to 20 recent Gemini conversations and displays them in p
 - Enter `>` or `<` to move between pages.
 - Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-Prompts are entered at a compact `›` input marker, then echoed as a labelled `You:` block with an indented body. Gemini output appears under `Gemini:` with the same line-break and indentation treatment. Transcript-style `gemini>` and `you>` prefixes are parsed into separate speaker blocks (prefix-like text inside fenced code is left untouched). Markdown and interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions remain supported; enter a number to send that option's exact `query` as the next prompt.\n\nTab completion and arrow-key history are enabled when Python's `readline` module is available. WW stores up to 5,000 local input lines under `$XDG_STATE_HOME/ww/history` (normally `~/.local/state/ww/history`) with owner-only file permissions. Live streaming is opt-in because the upstream streaming interface returns text chunks rather than the full structured multimodal response; leave it off when you need generated media and artifact downloads.
+Prompts are entered at a compact `›` input marker, then echoed as a labelled `You:` block with an indented body. Gemini output appears under `Gemini:` with the same line-break and indentation treatment. Transcript-style `gemini>` and `you>` prefixes are parsed into separate speaker blocks (prefix-like text inside fenced code is left untouched). Markdown and interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions remain supported; enter a number to send that option's exact `query` as the next prompt.
+
+Tab completion and arrow-key history are enabled when Python's `readline` module is available. WW stores up to 5,000 local input lines under `$XDG_STATE_HOME/ww/history` (normally `~/.local/state/ww/history`) with owner-only file permissions. Live streaming is opt-in because the upstream streaming interface returns text chunks rather than the full structured multimodal response; leave it off when you need generated media and artifact downloads.
 
 ### Commands
 
