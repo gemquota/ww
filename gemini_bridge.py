@@ -827,7 +827,7 @@ async def run_terminal(
             try:
                 render_user_message(message)
                 last_prompt = message
-                if settings.get("stream_responses", True):
+                if settings.get("stream_responses", False):
                     last_response, pending_options = await render_streamed_response(client, message)
                 else:
                     output = await client.ask_output(message)
