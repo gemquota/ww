@@ -254,16 +254,21 @@ class WWClient:
             yield await self.ask(prompt)
             return
         try:
-            with _quiet_transport_output():
-                async for chunk in streamer(prompt):
-                    if isinstance(chunk, str):
-                        text = chunk
-                    else:
-                        text = getattr(chunk, "text_delta", None)
-                        if text is None:
-                            text = getattr(chunk, "text", "")
-                    if text:
-                        yield text
+            iterator = streamer(prompt).__aiter__()
+            while True:
+                try:
+                    with _quiet_transport_output():
+                        chunk = await iterator.__anext__()
+                except StopAsyncIteration:
+                    break
+                if isinstance(chunk, str):
+                    text = chunk
+                else:
+                    text = getattr(chunk, "text_delta", None)
+                    if text is None:
+                        text = getattr(chunk, "text", "")
+                if text:
+                    yield text
         except Exception as exc:
             raise ConnectionError(f"Gemini Web Chat stream failed: {exc}") from exc
 
