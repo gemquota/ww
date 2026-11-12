@@ -80,6 +80,7 @@ Prompts are entered at `you>`. Gemini responses are rendered as Markdown. Intera
 | `/image [prompt]` | Generate an image and save the returned image artifact |
 | `/video [prompt]` | Generate a video and save the returned video artifact |
 | `/music [prompt]` | Generate original music/audio and save the returned audio |
+| `/canvas [Google URL]` | Open Gemini in the optional Android WebView through Termux:GUI |
 | `/artifacts` | List locally saved reports, images, videos, and audio |
 | `/open N` | Open a saved artifact with the Android or desktop handler |
 | `/help` | Show help |
@@ -194,6 +195,6 @@ WW uses the unofficial `gemini-webapi` integration. Google can change its web in
 
 ```bash
 python -m pip install -r requirements.txt
-python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py src/ww_settings.py src/markdown_renderer.py src/artifacts.py
+python -m py_compile gemini_bridge.py src/*.py
 python -m unittest discover -s tests -v
 ```
