@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,7 @@ async def save_model_artifacts(
     """
     saved: list[Path] = []
     root = conversation_artifact_dir(chat_id)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 
     document = getattr(output, "deep_research_document", None)
     if document is not None and getattr(document, "ready", bool(getattr(document, "content", ""))):
@@ -87,7 +89,7 @@ async def save_model_artifacts(
         directory.mkdir(parents=True, exist_ok=True)
         for index, item in enumerate(images, 1):
             try:
-                path = await item.save(path=str(directory), filename=f"image-{index:02}.png")
+                path = await item.save(path=str(directory), filename=f"image-{stamp}-{index:02}.png")
                 if path:
                     image_path = Path(path)
                     saved.append(image_path)
@@ -102,7 +104,7 @@ async def save_model_artifacts(
         for index, item in enumerate(videos, 1):
             try:
                 result = await item.save(
-                    path=str(directory), filename=f"video-{index:02}.mp4"
+                    path=str(directory), filename=f"video-{stamp}-{index:02}.mp4"
                 )
                 for value in (result or {}).values():
                     if value and value != "206":
@@ -119,7 +121,7 @@ async def save_model_artifacts(
                 download_type = "audio" if media_mode in {"audio", "music"} else "both"
                 result = await item.save(
                     path=str(directory),
-                    filename=f"audio-{index:02}.mp3",
+                    filename=f"audio-{stamp}-{index:02}.mp3",
                     download_type=download_type,
                 )
                 for key, value in (result or {}).items():
