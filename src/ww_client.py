@@ -127,12 +127,18 @@ class WWClient:
                 raise
             raise ConnectionError(f"Could not resume Gemini conversation: {exc}") from exc
 
-    async def ask_output(self, prompt: str) -> Any:
-        """Send a prompt and preserve Gemini's complete structured ModelOutput."""
+    async def ask_output(self, prompt: str, files: list[str | os.PathLike[str]] | None = None) -> Any:
+        """Send a prompt, optionally attaching local files, and preserve ModelOutput."""
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("Prompt must not be empty.")
         await self.connect()
+        attachments = [os.fspath(path) for path in (files or ())]
+        for path in attachments:
+            if not os.path.isfile(path):
+                raise FileNotFoundError(f"Attachment does not exist or is not a file: {path}")
         try:
+            if attachments:
+                return await self._chat.send_message(prompt, files=attachments)
             return await self._chat.send_message(prompt)
         except Exception as exc:
             raise ConnectionError(f"Gemini Web Chat request failed: {exc}") from exc
