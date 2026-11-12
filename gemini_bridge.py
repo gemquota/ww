@@ -539,6 +539,39 @@ async def run_terminal(
                 print(f"Selected: {selection.label}")
             pending_options = ()
             command = message.lower()
+            if command == "/clear":
+                print("\033[2J\033[H", end="", flush=True)
+                continue
+            if command == "/copy":
+                clipboard = next((name for name in ("termux-clipboard-set", "pbcopy", "wl-copy", "xclip") if shutil.which(name)), None)
+                if not last_response:
+                    print("Nothing to copy yet.")
+                elif clipboard is None:
+                    print("No clipboard helper found. Install termux-api, wl-clipboard, or xclip.")
+                else:
+                    args = [clipboard, "-selection", "clipboard"] if clipboard == "xclip" else [clipboard]
+                    try:
+                        subprocess.run(args, input=last_response, text=True, check=True, timeout=5)
+                        print("Copied the last Gemini response.")
+                    except (OSError, subprocess.SubprocessError) as exc:
+                        print(f"Clipboard copy failed: {exc}")
+                continue
+            if command == "/last":
+                if not last_prompt:
+                    print("There is no previous prompt to resend.")
+                    continue
+                message = last_prompt
+                command = ""
+            if command == "/models":
+                try:
+                    available = [model for model in client.list_models() if getattr(model, "is_available", True)]
+                    print("\nAvailable Gemini models")
+                    for model in available:
+                        label = getattr(model, "display_name", None) or getattr(model, "model_name", "Unknown")
+                        print(f"  {label} · {getattr(model, 'model_name', '')}")
+                except Exception as exc:
+                    print(f"Could not list models: {exc}")
+                continue
             if command in {"/exit", "/quit"}:
                 print("Goodbye.")
                 break
@@ -604,7 +637,7 @@ async def run_terminal(
             if command == "/help":
                 print(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, /context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
-                    "/folder clear, /gems, /customize, /research [topic|--latest], "
+                    "/models, /last, /copy, /clear, /folder clear, /gems, /customize, /research [topic|--latest], "
                     "/image [prompt], /video [prompt], /music [prompt], "
                     "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
