@@ -28,6 +28,7 @@ def load_settings() -> dict[str, Any]:
     data.setdefault("context_root", None)
     data.setdefault("context_output", None)
     data.setdefault("context_ignores", [])
+    data.setdefault("context_includes", [])
     return data
 
 
