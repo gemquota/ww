@@ -345,13 +345,13 @@ async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
         print("Invalid command.")
 
 
-def build_project_context(root_argument: str | None, ignores: list[str]) -> tuple[Path, dict[str, int], Path]:
+def build_project_context(root_argument: str | None, ignores: list[str], includes: list[str]) -> tuple[Path, dict[str, int], Path]:
     """Build a bounded JSON context export without blocking the async chat loop."""
     cwd = Path.cwd().resolve()
     root = find_project_root(cwd, root_argument)
     output = root / ".ww" / "project-context.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    document = export_project(root, cwd, output, ignores=set(ignores))
+    document = export_project(root, cwd, output, ignores=set(ignores), includes=set(includes))
     temporary = output.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(temporary, output)
@@ -410,14 +410,21 @@ async def run_project_context_command(client: WWClient, argument: str, settings:
             print(f"Usage: /context {action} DIRECTORY_NAME")
             return
         names = list(settings.get("context_ignores", []))
+        included = list(settings.get("context_includes", []))
         target = parts[1]
-        if action == "exclude" and target not in names:
-            names.append(target)
-        elif action == "include":
+        if action == "exclude":
+            if target not in names:
+                names.append(target)
+            included = [name for name in included if name != target]
+        else:
+            if target not in included:
+                included.append(target)
             names = [name for name in names if name != target]
         settings["context_ignores"] = names
+        settings["context_includes"] = included
         save_settings(settings)
         print(f"Context exclusions: {', '.join(names) or '(defaults only)'}")
+        print(f"Explicit inclusions: {', '.join(included) or '(none)'}")
         return
 
     if action == "refresh":
@@ -429,7 +436,9 @@ async def run_project_context_command(client: WWClient, argument: str, settings:
 
     try:
         output_path, summary, root = await asyncio.to_thread(
-            build_project_context, root_argument, list(settings.get("context_ignores", []))
+            build_project_context, root_argument,
+            list(settings.get("context_ignores", [])),
+            list(settings.get("context_includes", []))
         )
         settings["context_root"] = str(root)
         settings["context_output"] = str(output_path)
