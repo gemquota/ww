@@ -47,13 +47,13 @@ Or specify another file:
 python gemini_bridge.py --cookies /path/to/cookies.txt
 ```
 
-Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file. Diagnostic console output from WW's dependencies is hidden by default; warnings and errors remain visible. Use `python gemini_bridge.py --debug` or set `WW_DEBUG=1` (including in `.env`) to enable verbose debug logging.
+Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file. Third-party transport logs, connection chatter, polling messages, and direct library prints are hidden by default. WW shows concise, actionable errors instead. Use `python gemini_bridge.py --debug` or set `WW_DEBUG=1` (including in `.env`) to expose transport diagnostics.
 
 **Security:** `cookies.txt` and `.env` are gitignored. Do not commit or share browser session cookies. They can grant access to your signed-in Google account. Rotate the session if the file is exposed.
 
 ## Interactive chat
 
-On startup, WW loads up to 20 recent Gemini conversations and displays them in pages. The default page size is 15.
+On startup, WW loads recent Gemini conversations and displays them in a compact, formatted table inside a clean terminal panel. The default page size is 15.
 
 - Dates appear in a fixed-width column on the **left**, formatted as `DD/MM HH:MM` with leading zeroes and no year.
 - Press **Enter** to resume the most recent conversation.
