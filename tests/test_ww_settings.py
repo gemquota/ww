@@ -26,6 +26,9 @@ class WWSettingsTests(unittest.TestCase):
             self.assertEqual(loaded["chat_page_size"], 20)
             self.assertEqual(loaded["default_model"], "gemini-pro")
             self.assertEqual(loaded["chat_folders"], {})
+            self.assertEqual(loaded["context_ignores"], [])
+            self.assertEqual(loaded["context_includes"], [])
+            self.assertIsNone(loaded["context_root"])
 
     def test_local_chat_folders(self):
         chats = [
