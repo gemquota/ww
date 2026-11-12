@@ -54,13 +54,24 @@ def _command_completer(text: str, state: int) -> str | None:
     return matches[state] if state < len(matches) else None
 
 
-def save_line_history(readline_module: Any | None, path: Path) -> None:
+def load_fallback_history(path: Path) -> list[str]:
+    """Load plain-text history when Python was built without readline."""
+    try:
+        return path.read_text(encoding="utf-8").splitlines()[-5000:]
+    except OSError:
+        return []
+
+
+def save_line_history(
+    readline_module: Any | None, path: Path, fallback: list[str] | None = None
+) -> None:
     """Persist readline history with owner-only permissions where supported."""
-    if readline_module is None:
-        return
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        readline_module.write_history_file(str(path))
+        if readline_module is None:
+            path.write_text("\\n".join((fallback or [])[-5000:]) + "\\n", encoding="utf-8")
+        else:
+            readline_module.write_history_file(str(path))
         try:
             path.chmod(0o600)
         except OSError:
