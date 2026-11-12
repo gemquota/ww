@@ -69,7 +69,7 @@ def save_line_history(
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         if readline_module is None:
-            path.write_text("\\n".join((fallback or [])[-5000:]) + "\\n", encoding="utf-8")
+            path.write_text("\n".join((fallback or [])[-5000:]) + "\n", encoding="utf-8")
         else:
             readline_module.write_history_file(str(path))
         try:
