@@ -1,301 +1,202 @@
-# WW Bridge — The First Agentic Coding Tool for Google Gemini
+# WW
 
-[![CI](https://github.com/yourorg/ww/actions/workflows/ci.yml/badge.svg)](https://github.com/yourorg/ww/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-197%20passing-brightgreen.svg)](.tests/)
+**A lightweight terminal client for Gemini Web Chat.**
 
-> **Run a multi-agent coding team on your machine, powered by Gemini.**
-> No SaaS, no API key subscription — just a browser cookie and a terminal.
-> WW Bridge is the only agentic coding tool that works with Google Gemini,
-> runs entirely locally, and persists memory across sessions.
+WW keeps the core job simple: authenticate to Gemini Web Chat, send prompts, and render responses. Interactive mode can resume previous conversations, organise them into local folders, and use Gemini Gems and account-available models.
 
----
+The Overseer, specialist agents, orchestration, tool execution, workspace scanning, plugins, persistent agent memory and dashboard remain optional extensions. None is required by the basic terminal.
 
-## Features
+## Requirements
 
-- **🤖 3-Tier Agent Hierarchy** — Communicator (entry), Overseer (planning), Specialists (execution)
-- **🔧 11 Built-in Tools** — read, write, search, shell, git, patch, fetch, and more
-- **🧠 Smart Context** — Git-aware workspace ingestion with `.gitignore` respect, token counting, and auto-compaction
-- **🔒 Sandbox Security** — Path traversal prevention, approval policies (always/on-request/never)
-- **💾 Persistent Memory** — 3-tier context (Hot → Facts → Summary) + Causal Graph (PCG) in SQLite
-- **↩️ Undo Support** — Automatic git checkpoints before file writes; `/undo` to revert
-- **🔌 Plugin System** — Extensible via Python plugins with lifecycle hooks
-- **📊 Web Dashboard** — FastAPI dashboard for session history, telemetry, and health monitoring
-- **📈 Benchmark Suite** — 197 tests with quality metrics across 10 dimensions
-- **🐳 Docker Support** — Containerized deployment with docker-compose
+- Python 3.11+
+- An authenticated Google Gemini Web session
+- A Netscape-format browser export named `cookies.txt`, containing `__Secure-1PSID`; `__Secure-1PSIDTS` is optional
 
----
-
-## Quick Start
+## Install
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Set credentials in .env
-echo "SECURE_1PSID=your_value" >> .env
-echo "SECURE_1PSIDTS=your_value" >> .env
-
-# 3. Run interactive mode
-python3 gemini_bridge.py
-
-# 4. Try a query
-# "list all Python files in the project"
+git clone https://github.com/gemquota/ww.git
+cd ww
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-```
-                          ┌──────────────────────┐
-                          │    COMMUNICATOR       │
-                          │  (Entry / UI)         │
-                          └──┬──┬──┬──┬──┬──┬────┘
-                    ┌────────┘  │  │  │  │  │
-                    │     ┌─────┘  │  │  │  │
-                    ▼     ▼        ▼  ▼  ▼  ▼
-              ┌────────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐
-              │OVERSEER│ │CODER│ │RECH│ │TEST│ │SEC │ │ARCH│
-              │(Tech   │ │     │ │    │ │    │ │    │ │    │
-              │ Lead)  │ │     │ │    │ │    │ │    │ │    │
-              └────┬───┘ └────┘ └────┘ └────┘ └────┘ └────┘
-         ┌─────────┼──────────┬──────────┬──────────┬──────┐
-         ▼         ▼          ▼          ▼          ▼      ▼
-    ┌────────┐ ┌────┐ ┌────────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐
-    │ CODER  │ │RECH│ │ TESTER │ │SEC │ │ARCH│ │... │ │... │
-    └────┬───┘ └────┘ └────────┘ └────┘ └────┘ └────┘ └────┘
-         │    ┌──────────────────────────────────────────┐
-         └────┤ Specialist ↔ Specialist lateral edges   │
-              │ (any agent can call any other agent)     │
-              └──────────────────────────────────────────┘
+## Authentication
 
-Communication Patterns:
-◆ Communicator → single pass-through lines to ALL agents (incl. Overseer)
-◆ Overseer → pipelines specialists, chains I/O, collects+processes results
-◆ Collect Pattern: Two+ agents → one agent → another → Overseer
-◆ Chain Pattern: Coder → Tester → Security → Overseer
-◆ Results flow upward (particles go out the top)
-◆ Any specialist can delegate laterally to any other
-```
+Export your Google cookies from your browser in **Netscape cookies.txt format** and place the file in the WW project root:
 
-
-    Delegation/reference flows down spines and across rows.
-    Results flow back up (particles go out the top).
-    Any agent can delegate to any neighbor — horizontally or vertically.
-```
-
-### Communication Patterns
-
-| Pattern | Description | Example |
-|---------|-------------|---------|
-| **Direct Delegation** | Communicator or Overseer calls any single specialist | `coder: implement this function` |
-| **Parallel Fan-Out** | One agent delegates to multiple specialists independently | `researcher` + `architect` in parallel |
-| **Pipeline Chain** | Output of one specialist feeds into another | `researcher → coder → tester` |
-| **Collect + Process** | Gather results from multiple agents, process, then pass to another | `researcher + architect → process → coder` |
-| **Specialist-to-Specialist** | A specialist delegates to another specialist mid-task | `coder delegates to security for review` |
-| **Multi-Agent Feedback Loop** | Two agents feed into a third, whose output goes back to the orchestrator | `architect + security → coder → overseer` |
-
-### Routing Rules
-
-- **Communicator** delegates to the **Overseer** for complex tasks, or directly to a **Specialist** for simple, well-defined tasks
-- **Overseer** decomposes tasks and can call any combination of specialists in any order
-- **Specialists** operate independently but can delegate to each other for cross-cutting concerns
-- All agent sessions persist independently, so each agent maintains context across multiple calls in a session
-
-Each specialized agent has a dedicated `agents/<name>.md` file with protocol instructions,
-available tools, and behavioral guidelines.
-
----
-
-## Why WW Bridge?
-
-| Capability | WW Bridge | Claude Code | Codex CLI | Aider |
-|---|---|---|---|---|
-| Works with **Gemini** | **Yes** | No | No | No |
-| Runs **locally** | **Yes** | Yes | Yes | Yes |
-| **Free** (Gemini tier) | **Yes** | $20/month | API costs | API costs |
-| **3-tier memory** | **Yes** | Window only | Window only | No |
-| **Agent hierarchy** | **3 tiers** | 1 | 2 | 1 |
-| **Web dashboard** | **Yes** | No | No | No |
-| **Plugin system** | **Yes** | No | No | Extensions |
-
-## Project Structure
-
-```
+```text
 ww/
-├── gemini_bridge.py        # CLI entry point (thin wrapper)
-├── config.yaml             # Runtime configuration
-├── requirements.txt        # Python dependencies
-├── .env                    # Credentials (gitignored)
-│
-├── src/                    # Runtime package (28 files)
-│   ├── gemini_bridge.py    # Orchestrator (TUI, agent loop, dispatch)
-│   ├── tool_executor.py    # Tool block parser and dispatcher
-│   ├── context_manager.py  # TokenCounter, ConversationHistory, RepoMapper
-│   ├── smart_context.py    # Git-aware workspace context assembly
-│   ├── config.py           # Pydantic-settings config loader
-│   ├── permissions.py      # Sandbox + approval policies
-│   ├── checkpoint.py       # Git checkpoint / undo system
-│   ├── _constants.py       # Shared constants (BASE_IGNORE, etc.)
-│   ├── telemetry.py        # Session logging (SQLite + JSONL)
-│   ├── diff_engine.py      # Fuzzy SEARCH/REPLACE engine
-│   ├── agents_loader.py    # Hierarchical AGENTS.md loader
-│   ├── file_watcher.py     # File change detector
-│   ├── core/               # Memory, schemas, healing, benchmarks
-│   ├── tools/              # ToolRegistry + 11 tool implementations
-│   ├── utils/              # WebGeminiClient, validation
-│   ├── dashboard/          # FastAPI web dashboard
-│   ├── plugins/            # Plugin system
-│   └── gfx/                # Terminal mascot
-│
-├── agents/                 # Agent markdown definitions (8 files)
-├── deploy/                 # Docker, docker-compose, CI workflow
-├── docs/                   # Documentation (19 files, 1,326 lines)
-├── .tests/                 # Test suite (197 tests, symlink → .tel/.tests/)
-└── reports/                # Modularization audit reports
+├── cookies.txt
+├── gemini_bridge.py
+└── ...
 ```
 
----
+WW extracts `__Secure-1PSID` and `__Secure-1PSIDTS` from Google-domain entries. It ignores cookies for other domains and never prints cookie values.
 
-## Security
-
-WW Bridge implements three security layers:
-
-1. **Workspace Sandbox** — All file operations validated against `Sandbox.is_safe_path()`
-2. **Approval Policies** — `always` / `on-request` / `never` for shell commands
-3. **Protected Paths** — `.env`, `.git/`, `.ww/` are always blocked
-
-See [Security Model](docs/security.md) for details.
-
----
-
-## Test Suite
+Start with the default file:
 
 ```bash
-# Run all 197 tests
-pytest .tests/ -v
-
-# Run specific test file
-pytest .tests/test_core.py -v
-
-# Run benchmarks (requires API keys)
-python .tel/.tests/benchmarks/runner.py --suite .tel/.tests/benchmarks/golden_tasks.json
+python gemini_bridge.py
 ```
 
-Tests cover:
-- Schema validation (ToolCall, Pydantic models)
-- Memory operations (3-tier, PCG, SQLite)
-- Tool registry and DAG resolution
-- Sandbox path traversal prevention
-- Permission policies and approval flows
-- Context compaction and token counting
-- Diff engine and checkpoint system
-- Agent instruction loading
-- Quality dimensions (10 metrics)
-
----
-
-## Deployment
+Or specify another file:
 
 ```bash
-# Docker
-docker compose -f deploy/docker-compose.yml up ww-bridge
-
-# Docker with dashboard
-docker compose -f deploy/docker-compose.yml up dashboard
-
-# Production
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml up
+python gemini_bridge.py --cookies /path/to/cookies.txt
 ```
 
-See [Deployment Guide](docs/deployment.md) for production considerations.
+Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file.
 
----
+**Security:** `cookies.txt` and `.env` are gitignored. Do not commit or share browser session cookies. They can grant access to your signed-in Google account. Rotate the session if the file is exposed.
 
-## Python API
+## Interactive chat
 
-Use WW Bridge components programmatically from your own scripts:
+On startup, WW loads up to 20 recent Gemini conversations and displays them in pages. The default page size is 15.
 
-```python
-# Example 1: Single query via WebGeminiClient
-from src.utils.web_client import WebGeminiClient
+- Dates appear in a fixed-width column on the **left**, formatted as `DD/MM HH:MM` with leading zeroes and no year.
+- Press **Enter** to resume the most recent conversation.
+- Enter a visible number to resume that conversation.
+- Enter `>` or `<` to move between pages.
+- Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-async def ask_gemini(query: str) -> str:
-    client = WebGeminiClient()
-    await client.init()
-    return await client.ask(query)
+Prompts are entered at `you>`. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
 
-# Example 2: Use built-in tools
-from src.tools.system_tools import read_file, list_dir
-from src.tools.system_tools import ReadFileArgs, ListDirArgs
+### Commands
 
-files = list_dir(ListDirArgs(path="src/"))
-content = read_file(ReadFileArgs(path="src/gemini_bridge.py"))
+| Command | Action |
+|---|---|
+| `/new` | Start a fresh Gemini conversation |
+| `/chats` | Browse and switch conversations |
+| `/chats FOLDER` | Browse only conversations assigned to a local folder |
+| `/folders` | List folders currently in use |
+| `/folder NAME` | Assign the active conversation to a folder (creates it if needed) |
+| `/folder clear` | Remove the active conversation's folder assignment |
+| `/gems` | List, create, edit, delete, or select Gemini Gems |
+| `/customize` | Set conversations per page and the default model for new chats |
+| `/research [topic]` | Review a Deep Research plan, approve it, and retrieve the finished report |
+| `/research --latest` | Recover the latest completed research report from this conversation |
+| `/image [prompt]` | Generate an image and save the returned image artifact |
+| `/video [prompt]` | Generate a video and save the returned video artifact |
+| `/music [prompt]` | Generate original music/audio and save the returned audio |
+| `/canvas [Google URL]` | Open Gemini in the optional Android WebView through Termux:GUI |
+| `/artifacts` | List locally saved reports, images, videos, and audio |
+| `/open N` | Open a saved artifact with the Android or desktop handler |
+| `/help` | Show help |
+| `/exit` or `/quit` | Exit WW |
 
-# Example 3: Custom tool registration
-from src.tools.registry import ToolRegistry
+Folders are local labels associated with Gemini conversation IDs. They do not create, move, or delete anything in Google's cloud history. A selected Gem and model are defaults for **new** conversations; resuming an existing chat preserves that conversation's own settings.
 
-registry = ToolRegistry()
-registry.register("my_tool", my_handler, "My custom tool", MyArgs)
+### One-shot prompt
+
+```bash
+python gemini_bridge.py --prompt "Explain TCP versus UDP"
 ```
 
-> **Requires**: Valid `SECURE_1PSID` and `SECURE_1PSIDTS` in `.env`. See `--auth`.
+## Deep Research and generated media
 
----
+WW keeps Gemini's structured response instead of flattening everything into a text string. This is important because Deep Research reports, generated images, videos, and music/audio are attached as separate objects by `gemini-webapi`.
 
-## Architecture Overview
+### Deep Research
 
-> **Interactive visualization available** — Open
-> [`docs/architecture-explorer.html`](docs/architecture-explorer.html) in a
-> browser to explore all 34+ modules across 11 interactive graph views
-> (venn diagrams, data pipelines, dependency hubs, agent hierarchy, and more).
+Start a research task in the current conversation:
 
-
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        USER (Terminal)                            │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │ prompt_toolkit TUI
-                       ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    gemini_bridge.py (Orchestrator)                 │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────────┐ │
-│  │ Permis-  │ │ Diff     │ │ Check-   │ │ ConversationHistory  │ │
-│  │ sions    │ │ Engine   │ │ point    │ │ + TokenCounter       │ │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────────┐ │
-│  │ Memory   │ │ WebGemini│ │ Auto-    │ │ smart_context        │ │
-│  │ Manager  │ │ Client   │ │ Healer   │ │ + RepoMapper         │ │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                        │
-│  │ Tool     │ │ Tool     │ │ agents_  │                        │
-│  │ Registry │ │Executor  │ │ loader   │                        │
-│  └──────────┘ └──────────┘ └──────────┘                        │
-└──────────────────────────────────────────────────────────────────┘
-                       │ Gemini Web API
-                       ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   Google Gemini (Cloud)                           │
-└──────────────────────────────────────────────────────────────────┘
+```text
+/research Compare current open-source local browser engines for Android
 ```
 
----
+WW displays the proposed plan and its steps before asking for confirmation. Once approved, it waits for the finished report and renders the Markdown document, including its source list. Gemini does not currently expose a reliable percentage or detailed progress state through the underlying web client, so WW shows an activity spinner rather than inventing a progress bar.
 
-## Contributing
+Research reports can take several minutes. The wait timeout is 30 minutes. If the terminal session is interrupted or the report is still running, resume the same Gemini conversation and use:
 
-1. Run the test suite: `pytest .tests/ -v`
-2. Ensure all 197 tests pass before submitting changes
-3. Follow existing code style (type hints, pathlib, async patterns)
-4. Update documentation for new features
-5. See [Development Guide](docs/development.md) for details
+```text
+/research --latest
+```
 
----
+This searches the active conversation history for a completed report.
 
-## License
+### Image, video, and music generation
 
-MIT License — see [LICENSE](LICENSE) for details.
+Use explicit commands so WW can phrase the request for the appropriate Gemini generation capability:
 
-## Acknowledgments
+```text
+/image A detailed cutaway illustration of a deep-sea hydrothermal vent
+/video A short cinematic underwater shot of a manta ray
+/music Original ambient electronic music with warm analogue textures
+```
 
-- Built with [gemini-webapi](https://pypi.org/project/gemini-webapi/)
-- Inspired by [Claude Code](https://claude.ai) and [Codex CLI](https://github.com/openai/codex)
-- Multi-agent routing patterns adapted from [SWE-agent](https://github.com/princeton-nlp/swe-agent)
+You can omit the prompt after a command and paste a multi-line prompt, ending with a line containing only `.`. Gemini account eligibility, regional availability, usage limits, and subscription requirements still apply. WW cannot grant features that Google has not enabled for the account.
+
+Generated images, videos, and audio are downloaded using the media objects' own save methods. Images are previewed inline when `chafa` or `viu` is installed; otherwise WW prints their saved paths. On Android, `/open N` hands a file to `termux-open` when available. Desktop environments can use `xdg-open`.
+
+
+### Embedded Gemini Canvas workspace on Android
+
+On Android, `/canvas` opens a **WW-owned native Activity with Gemini rendered inside an embedded Android WebView**. This is no longer just a bare browser launch: the workspace includes native Back, Forward, Reload, Gemini-home, and Done controls, a status line, and a full-height WebView. Your WW terminal session remains available in the background, so you can switch back to the conversation without closing the Canvas workspace.
+
+The WebView is the actual Android browser engine. Gemini Canvas remains Google's own interactive web application; WW does not attempt to parse or imitate its editor.
+
+Setup is optional:
+
+1. Install the **Termux:GUI** Android add-on from [F-Droid](https://f-droid.org/packages/com.termux.gui/) or its [official releases](https://github.com/termux/termux-gui/releases).
+2. In regular Termux (outside the Debian proot), install the Python bindings:
+
+   ```bash
+   pkg install python
+   python -m pip install termuxgui
+   ```
+
+3. Start WW in Debian and run `/canvas`.
+
+The first launch asks for permission to enable JavaScript. Navigation inside the WebView is restricted to HTTPS Google-owned hosts used by Gemini and sign-in. Other ordinary HTTP(S) links are handed to Android's external browser, keeping unrelated sites out of the JavaScript-enabled Google session. Sign in inside this WebView if prompted: its cookie store is separate from Chrome's.
+
+If WW cannot find the Termux host interpreter, set `WW_TERMUX_PYTHON` to its path, normally `/data/data/com.termux/files/usr/bin/python`. If your Termux home is mounted somewhere other than the default shared-home path, set `WW_TERMUX_HOME` as well.
+
+This depends on Termux:GUI, the installed Android System WebView, Google's current Gemini web UI, and Canvas being enabled for the account. It has not been device-tested as part of the repository CI. If Google blocks embedded sign-in on a particular device/account, use the regular Android browser instead.
+
+### Artifact storage
+
+Artifacts are stored locally, grouped by Gemini conversation ID:
+
+```text
+~/.local/share/ww/artifacts/
+└── CONVERSATION_ID/
+    ├── research/
+    ├── images/
+    ├── videos/
+    └── audio/
+```
+
+Set `XDG_DATA_HOME` to move the storage root. Use `/artifacts` to list saved files and `/open N` to open one. WW does not upload these local files anywhere.
+
+
+## Local settings
+
+WW stores preferences and folder assignments in:
+
+- `~/.config/ww/settings.json`, or
+- `$XDG_CONFIG_HOME/ww/settings.json` when `XDG_CONFIG_HOME` is set.
+
+The settings file contains the chat page size, default model, default Gem ID, and local chat-folder assignments. It contains no authentication cookies.
+
+## Core architecture
+
+```text
+Terminal -> cookie loader -> WWClient -> Gemini Web Chat
+                         \-> local preferences and folder metadata
+```
+
+The core runtime uses the terminal entry point, a small cookie loader, the conversation transport, local JSON preferences, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
+
+## Notes
+
+WW uses the unofficial `gemini-webapi` integration. Google can change its web interface or invalidate session cookies, so the integration may need maintenance. This is a web-session client, not an official Google API.
+
+## Development
+
+```bash
+python -m pip install -r requirements.txt
+python -m py_compile gemini_bridge.py src/*.py
+python -m unittest discover -s tests -v
+```
