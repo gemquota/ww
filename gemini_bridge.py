@@ -149,6 +149,18 @@ def customize_menu(client: WWClient, settings: dict[str, object]) -> None:
             print("Choose 1, 2, or 0.")
 
 
+def read_multiline_text(label: str) -> str:
+    """Read pasted multi-line terminal text, ending when the user enters a dot."""
+    print(f"{label} (finish with a line containing only .):")
+    lines = []
+    while True:
+        line = input()
+        if line == ".":
+            break
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
 async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
     """List, select, create, edit, and delete account Gems."""
     while True:
@@ -179,7 +191,7 @@ async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
         action = parts[0].lower() if parts else ""
         if action == "c":
             name = input("Gem name: ").strip()
-            prompt = input("System instructions: ").strip()
+            prompt = read_multiline_text("System instructions")
             description = input("Description (optional): ").strip()
             if name and prompt:
                 try:
@@ -205,7 +217,8 @@ async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
                 print("Built-in Gems cannot be edited or deleted.")
             elif action == "e":
                 name = input(f"Name [{getattr(gem, 'name', '')}]: ").strip() or getattr(gem, "name", "")
-                prompt = input("System instructions (enter to keep current): ").strip()
+                print("Enter replacement instructions, or leave the first line empty to keep the current prompt.")
+                prompt = read_multiline_text("System instructions")
                 description = input(f"Description [{getattr(gem, 'description', '')}]: ").strip() or getattr(gem, "description", "")
                 prompt = prompt or getattr(gem, "prompt", "")
                 if prompt:
