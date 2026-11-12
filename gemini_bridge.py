@@ -94,7 +94,7 @@ def choose_startup_chat(
             print("\nGoodbye.")
             raise
         if not choice:
-            return first
+            return 0
         if choice in {"n", "new"}:
             return None
         if choice in {"q", "quit", "cancel"}:
