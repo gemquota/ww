@@ -185,7 +185,7 @@ def parse_speaker_blocks(source: str) -> tuple[tuple[str, str], ...]:
         blocks.append((current, lines))
     if not found:
         return (("gemini", source.strip()),) if source.strip() else ()
-    return tuple((speaker, "\\n".join(body).strip()) for speaker, body in blocks if "\\n".join(body).strip())
+    return tuple((speaker, "\n".join(body).strip()) for speaker, body in blocks if "\n".join(body).strip())
 
 
 def render_user_message(
