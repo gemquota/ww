@@ -131,11 +131,11 @@ class WWClient:
         """Send a prompt, optionally attaching local files, and preserve ModelOutput."""
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("Prompt must not be empty.")
-        await self.connect()
         attachments = [os.fspath(path) for path in (files or ())]
         for path in attachments:
             if not os.path.isfile(path):
                 raise FileNotFoundError(f"Attachment does not exist or is not a file: {path}")
+        await self.connect()
         try:
             if attachments:
                 return await self._chat.send_message(prompt, files=attachments)
