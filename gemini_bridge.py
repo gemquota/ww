@@ -845,9 +845,6 @@ async def run_terminal(
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
-    # Re-read WW_DEBUG after dotenv so it can be configured in the local .env.
-    env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
-    configure_logging(args.debug or env_debug)
     parser = argparse.ArgumentParser(
         prog="ww", description="A simple terminal client for Gemini Web Chat."
     )
@@ -864,6 +861,9 @@ def main(argv: list[str] | None = None) -> int:
         help="show diagnostic/debug console output (also enabled by WW_DEBUG=1)",
     )
     args = parser.parse_args(argv)
+    # load_dotenv() ran before argument parsing, so .env settings are included.
+    env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    configure_logging(args.debug or env_debug)
 
     try:
         for key, value in extract_gemini_cookies(args.cookies).items():
