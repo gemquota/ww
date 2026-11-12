@@ -6,6 +6,7 @@ tool executor, workspace scanner, plugins, memory system, or dashboard.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import asyncio
 import logging
 import os
@@ -43,6 +44,39 @@ def configure_logging() -> None:
     logger.add(sys.stderr, level="WARNING")
 
 
+def choose_startup_chat(chats: list[object]) -> int | None:
+    """Display recent chats and let the user resume one or start fresh."""
+    if not chats:
+        print("No previous Gemini conversations found. Starting a new chat.")
+        return None
+    print("\\nRecent Gemini conversations:")
+    for index, chat in enumerate(chats, start=1):
+        title = getattr(chat, "title", None) or "(untitled conversation)"
+        timestamp = getattr(chat, "timestamp", None)
+        date_label = ""
+        if timestamp:
+            try:
+                date_label = datetime.fromtimestamp(float(timestamp)).strftime("%Y-%m-%d %H:%M")
+            except (TypeError, ValueError, OSError, OverflowError):
+                pass
+        suffix = f"  [{date_label}]" if date_label else ""
+        print(f"  {index:>2}. {title}{suffix}")
+    print("\\nEnter = continue the most recent chat | number = open that chat | n = new chat")
+    while True:
+        try:
+            choice = input("Continue [1]? ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\\nGoodbye.")
+            raise
+        if not choice:
+            return 0
+        if choice in {"n", "new"}:
+            return None
+        if choice.isdigit() and 1 <= int(choice) <= len(chats):
+            return int(choice) - 1
+        print(f"Enter a number from 1 to {len(chats)}, or n for a new chat.")
+
+
 async def run_terminal(
     client: WWClient, prompt: str | None = None, show_banner: bool = True
 ) -> int:
@@ -64,6 +98,23 @@ async def run_terminal(
 
     if show_banner:
         print(BANNER)
+    try:
+        chats = client.list_chats()
+        selected = choose_startup_chat(chats)
+        if selected is not None:
+            chosen = chats[selected]
+            await client.resume_conversation(chosen.cid)
+            print(f"\\nResumed: {chosen.title or '(untitled conversation)'}")
+        else:
+            await client.new_conversation()
+            print("\\nStarted a new Gemini conversation.")
+    except (EOFError, KeyboardInterrupt):
+        await client.close()
+        return 130
+    except Exception as exc:
+        print(f"Could not load chat history: {exc}", file=sys.stderr)
+        print("Starting a new conversation instead.")
+        await client.new_conversation()
     pending_options = ()
     try:
         while True:
@@ -85,7 +136,18 @@ async def run_terminal(
                 print("Goodbye.")
                 break
             if command == "/help":
-                print("Enter a prompt to chat. Reply with an option number to choose a Gemini suggestion. /new starts a fresh chat. /exit quits.")
+                print("Enter a prompt to chat. Reply with an option number to choose a Gemini suggestion. /new starts a fresh chat. /chats lists and switches conversations. /exit quits.")
+                continue
+            if command == "/chats":
+                try:
+                    chats = client.list_chats()
+                    selected = choose_startup_chat(chats)
+                    if selected is not None:
+                        chosen = chats[selected]
+                        await client.resume_conversation(chosen.cid)
+                        print(f"\\nResumed: {chosen.title or '(untitled conversation)'}")
+                except Exception as exc:
+                    print(f"Could not switch conversation: {exc}")
                 continue
             if command == "/new":
                 try:
