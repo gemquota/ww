@@ -50,6 +50,19 @@ class ProjectContextTests(unittest.TestCase):
             self.assertEqual(sum(entry.get("content") is not None for entry in files), 1)
             self.assertEqual(document["summary"]["content_omitted"], 1)
 
+    def test_can_include_a_default_ignored_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            generated = root / "node_modules"
+            generated.mkdir()
+            (generated / "package.json").write_text('{"name":"fixture"}', encoding="utf-8")
+            excluded = export_project(root, root, root / "excluded.json")
+            included = export_project(
+                root, root, root / "included.json", includes={"node_modules"}
+            )
+            self.assertFalse(any(entry["path"] == "node_modules" for entry in excluded["entries"]))
+            self.assertTrue(any(entry["path"] == "node_modules/package.json" for entry in included["entries"]))
+
     def test_records_symlink_directories_without_following_them(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
