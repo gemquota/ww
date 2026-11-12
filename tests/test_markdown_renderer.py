@@ -17,15 +17,15 @@ from src.markdown_renderer import (
 
 class MarkdownRendererTests(unittest.TestCase):
     def test_parses_speaker_prefixes_into_distinct_blocks(self):
-        source = "you> Please inspect this.\\ngemini> I will inspect it.\\nMore detail."
+        source = "you> Please inspect this.\ngemini> I will inspect it.\nMore detail."
         blocks = parse_speaker_blocks(source)
         self.assertEqual(blocks, (
             ("you", "Please inspect this."),
-            ("gemini", "I will inspect it.\\nMore detail."),
+            ("gemini", "I will inspect it.\nMore detail."),
         ))
 
     def test_speaker_prefixes_inside_code_fences_are_not_parsed(self):
-        source = 'gemini> Example:\\n\\n```text\\nyou> this is literal\\n```'
+        source = 'gemini> Example:\n\n```text\nyou> this is literal\n```'
         blocks = parse_speaker_blocks(source)
         self.assertEqual(len(blocks), 1)
         self.assertIn("you> this is literal", blocks[0][1])
