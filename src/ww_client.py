@@ -58,6 +58,41 @@ class WWClient:
             raise RuntimeError("Connect before listing conversations.")
         return list(self._client.list_chats() or [])
 
+    def list_models(self) -> list[Any]:
+        """Return models discovered for the authenticated account."""
+        if self._client is None:
+            raise RuntimeError("Connect before listing models.")
+        return list(self._client.list_models() or [])
+
+    async def list_gems(self) -> list[Any]:
+        """Fetch and return the account's visible Gemini Gems."""
+        if self._client is None:
+            raise RuntimeError("Connect before listing Gems.")
+        gems = await self._client.fetch_gems(include_hidden=False, language="en")
+        try:
+            return list(gems)
+        except TypeError:
+            return list(getattr(gems, "items", ()) or ())
+
+    async def create_gem(self, name: str, prompt: str, description: str = "") -> Any:
+        if self._client is None:
+            raise RuntimeError("Connect before managing Gems.")
+        return await self._client.create_gem(name=name, prompt=prompt, description=description)
+
+    async def update_gem(
+        self, gem_id: str, name: str, prompt: str, description: str = ""
+    ) -> Any:
+        if self._client is None:
+            raise RuntimeError("Connect before managing Gems.")
+        return await self._client.update_gem(
+            gem=gem_id, name=name, prompt=prompt, description=description
+        )
+
+    async def delete_gem(self, gem_id: str) -> None:
+        if self._client is None:
+            raise RuntimeError("Connect before managing Gems.")
+        await self._client.delete_gem(gem_id)
+
     async def resume_conversation(self, cid: str) -> None:
         """Resume a remote conversation using its latest turn metadata."""
         await self.connect()
@@ -96,10 +131,10 @@ class WWClient:
         response_text = getattr(response, "text", None)
         return response_text if response_text is not None else str(response)
 
-    async def new_conversation(self) -> None:
-        """Start a new remote conversation without reauthenticating."""
+    async def new_conversation(self, model: Any = None, gem: Any = None) -> None:
+        """Start a new remote conversation with optional model and Gem settings."""
         await self.connect()
-        self._chat = self._client.start_chat()
+        self._chat = self._client.start_chat(model=model, gem=gem)
 
     async def ask_stream(self, prompt: str) -> AsyncIterator[str]:
         """Yield response chunks when the web library supports streaming."""
