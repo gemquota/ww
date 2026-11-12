@@ -1,7 +1,7 @@
-"""Optional Android WebView launcher for Gemini Canvas through Termux:GUI.
+"""Native Android Canvas workspace for WW, backed by Termux:GUI WebView.
 
-The Android WebView is the browser engine: it parses and renders HTML/CSS and
-executes JavaScript. This module does not attempt to reimplement a browser.
+The WebView is embedded in a WW-owned Android Activity with native navigation
+controls. Gemini itself remains the web application; WW does not emulate Canvas.
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _python_candidates() -> list[Path]:
 
 
 def launch_canvas_browser(url: str = CANVAS_URL) -> Path:
-    """Launch the Termux:GUI WebView helper using a Python runtime with termuxgui."""
+    """Launch the native WW Canvas Activity using a Termux Python runtime."""
     if not is_trusted_google_url(url):
         raise ValueError("WW's embedded Canvas browser only accepts HTTPS Google URLs.")
 
@@ -111,8 +111,23 @@ def launch_canvas_browser(url: str = CANVAS_URL) -> Path:
     )
 
 
+def _open_external_url(url: str) -> bool:
+    """Hand ordinary web links to Android's browser, never to the JS-enabled WebView."""
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+        return False
+    opener = shutil.which("termux-open-url")
+    if not opener:
+        return False
+    subprocess.Popen([opener, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+
+
 def run_webview(url: str = CANVAS_URL) -> int:
-    """Run the Android WebView in its own Activity."""
+    """Run Gemini in a native WW Activity with an embedded Android WebView."""
     try:
         import termuxgui as tg
     except ImportError as exc:
@@ -123,36 +138,106 @@ def run_webview(url: str = CANVAS_URL) -> int:
 
     with tg.Connection() as connection:
         activity = tg.Activity(connection, intercept=True)
-        webview = tg.WebView(activity)
-        # Termux:GUI prompts the user before allowing JavaScript.
+        root = tg.LinearLayout(activity)
+
+        toolbar = tg.LinearLayout(activity, root, False)
+        toolbar.setlinearlayoutparams(0)
+        toolbar.setheight(tg.View.WRAP_CONTENT)
+
+        title = tg.TextView(activity, "WW  /  GEMINI CANVAS", toolbar)
+        title.setlinearlayoutparams(1)
+        title.setheight(tg.View.WRAP_CONTENT)
+
+        back_button = tg.Button(activity, "Back", toolbar)
+        forward_button = tg.Button(activity, "Forward", toolbar)
+        reload_button = tg.Button(activity, "Reload", toolbar)
+        home_button = tg.Button(activity, "Gemini", toolbar)
+        done_button = tg.Button(activity, "Done", toolbar)
+        for button in (back_button, forward_button, reload_button, home_button, done_button):
+            button.setlinearlayoutparams(0)
+            button.setheight(tg.View.WRAP_CONTENT)
+
+        status = tg.TextView(activity, "Connecting to Gemini…", root)
+        status.setlinearlayoutparams(0)
+        status.setheight(tg.View.WRAP_CONTENT)
+
+        webview = tg.WebView(activity, root)
+        webview.setlinearlayoutparams(1)
+        webview.setheight(tg.View.MATCH_PARENT)
+
+        footer = tg.TextView(
+            activity,
+            "Canvas runs here. Your WW terminal session stays available in the background.",
+            root,
+        )
+        footer.setlinearlayoutparams(0)
+        footer.setheight(tg.View.WRAP_CONTENT)
+
+        # Termux:GUI asks the user before granting JavaScript. Navigation remains
+        # host-controlled so untrusted sites never inherit this WebView's JS context.
         webview.allowjavascript(True)
-        # Keep navigation under WW's allowlist rather than granting arbitrary sites
-        # access to this JavaScript-enabled WebView.
         webview.allownavigation(False)
-        webview.loaduri(url)
+        current_url = url
+        webview.loaduri(current_url)
+        status.settext("Gemini Canvas")
 
         for event in connection.events():
             if event.type == tg.Event.destroy and event.value.get("finishing"):
                 break
+
             if event.type == tg.Event.back:
-                webview.goback()
-            elif event.type == tg.Event.webviewNavigation:
+                try:
+                    webview.goback()
+                    status.settext("Navigating back")
+                except Exception:
+                    activity.finish()
+                    break
+                continue
+
+            if event.type == tg.Event.click:
+                clicked = event.value.get("id")
+                if clicked == back_button:
+                    webview.goback()
+                    continue
+                if clicked == forward_button:
+                    webview.goforward()
+                    continue
+                if clicked == reload_button:
+                    webview.loaduri(current_url)
+                    status.settext("Reloading Gemini…")
+                    continue
+                if clicked == home_button:
+                    current_url = CANVAS_URL
+                    webview.loaduri(current_url)
+                    status.settext("Gemini Canvas")
+                    continue
+                if clicked == done_button:
+                    activity.finish()
+                    break
+                continue
+
+            if event.type == tg.Event.webviewNavigation:
                 target = event.value.get("url", "")
                 if is_trusted_google_url(target):
+                    current_url = target
                     webview.loaduri(target)
-                elif target.startswith(("https://", "http://")):
-                    opener = shutil.which("termux-open-url")
-                    if opener:
-                        subprocess.Popen([opener, target])
-                    else:
-                        print(f"Blocked external navigation: {target}", file=sys.stderr)
+                    status.settext("Gemini Canvas")
+                elif _open_external_url(target):
+                    status.settext("Opened external link in Android browser")
+                else:
+                    status.settext("External link blocked: no Android URL handler")
+
             elif event.type == tg.Event.webviewHTTPError:
+                status.settext(
+                    f"HTTP {event.value.get('code', '?')} while loading Gemini"
+                )
                 print(
                     f"Gemini WebView HTTP error {event.value.get('code')}: "
                     f"{event.value.get('url', '')}",
                     file=sys.stderr,
                 )
             elif event.type == tg.Event.webviewError:
+                status.settext("Gemini page failed to load")
                 print(
                     f"Gemini WebView failed to load: {event.value.get('url', '')}",
                     file=sys.stderr,
@@ -163,7 +248,9 @@ def run_webview(url: str = CANVAS_URL) -> int:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Open Gemini in a Termux:GUI WebView.")
+    parser = argparse.ArgumentParser(
+        description="Open Gemini in WW's native Termux:GUI Canvas workspace."
+    )
     parser.add_argument("url", nargs="?", default=CANVAS_URL)
     args = parser.parse_args(argv)
     return run_webview(args.url)
