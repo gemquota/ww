@@ -416,7 +416,18 @@ async def run_terminal(
                 break
             if command.startswith("/research"):
                 try:
-                    await run_deep_research(client, message[len("/research"):].strip())
+                    research_argument = message[len("/research"):].strip()
+                    if research_argument.lower() in {"--latest", "latest"}:
+                        document = await client.latest_research_document()
+                        if document is None:
+                            print("No completed Deep Research report was found in this conversation.")
+                        else:
+                            render_response(getattr(document, "markdown", None) or document.content)
+                            saved = save_research_document(document, client.active_chat_id)
+                            if saved:
+                                print(f"\nResearch report saved: {saved}")
+                    else:
+                        await run_deep_research(client, research_argument)
                 except Exception as exc:
                     print(f"Deep Research failed: {exc}", file=sys.stderr)
                 continue
@@ -447,7 +458,7 @@ async def run_terminal(
             if command == "/help":
                 print(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, "
-                    "/folder clear, /gems, /customize, /research [topic], "
+                    "/folder clear, /gems, /customize, /research [topic|--latest], "
                     "/image [prompt], /video [prompt], /music [prompt], "
                     "/artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
