@@ -60,7 +60,13 @@ def assign_chat_folder(settings: dict[str, Any], chat_id: str, folder: str | Non
 
 
 def folder_names(settings: dict[str, Any]) -> list[str]:
-    return sorted(set(settings.get("chat_folders", {}).values()), key=str.casefold)
+    """Return unique folder labels, deduplicated without regard to case or spacing."""
+    unique: dict[str, str] = {}
+    for value in settings.get("chat_folders", {}).values():
+        normalized = normalize_folder(str(value))
+        if normalized:
+            unique.setdefault(normalized.casefold(), normalized)
+    return sorted(unique.values(), key=str.casefold)
 
 
 def chats_in_folder(chats: list[Any], settings: dict[str, Any], folder: str) -> list[Any]:

@@ -10,10 +10,16 @@ import asyncio
 import logging
 from datetime import datetime
 import os
+import shutil
+import subprocess
 import sys
+
+from rich.console import Console
 
 from dotenv import load_dotenv
 
+from src.artifacts import list_artifacts, render_model_output, save_research_document
+from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
@@ -27,7 +33,7 @@ from src.ww_settings import (
 
 
 BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /new, /help, /exit"""
+Send a prompt and press Enter. Commands: /research, /image, /video, /music, /canvas, /artifacts, /help, /exit"""
 
 
 def configure_logging() -> None:
@@ -161,6 +167,99 @@ def read_multiline_text(label: str) -> str:
     return "\n".join(lines).strip()
 
 
+async def run_deep_research(client: WWClient, topic: str) -> None:
+    """Review a Gemini research plan, then wait for its finished report."""
+    topic = topic.strip() or read_multiline_text("Research question")
+    if not topic:
+        print("Research cancelled: no question supplied.")
+        return
+    plan = await client.create_research_plan(topic)
+    print(f"\nDeep Research plan: {getattr(plan, 'title', None) or topic}")
+    eta = getattr(plan, "eta_text", None)
+    if eta:
+        print(f"Estimated time: {eta}")
+    for index, step in enumerate(getattr(plan, "steps", ()) or (), 1):
+        print(f"  {index}. {step}")
+    confirm = input("\nStart this research plan? [Y/n] ").strip().lower()
+    if confirm in {"n", "no", "cancel"}:
+        print("Research plan cancelled. The plan remains in the conversation.")
+        return
+    await client.start_research(plan)
+    print("Research started. Gemini does not expose a percentage or detailed task status.")
+    print("WW will wait for the finished report; broad research can take several minutes.")
+    with Console().status("Gemini is researching…", spinner="dots"):
+        result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
+    document = getattr(result, "document", None)
+    if document is not None and getattr(document, "ready", bool(getattr(document, "content", ""))):
+        markdown = getattr(document, "markdown", None) or getattr(document, "content", "")
+        render_response(markdown)
+        saved = save_research_document(document, client.active_chat_id)
+        if saved:
+            print(f"\nResearch report saved: {saved}")
+    else:
+        print("The report is not ready yet. Gemini continues the task server-side.")
+        print("Resume this conversation and run /research --latest to retrieve the completed report.")
+
+
+async def run_generation(client: WWClient, kind: str, prompt: str) -> tuple:
+    """Ask Gemini explicitly for one media type and retain its structured response."""
+    prompt = prompt.strip() or read_multiline_text(f"{kind.title()} prompt")
+    if not prompt:
+        print(f"{kind.title()} generation cancelled: no prompt supplied.")
+        return ()
+    instructions = {
+        "image": "Use Gemini's image generation capability to create an image. Return the generated image artifact, not only a textual description.\n\n",
+        "video": "Use Gemini's video generation capability to create a video. Return the generated video artifact, not only a textual description.\n\n",
+        "music": "Use Gemini's audio or music generation capability to create original music. Return the generated audio artifact, not only a textual description.\n\n",
+    }
+    print(f"Requesting Gemini {kind} generation…")
+    output = await client.ask_output(instructions[kind] + prompt)
+    options, _saved = await render_model_output(
+        output, client.active_chat_id, media_mode="audio" if kind == "music" else kind
+    )
+    return options
+
+
+def show_artifacts() -> list:
+    files = list_artifacts()
+    if not files:
+        print("No saved artifacts yet.")
+        return files
+    print("\nSaved WW artifacts")
+    for index, path in enumerate(files, 1):
+        print(f"  {index:>2}. {path}")
+    print("Open one with /open N.")
+    return files
+
+
+def open_saved_artifact(argument: str) -> None:
+    files = list_artifacts()
+    if not argument.strip():
+        show_artifacts()
+        return
+    if not argument.strip().isdigit():
+        print("Use /open N to open a numbered saved artifact.")
+        return
+    index = int(argument.strip()) - 1
+    if not 0 <= index < len(files):
+        print("No artifact at that number. Use /artifacts to see the list.")
+        return
+    path = files[index]
+    opener = next((name for name in ("termux-open", "xdg-open", "open") if shutil.which(name)), None)
+    if opener is None:
+        print(f"No Android/desktop opener found. Artifact: {path}")
+        return
+    try:
+        subprocess.Popen(
+            [opener, str(path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print(f"Opening: {path}")
+    except OSError as exc:
+        print(f"Could not open artifact: {exc}")
+
+
 async def manage_gems(client: WWClient, settings: dict[str, object]) -> None:
     """List, select, create, edit, and delete account Gems."""
     while True:
@@ -253,7 +352,8 @@ async def run_terminal(
 
     if prompt is not None:
         try:
-            render_response(await client.ask(prompt))
+            output = await client.ask_output(prompt)
+            await render_model_output(output, client.active_chat_id)
             return 0
         except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
             print(f"Request error: {exc}", file=sys.stderr)
@@ -315,10 +415,62 @@ async def run_terminal(
             if command in {"/exit", "/quit"}:
                 print("Goodbye.")
                 break
+            if command.startswith("/research"):
+                try:
+                    research_argument = message[len("/research"):].strip()
+                    if research_argument.lower() in {"--latest", "latest"}:
+                        document = await client.latest_research_document()
+                        if document is None:
+                            print("No completed Deep Research report was found in this conversation.")
+                        else:
+                            render_response(getattr(document, "markdown", None) or document.content)
+                            saved = save_research_document(document, client.active_chat_id)
+                            if saved:
+                                print(f"\nResearch report saved: {saved}")
+                    else:
+                        await run_deep_research(client, research_argument)
+                except Exception as exc:
+                    print(f"Deep Research failed: {exc}", file=sys.stderr)
+                continue
+            if command.startswith("/image"):
+                try:
+                    pending_options = await run_generation(client, "image", message[len("/image"):].strip())
+                except Exception as exc:
+                    print(f"Image generation failed: {exc}", file=sys.stderr)
+                continue
+            if command.startswith("/video"):
+                try:
+                    pending_options = await run_generation(client, "video", message[len("/video"):].strip())
+                except Exception as exc:
+                    print(f"Video generation failed: {exc}", file=sys.stderr)
+                continue
+            if command.startswith("/music"):
+                try:
+                    pending_options = await run_generation(client, "music", message[len("/music"):].strip())
+                except Exception as exc:
+                    print(f"Music generation failed: {exc}", file=sys.stderr)
+                continue
+            if command == "/canvas" or command.startswith("/canvas "):
+                try:
+                    url = message[len("/canvas"):].strip() or "https://gemini.google.com/app"
+                    interpreter = launch_canvas_browser(url)
+                    print(f"Gemini Canvas WebView launched with {interpreter}.")
+                    print("Sign in inside the WebView if prompted; its cookies are separate from Chrome.")
+                except Exception as exc:
+                    print(f"Could not launch the Canvas WebView: {exc}", file=sys.stderr)
+                continue
+            if command == "/artifacts":
+                show_artifacts()
+                continue
+            if command.startswith("/open"):
+                open_saved_artifact(message[len("/open"):].strip())
+                continue
             if command == "/help":
                 print(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, "
-                    "/folder clear, /gems, /customize, /help, /exit. "
+                    "/folder clear, /gems, /customize, /research [topic|--latest], "
+                    "/image [prompt], /video [prompt], /music [prompt], "
+                    "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
                 )
                 continue
@@ -394,10 +546,8 @@ async def run_terminal(
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
-                chunks = []
-                async for chunk in client.ask_stream(message):
-                    chunks.append(chunk)
-                pending_options = render_response("".join(chunks))
+                output = await client.ask_output(message)
+                pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
