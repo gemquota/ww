@@ -563,6 +563,29 @@ async def run_terminal(
                     continue
                 message = last_prompt
                 command = ""
+            if command == "/model" or command.startswith("/model "):
+                requested = message[len("/model"):].strip()
+                if requested.lower() in {"default", "reset", "auto"}:
+                    settings["default_model"] = None
+                    save_settings(settings)
+                    print("New chats will use the Gemini account default model.")
+                elif not requested:
+                    print(f"Default model for new chats: {settings.get('default_model') or 'Gemini account default'}")
+                    print("Use /model NAME to select one, or /model default to reset.")
+                else:
+                    available = [model for model in client.list_models() if getattr(model, "is_available", True)]
+                    matches = [model for model in available if requested.casefold() in str(getattr(model, "model_name", "")).casefold() or requested.casefold() in str(getattr(model, "display_name", "")).casefold()]
+                    if len(matches) == 1:
+                        settings["default_model"] = getattr(matches[0], "model_name", None)
+                        save_settings(settings)
+                        print(f"Default model for new chats set to {getattr(matches[0], 'display_name', settings['default_model'])}.")
+                    elif len(matches) > 1:
+                        print("That name matches multiple models. Use a more specific name:")
+                        for model in matches:
+                            print(f"  {getattr(model, 'display_name', '')} · {getattr(model, 'model_name', '')}")
+                    else:
+                        print(f"No available model matches '{requested}'. Use /models to list them.")
+                continue
             if command == "/models":
                 try:
                     available = [model for model in client.list_models() if getattr(model, "is_available", True)]
@@ -638,7 +661,7 @@ async def run_terminal(
             if command == "/help":
                 print(
                     "Commands: /new, /chats [folder], /folders, /folder NAME, /context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
-                    "/models, /last, /copy, /clear, /folder clear, /gems, /customize, /research [topic|--latest], "
+                    "/models, /model NAME|default, /last, /copy, /clear, /folder clear, /gems, /customize, /research [topic|--latest], "
                     "/image [prompt], /video [prompt], /music [prompt], "
                     "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
                     "Reply with an option number to choose a Gemini suggestion."
