@@ -417,8 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
+        settings = load_settings()
+        page_size = max(20, int(settings.get("chat_page_size", 15)))
         return asyncio.run(
-            run_terminal(WWClient(), prompt=args.prompt, show_banner=not args.no_banner)
+            run_terminal(
+                WWClient(recent_chats=page_size),
+                prompt=args.prompt,
+                show_banner=not args.no_banner,
+            )
         )
     except KeyboardInterrupt:
         print("\\nGoodbye.")
