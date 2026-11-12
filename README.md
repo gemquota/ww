@@ -68,6 +68,12 @@ Prompts are entered at `you>`. Gemini responses are rendered as Markdown. Intera
 | Command | Action |
 |---|---|
 | `/new` | Start a fresh Gemini conversation |
+| `/context [path]` | Inventory a project, embed text files, sample large files, and attach the JSON snapshot to the active chat |
+| `/context refresh` | Rebuild and attach the previously selected project snapshot |
+| `/context status` | Show the last export summary |
+| `/context exclude DIR` / `/context include DIR` | Add or remove a directory-name exclusion for future exports |
+| `/status` | Show the active chat, model, and context settings |
+| `/doctor` | Check local WW runtime capabilities without making network requests |
 | `/chats` | Browse and switch conversations |
 | `/chats FOLDER` | Browse only conversations assigned to a local folder |
 | `/folders` | List folders currently in use |
@@ -93,6 +99,24 @@ Folders are local labels associated with Gemini conversation IDs. They do not cr
 ```bash
 python gemini_bridge.py --prompt "Explain TCP versus UDP"
 ```
+
+### Project context export and attachment
+
+Run `/context` from inside a project to detect its Git/project root, recursively inventory its directories and files, and attach a structured JSON snapshot to the active Gemini conversation. You can also pass an explicit path:
+
+```text
+/context ~/projects/mocean
+/context refresh
+/context status
+/context exclude assets
+/context include assets
+```
+
+Small text files are embedded in full. Large text files are sampled from their beginning and end, while binary files are inventoried without embedding their bytes. Common generated directories are skipped. Sensitive files such as `.env`, browser cookies, and private keys remain in the inventory but their contents are omitted. The export is written to `.ww/project-context.json`, which is gitignored, and the default embedded-content budget is 12 MiB. WW refuses to attach an export larger than 20 MiB. Additional directory-name exclusions and explicit inclusions are saved in local WW settings. Explicit inclusions can restore normally skipped generated directories; version-control metadata directories remain excluded.
+
+You can also run the exporter without starting WW: `python -m src.project_context --root /path/to/project --output /tmp/project-context.json`. Its defaults are a 256 KiB full-text threshold, 32 KiB samples from each end of larger files, an 8 MiB per-file hashing ceiling, and a 12 MiB total embedded-content budget.
+
+This sends the JSON file through `gemini-webapi`'s file attachment support in the existing conversation. It does not upload the project to a WW server. Review the export before sharing it: filenames, source code, and other non-sensitive text are still sent to Gemini.
 
 ## Deep Research and generated media
 
@@ -187,7 +211,7 @@ Terminal -> cookie loader -> WWClient -> Gemini Web Chat
                          \-> local preferences and folder metadata
 ```
 
-The core runtime uses the terminal entry point, a small cookie loader, the conversation transport, local JSON preferences, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
+The core runtime uses the terminal entry point, a small cookie loader, the conversation transport, local JSON preferences, the project-context exporter, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
 
 ## Notes
 

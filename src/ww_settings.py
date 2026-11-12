@@ -25,6 +25,10 @@ def load_settings() -> dict[str, Any]:
     data.setdefault("default_model", None)
     data.setdefault("default_gem", None)
     data.setdefault("chat_folders", {})
+    data.setdefault("context_root", None)
+    data.setdefault("context_output", None)
+    data.setdefault("context_ignores", [])
+    data.setdefault("context_includes", [])
     return data
 
 
