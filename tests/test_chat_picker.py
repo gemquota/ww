@@ -26,6 +26,14 @@ class ChatPickerTests(unittest.TestCase):
         self.assertIn("page 1/3", output.getvalue())
         self.assertIn("page 2/3", output.getvalue())
 
+    def test_enter_after_paging_still_selects_most_recent_chat(self):
+        chats = [
+            SimpleNamespace(cid=str(index), title=f"Chat {index}", timestamp=0)
+            for index in range(5)
+        ]
+        with patch("builtins.input", side_effect=[">", ""]):
+            self.assertEqual(choose_startup_chat(chats, page_size=2), 0)
+
     def test_new_chat_and_cancel_choices(self):
         chats = [SimpleNamespace(cid="1", title="Chat", timestamp=0)]
         with patch("builtins.input", return_value="n"):
