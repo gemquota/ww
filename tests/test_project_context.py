@@ -50,6 +50,22 @@ class ProjectContextTests(unittest.TestCase):
             self.assertEqual(sum(entry.get("content") is not None for entry in files), 1)
             self.assertEqual(document["summary"]["content_omitted"], 1)
 
+    def test_records_symlink_directories_without_following_them(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            target.mkdir()
+            link = root / "linked"
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Directory symlinks are unavailable on this platform")
+            document = export_project(root, root, root / "context.json")
+            links = [entry for entry in document["entries"] if entry["type"] == "symlink"]
+            self.assertEqual(len(links), 1)
+            self.assertEqual(links[0]["path"], "linked")
+            self.assertEqual(links[0]["target"], str(target))
+
     def test_project_root_detection_honours_explicit_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
