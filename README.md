@@ -84,7 +84,7 @@ python gemini_bridge.py --prompt "Explain TCP versus UDP"
 Terminal -> cookie loader -> WWClient -> Gemini Web Chat
 \`\`\`
 
-The core runtime is limited to the terminal entry point, a small cookie loader, a conversation transport, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
+The core runtime is limited to the terminal entry point, a small cookie loader, a conversation transport, local JSON preferences/folder metadata, and the Gemini Web client library. Preferences live under \\`~/.config/ww/settings.json\\` (or \\`$XDG_CONFIG_HOME/ww/settings.json\\`). Folder assignments are local labels keyed by Gemini conversation ID; they do not create folders in Google's cloud history. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
 
 The existing advanced modules are retained as optional/legacy code while the basic terminal is made reliable. They must not become core imports or installation requirements.
 
