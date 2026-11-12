@@ -140,21 +140,29 @@ def run_webview(url: str = CANVAS_URL) -> int:
         activity = tg.Activity(connection, intercept=True)
         root = tg.LinearLayout(activity)
 
-        toolbar = tg.LinearLayout(activity, root, False)
+        toolbar = tg.LinearLayout(activity, root)
         toolbar.setlinearlayoutparams(0)
         toolbar.setheight(tg.View.WRAP_CONTENT)
 
-        title = tg.TextView(activity, "WW  /  GEMINI CANVAS", toolbar)
+        title_row = tg.LinearLayout(activity, toolbar, False)
+        title_row.setlinearlayoutparams(0)
+        title_row.setheight(tg.View.WRAP_CONTENT)
+        title = tg.TextView(activity, "WW  /  GEMINI CANVAS", title_row)
         title.setlinearlayoutparams(1)
         title.setheight(tg.View.WRAP_CONTENT)
+        done_button = tg.Button(activity, "Done", title_row)
+        done_button.setlinearlayoutparams(0)
+        done_button.setheight(tg.View.WRAP_CONTENT)
 
-        back_button = tg.Button(activity, "Back", toolbar)
-        forward_button = tg.Button(activity, "Forward", toolbar)
-        reload_button = tg.Button(activity, "Reload", toolbar)
-        home_button = tg.Button(activity, "Gemini", toolbar)
-        done_button = tg.Button(activity, "Done", toolbar)
-        for button in (back_button, forward_button, reload_button, home_button, done_button):
-            button.setlinearlayoutparams(0)
+        navigation_row = tg.LinearLayout(activity, toolbar, False)
+        navigation_row.setlinearlayoutparams(0)
+        navigation_row.setheight(tg.View.WRAP_CONTENT)
+        back_button = tg.Button(activity, "Back", navigation_row)
+        forward_button = tg.Button(activity, "Forward", navigation_row)
+        reload_button = tg.Button(activity, "Reload", navigation_row)
+        home_button = tg.Button(activity, "Gemini", navigation_row)
+        for button in (back_button, forward_button, reload_button, home_button):
+            button.setlinearlayoutparams(1)
             button.setheight(tg.View.WRAP_CONTENT)
 
         status = tg.TextView(activity, "Connecting to Gemini…", root)
