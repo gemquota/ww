@@ -1,7 +1,9 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.terminal import COMMANDS, _command_completer, get_line_history, search_line_history
+from src.terminal import (COMMANDS, _command_completer, get_line_history, load_fallback_history, save_line_history, search_line_history)
 
 
 class TerminalHelperTests(unittest.TestCase):
@@ -28,6 +30,13 @@ class TerminalHelperTests(unittest.TestCase):
         readline.get_current_history_length.return_value = 2
         readline.get_history_item.side_effect = ["one", "two"]
         self.assertEqual(get_line_history(readline, ["fallback"]), ["one", "two"])
+
+    def test_fallback_history_round_trips_and_is_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ww" / "history"
+            save_line_history(None, path, ["one", "two"])
+            self.assertEqual(load_fallback_history(path), ["one", "two"])
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
     def test_fallback_history_is_not_mutated(self):
         fallback = ["one"]
