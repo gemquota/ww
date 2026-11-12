@@ -47,7 +47,7 @@ Or specify another file:
 python gemini_bridge.py --cookies /path/to/cookies.txt
 ```
 
-Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file.
+Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file. Diagnostic console output from WW's dependencies is hidden by default; warnings and errors remain visible. Use `python gemini_bridge.py --debug` or set `WW_DEBUG=1` (including in `.env`) to enable verbose debug logging.
 
 **Security:** `cookies.txt` and `.env` are gitignored. Do not commit or share browser session cookies. They can grant access to your signed-in Google account. Rotate the session if the file is exposed.
 
