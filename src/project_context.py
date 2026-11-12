@@ -39,6 +39,7 @@ TEXT_EXTENSIONS = {
     ".make", ".mk", ".gradle", ".properties", ".gitignore", ".gitattributes",
     ".editorconfig", ".prettierrc", ".eslintrc",
 }
+VCS_IGNORES = {".git", ".hg", ".svn"}
 ROOT_MARKERS = (
     ".git", "pyproject.toml", "setup.py", "setup.cfg", "package.json",
     "Cargo.toml", "go.mod", "pom.xml", "build.gradle", "Makefile",
@@ -115,9 +116,10 @@ def export_project(
     hash_limit: int = 8 * 1024 * 1024,
     max_content_bytes: int = 12 * 1024 * 1024,
     ignores: set[str] | None = None,
+    includes: set[str] | None = None,
     include_sensitive: bool = False,
 ) -> dict[str, Any]:
-    ignored = DEFAULT_IGNORES | (ignores or set())
+    ignored = ((DEFAULT_IGNORES | (ignores or set())) - (includes or set())) | VCS_IGNORES
     entries: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     output_resolved = output.resolve()
@@ -223,6 +225,7 @@ def export_project(
             "hash_limit_bytes": hash_limit,
             "max_content_bytes": max_content_bytes,
             "ignored_directory_names": sorted(ignored),
+            "included_directory_names": sorted(includes or set()),
             "sensitive_file_contents_included": include_sensitive,
         },
         "summary": {
@@ -251,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hash-limit", type=int, default=8 * 1024 * 1024)
     parser.add_argument("--max-content-bytes", type=int, default=12 * 1024 * 1024)
     parser.add_argument("--ignore", action="append", default=[])
+    parser.add_argument("--include", action="append", default=[])
     args = parser.parse_args(argv)
     if min(args.full_limit, args.sample_bytes, args.hash_limit, args.max_content_bytes) < 0:
         parser.error("Size limits must be zero or greater.")
@@ -267,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         hash_limit=args.hash_limit,
         max_content_bytes=args.max_content_bytes,
         ignores=set(args.ignore),
+        includes=set(args.include),
     )
     output.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({"output": str(output), **document["summary"]}, indent=2))
