@@ -736,11 +736,13 @@ async def run_terminal(
                 continue
             if command == "/help":
                 print(
-                    "Commands: /new, /chats [folder], /folders, /folder NAME, /context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
-                    "/models, /model NAME|default, /last, /copy, /clear, /folder clear, /gems, /customize, /research [topic|--latest], "
-                    /chats search TEXT, /image [prompt], /video [prompt], /music [prompt], "
-                    "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
-                    "Reply with an option number to choose a Gemini suggestion."
+                    "Commands: /new, /chats [folder|search TEXT], /folders, /folder NAME, "
+                    "/context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
+                    "/models, /model NAME|default, /last, /copy, /clear, /history, "
+                    "/search TEXT, /repeat N, /stream [on|off], /gems, /customize, "
+                    "/research [topic|--latest], /image [prompt], /video [prompt], "
+                    "/music [prompt], /canvas [Google URL], /artifacts, /open N, "
+                    "/help, /exit. Reply with a number to choose a Gemini suggestion."
                 )
                 continue
             if command == "/customize":
