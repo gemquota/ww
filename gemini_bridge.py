@@ -16,17 +16,23 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 from rich.console import Console
+from rich.live import Live
+from rich.text import Text
+from rich.panel import Panel
+from rich.table import Table
 
 from dotenv import load_dotenv
 
 from src.artifacts import list_artifacts, render_model_output, save_research_document
 from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
-from src.markdown_renderer import render_response, resolve_elicitation_selection
+from src.markdown_renderer import render_response, render_user_message, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.project_context import export_project, find_project_root
+from src.terminal import configure_line_editor, get_line_history, load_fallback_history, save_line_history, search_line_history
 from src.ww_settings import (
     assign_chat_folder,
     chats_in_folder,
@@ -36,20 +42,21 @@ from src.ww_settings import (
 )
 
 
-BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
+BANNER = """WW  ·  GEMINI WEB CHAT
+A focused terminal for Gemini conversations
+Type a prompt to chat  ·  /help for commands"""
 
 
-def configure_logging() -> None:
-    """Keep normal terminal output focused on responses, not library chatter.
-
-    Gemini Web API INFO/SUCCESS messages (quota refreshes, initialization
-    details, etc.) are operational diagnostics rather than chat output.
-    Warnings and errors remain visible so failures are still actionable.
-    """
-    logging.basicConfig(level=logging.WARNING)
+def configure_logging(debug: bool = False) -> None:
+    """Hide diagnostic chatter by default; expose it only in debug mode."""
+    # Transport libraries are noisy even at WARNING (polling, retries and
+    # connection diagnostics). WW reports actionable failures itself.
+    level = logging.DEBUG if debug else logging.CRITICAL
+    logging.disable(logging.NOTSET if debug else logging.CRITICAL)
+    logging.basicConfig(level=level, force=True)
+    logging.getLogger().setLevel(level)
     for name in ("gemini_webapi", "httpx", "httpcore", "websockets"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+        logging.getLogger(name).setLevel(level)
 
     # gemini-webapi currently uses Loguru. Keep this optional so WW's CLI
     # remains importable even if the transport dependency changes its logger.
@@ -58,7 +65,8 @@ def configure_logging() -> None:
     except ImportError:
         return
     logger.remove()
-    logger.add(sys.stderr, level="WARNING")
+    if debug:
+        logger.add(sys.stderr, level="DEBUG")
 
 
 def format_chat_date(timestamp: object) -> str:
@@ -77,8 +85,9 @@ def choose_startup_chat(
     folder_map: dict[str, str] | None = None,
 ) -> int | None:
     """Display paginated recent chats and let the user resume one or start fresh."""
+    console = Console()
     if not chats:
-        print("No previous Gemini conversations found. Starting a new chat.")
+        console.print(Panel("No previous conversations found. A new chat will be started.", title="WW", border_style="cyan"))
         return None
     page_size = max(1, min(int(page_size), 50))
     folder_map = folder_map or {}
@@ -87,17 +96,23 @@ def choose_startup_chat(
     while True:
         first = page * page_size
         visible = chats[first:first + page_size]
-        print(f"\nRecent Gemini conversations  (page {page + 1}/{page_count})")
-        print("  DATE        #  CONVERSATION")
-        print("  " + "-" * 66)
+        table = Table(title=f"Recent conversations · page {page + 1}/{page_count}", expand=True, header_style="bold cyan")
+        table.add_column("#", justify="right", style="dim", width=3)
+        table.add_column("Last active", style="dim", width=14)
+        table.add_column("Conversation", ratio=1)
+        table.add_column("Folder", style="magenta")
         for offset, chat in enumerate(visible):
             title = getattr(chat, "title", None) or "(untitled conversation)"
-            date_label = format_chat_date(getattr(chat, "timestamp", None))
+            date_label = format_chat_date(getattr(chat, "timestamp", None)).strip()
             folder = folder_map.get(getattr(chat, "cid", ""), "")
-            folder_label = f"  [{folder}]" if folder else ""
-            print(f"  {date_label}  {offset + 1:>2}. {title}{folder_label}")
-        print("\nEnter = most recent | number = open | > = next page | < = previous page")
-        print("n = new chat | q = cancel")
+            table.add_row(str(offset + 1), date_label, title, folder)
+        console.print(table)
+        console.print(Panel(
+            "[bold]Enter[/bold] resume most recent   [bold]number[/bold] open conversation   "
+            "[bold]>[/bold]/[bold]<[/bold] change page\n"
+            "[bold]n[/bold] new conversation   [bold]q[/bold] cancel",
+            border_style="dim",
+        ))
         try:
             choice = input("Continue [1]? ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -189,10 +204,8 @@ async def run_deep_research(client: WWClient, topic: str) -> None:
         print("Research plan cancelled. The plan remains in the conversation.")
         return
     await client.start_research(plan)
-    print("Research started. Gemini does not expose a percentage or detailed task status.")
-    print("WW will wait for the finished report; broad research can take several minutes.")
-    with Console().status("Gemini is researching…", spinner="dots"):
-        result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
+    print("Research is running. Waiting for the completed report…")
+    result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
     document = getattr(result, "document", None)
     if document is not None and getattr(document, "ready", bool(getattr(document, "content", ""))):
         markdown = getattr(document, "markdown", None) or getattr(document, "content", "")
@@ -227,12 +240,16 @@ async def run_generation(client: WWClient, kind: str, prompt: str) -> tuple:
 def show_artifacts() -> list:
     files = list_artifacts()
     if not files:
-        print("No saved artifacts yet.")
+        Console().print(Panel("No saved artifacts yet.", title="Artifacts", border_style="dim"))
         return files
-    print("\nSaved WW artifacts")
+    table = Table(title="Saved artifacts", expand=True, header_style="bold cyan")
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("File", ratio=1)
     for index, path in enumerate(files, 1):
-        print(f"  {index:>2}. {path}")
-    print("Open one with /open N.")
+        table.add_row(str(index), str(path))
+    console = Console()
+    console.print(table)
+    console.print("[dim]Open an item with /open N.[/dim]")
     return files
 
 
@@ -370,20 +387,30 @@ def show_diagnostics(client: WWClient) -> None:
         ("Image preview", next((name for name in ("chafa", "viu") if shutil.which(name)), "not installed")),
         ("File opener", next((name for name in ("termux-open", "xdg-open", "open") if shutil.which(name)), "not installed")),
     ]
-    print("\nWW diagnostics")
+    table = Table(title="Runtime diagnostics", expand=True, header_style="bold cyan")
+    table.add_column("Check", style="dim")
+    table.add_column("Value", ratio=1)
     for label, value in checks:
-        print(f"  {label:<22} {value}")
+        table.add_row(label, value)
+    Console().print(table)
 
 
 def show_status(client: WWClient, settings: dict[str, object]) -> None:
     chat = client._chat
-    print("\nWW status")
-    print(f"  Conversation: {client.active_chat_id or '(none)'}")
-    print(f"  Model: {getattr(getattr(chat, 'model', None), 'display_name', None) or getattr(chat, 'model', None) or 'account default'}")
-    print(f"  Default Gem: {settings.get('default_gem') or '(none)'}")
-    print(f"  Project context: {settings.get('context_root') or '(not exported yet)'}")
-    print(f"  Context exclusions: {', '.join(settings.get('context_ignores', [])) or '(defaults only)'}")
-    print(f"  Context inclusions: {', '.join(settings.get('context_includes', [])) or '(none)'}")
+    rows = [
+        ("Conversation", client.active_chat_id or "(none)"),
+        ("Model", getattr(getattr(chat, "model", None), "display_name", None) or getattr(chat, "model", None) or "account default"),
+        ("Default Gem", settings.get("default_gem") or "(none)"),
+        ("Project context", settings.get("context_root") or "(not exported yet)"),
+        ("Context exclusions", ", ".join(settings.get("context_ignores", [])) or "(defaults only)"),
+        ("Context inclusions", ", ".join(settings.get("context_includes", [])) or "(none)"),
+    ]
+    table = Table(title="WW status", expand=True, header_style="bold cyan")
+    table.add_column("Setting", style="dim")
+    table.add_column("Value", ratio=1)
+    for label, value in rows:
+        table.add_row(label, str(value))
+    Console().print(table)
 
 
 async def run_project_context_command(client: WWClient, argument: str, settings: dict[str, object]) -> None:
@@ -466,6 +493,26 @@ async def run_project_context_command(client: WWClient, argument: str, settings:
         print(f"Project context operation failed: {exc}", file=sys.stderr)
 
 
+async def render_streamed_response(client: WWClient, prompt: str) -> tuple[str, tuple]:
+    """Stream a text response live, then render its complete Markdown once."""
+    console = Console(highlight=False)
+    chunks: list[str] = []
+    last_refresh = 0.0
+    with Live(Text(""), console=console, transient=True, refresh_per_second=12) as live:
+        async for chunk in client.ask_stream(prompt):
+            chunks.append(chunk)
+            now = time.monotonic()
+            if now - last_refresh >= 0.08:
+                live.update(Text("".join(chunks)), refresh=True)
+                last_refresh = now
+        if chunks:
+            live.update(Text("".join(chunks)), refresh=True)
+    response = "".join(chunks)
+    from src.markdown_renderer import render_chat_response
+    options = render_chat_response(response, console=console)
+    return response, options
+
+
 async def run_terminal(
     client: WWClient, prompt: str | None = None, show_banner: bool = True
 ) -> int:
@@ -488,7 +535,7 @@ async def run_terminal(
 
     settings = load_settings()
     if show_banner:
-        print(BANNER)
+        Console().print(Panel(BANNER, border_style="cyan", padding=(1, 2)))
     try:
         chats = client.list_chats()
         selected = choose_startup_chat(
@@ -521,10 +568,16 @@ async def run_terminal(
         )
 
     pending_options = ()
+    last_prompt = ""
+    last_response = ""
+    readline_module, history_file = configure_line_editor()
+    fallback_history: list[str] = load_fallback_history(history_file) if readline_module is None else []
     try:
         while True:
             try:
-                message = await asyncio.to_thread(input, "you> ")
+                message = await asyncio.to_thread(input, "› ")
+                if readline_module is None and message.strip():
+                    fallback_history.append(message)
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
@@ -537,6 +590,110 @@ async def run_terminal(
                 print(f"Selected: {selection.label}")
             pending_options = ()
             command = message.lower()
+            if command == "/history":
+                entries = get_line_history(readline_module, fallback_history)
+                if not entries:
+                    print("No prompt history yet.")
+                else:
+                    print("\nRecent input history")
+                    first = max(1, len(entries) - 19)
+                    for index in range(first, len(entries) + 1):
+                        print(f"  {index:>4}. {entries[index - 1]}")
+                continue
+            if command.startswith("/search"):
+                query = message[len("/search"):].strip()
+                if not query:
+                    print("Usage: /search TEXT")
+                else:
+                    matches = search_line_history(
+                        get_line_history(readline_module, fallback_history), query
+                    )
+                    if not matches:
+                        print(f"No history entries match {query!r}.")
+                    else:
+                        print(f"\nHistory matches for {query!r}")
+                        for index, value in matches:
+                            print(f"  {index:>4}. {value}")
+                continue
+            if command.startswith("/repeat"):
+                argument = message[len("/repeat"):].strip()
+                entries = get_line_history(readline_module, fallback_history)
+                if not argument.isdigit() or not 1 <= int(argument) <= len(entries):
+                    print("Usage: /repeat N  (use /history to see entry numbers)")
+                    continue
+                message = entries[int(argument) - 1]
+                if message.lstrip().startswith("/") or not message.strip():
+                    print("That history entry is a command or empty input, not a prompt.")
+                    continue
+                command = ""
+            if command == "/stream" or command.startswith("/stream "):
+                value = message[len("/stream"):].strip().lower()
+                if value in {"on", "true", "1"}:
+                    settings["stream_responses"] = True
+                elif value in {"off", "false", "0"}:
+                    settings["stream_responses"] = False
+                elif value:
+                    print("Usage: /stream [on|off]")
+                    continue
+                state = "on" if settings.get("stream_responses", False) else "off"
+                print(f"Live response streaming: {state}")
+                continue
+            if command == "/clear":
+                print("\033[2J\033[H", end="", flush=True)
+                continue
+            if command == "/copy":
+                clipboard = next((name for name in ("termux-clipboard-set", "pbcopy", "wl-copy", "xclip") if shutil.which(name)), None)
+                if not last_response:
+                    print("Nothing to copy yet.")
+                elif clipboard is None:
+                    print("No clipboard helper found. Install termux-api, wl-clipboard, or xclip.")
+                else:
+                    args = [clipboard, "-selection", "clipboard"] if clipboard == "xclip" else [clipboard]
+                    try:
+                        subprocess.run(args, input=last_response, text=True, check=True, timeout=5)
+                        print("Copied the last Gemini response.")
+                    except (OSError, subprocess.SubprocessError) as exc:
+                        print(f"Clipboard copy failed: {exc}")
+                continue
+            if command == "/last":
+                if not last_prompt:
+                    print("There is no previous prompt to resend.")
+                    continue
+                message = last_prompt
+                command = ""
+            if command == "/model" or command.startswith("/model "):
+                requested = message[len("/model"):].strip()
+                if requested.lower() in {"default", "reset", "auto"}:
+                    settings["default_model"] = None
+                    save_settings(settings)
+                    print("New chats will use the Gemini account default model.")
+                elif not requested:
+                    print(f"Default model for new chats: {settings.get('default_model') or 'Gemini account default'}")
+                    print("Use /model NAME to select one, or /model default to reset.")
+                else:
+                    available = [model for model in client.list_models() if getattr(model, "is_available", True)]
+                    matches = [model for model in available if requested.casefold() in str(getattr(model, "model_name", "")).casefold() or requested.casefold() in str(getattr(model, "display_name", "")).casefold()]
+                    if len(matches) == 1:
+                        settings["default_model"] = getattr(matches[0], "model_name", None)
+                        save_settings(settings)
+                        print(f"Default model for new chats set to {getattr(matches[0], 'display_name', settings['default_model'])}.")
+                    elif len(matches) > 1:
+                        print("That name matches multiple models. Use a more specific name:")
+                        for model in matches:
+                            print(f"  {getattr(model, 'display_name', '')} · {getattr(model, 'model_name', '')}")
+                    else:
+                        print(f"No available model matches '{requested}'. Use /models to list them.")
+                continue
+            if command == "/models":
+                try:
+                    available = [model for model in client.list_models() if getattr(model, "is_available", True)]
+                    print("\nAvailable Gemini models")
+                    for model in available:
+                        label = getattr(model, "display_name", None) or getattr(model, "model_name", "Unknown")
+                        print(f"  {label} · {getattr(model, 'model_name', '')}")
+                except Exception as exc:
+                    print(f"Could not list models: {exc}")
+                continue
             if command in {"/exit", "/quit"}:
                 print("Goodbye.")
                 break
@@ -601,11 +758,13 @@ async def run_terminal(
                 continue
             if command == "/help":
                 print(
-                    "Commands: /new, /chats [folder], /folders, /folder NAME, /context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
-                    "/folder clear, /gems, /customize, /research [topic|--latest], "
-                    "/image [prompt], /video [prompt], /music [prompt], "
-                    "/canvas [Google URL], /artifacts, /open N, /help, /exit. "
-                    "Reply with an option number to choose a Gemini suggestion."
+                    "Commands: /new, /chats [folder|search TEXT], /folders, /folder NAME, "
+                    "/context [path|refresh|status|exclude DIR|include DIR], /doctor, /status, "
+                    "/models, /model NAME|default, /last, /copy, /clear, /history, "
+                    "/search TEXT, /repeat N, /stream [on|off], /gems, /customize, "
+                    "/research [topic|--latest], /image [prompt], /video [prompt], "
+                    "/music [prompt], /canvas [Google URL], /artifacts, /open N, "
+                    "/help, /exit. Reply with a number to choose a Gemini suggestion."
                 )
                 continue
             if command == "/customize":
@@ -650,7 +809,20 @@ async def run_terminal(
                 try:
                     chats = client.list_chats()
                     argument = message[len("/chats"):].strip()
-                    if argument:
+                    if argument.casefold().startswith("search "):
+                        query = argument[7:].strip().casefold()
+                        if not query:
+                            print("Usage: /chats search TEXT")
+                            continue
+                        chats = [
+                            chat for chat in chats
+                            if query in str(getattr(chat, "title", "")).casefold()
+                            or query in str(getattr(chat, "cid", "")).casefold()
+                        ]
+                        if not chats:
+                            print(f"No conversations match '{query}'.")
+                            continue
+                    elif argument:
                         chats = chats_in_folder(chats, settings, argument)
                         if not chats:
                             print(f"No conversations in folder '{argument}'.")
@@ -680,18 +852,24 @@ async def run_terminal(
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
-                output = await client.ask_output(message)
-                pending_options, _saved = await render_model_output(output, client.active_chat_id)
+                render_user_message(message)
+                last_prompt = message
+                if settings.get("stream_responses", False):
+                    last_response, pending_options = await render_streamed_response(client, message)
+                else:
+                    output = await client.ask_output(message)
+                    last_response = getattr(output, "text", None) or ""
+                    pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
         save_settings(settings)
+        save_line_history(readline_module, history_file, fallback_history)
         await client.close()
     return 0
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
-    configure_logging()
     parser = argparse.ArgumentParser(
         prog="ww", description="A simple terminal client for Gemini Web Chat."
     )
@@ -702,7 +880,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Netscape-format cookie file (default: cookies.txt or WW_COOKIE_FILE)",
     )
     parser.add_argument("--no-banner", action="store_true", help="hide the startup banner")
+    parser.add_argument(
+        "--debug", action="store_true",
+        default=os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"},
+        help="show diagnostic/debug console output (also enabled by WW_DEBUG=1)",
+    )
     args = parser.parse_args(argv)
+    # load_dotenv() ran before argument parsing, so .env settings are included.
+    env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    debug = args.debug or env_debug
+    if debug:
+        os.environ["WW_DEBUG"] = "1"
+    configure_logging(debug)
 
     try:
         for key, value in extract_gemini_cookies(args.cookies).items():

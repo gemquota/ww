@@ -7,8 +7,20 @@ from __future__ import annotations
 
 import inspect
 import os
+import io
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from collections.abc import AsyncIterator, Callable
 from typing import Any
+
+
+@contextmanager
+def _quiet_transport_output():
+    """Hide third-party prints and progress chatter unless WW debug is enabled."""
+    if os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}:
+        yield
+        return
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        yield
 
 
 class WWClient:
@@ -48,11 +60,12 @@ class WWClient:
             factory = GeminiClient
         client = factory(self.secure_1psid, self.secure_1psidts)
         try:
-            await client.init(timeout=45, auto_refresh=True)
-            refresh_recent = getattr(client, "_fetch_recent_chats", None)
-            if refresh_recent is not None:
-                await refresh_recent(recent=self.recent_chats)
-            chat = client.start_chat()
+            with _quiet_transport_output():
+                await client.init(timeout=45, auto_refresh=True)
+                refresh_recent = getattr(client, "_fetch_recent_chats", None)
+                if refresh_recent is not None:
+                    await refresh_recent(recent=self.recent_chats)
+                chat = client.start_chat()
         except Exception as exc:
             raise ConnectionError(f"Could not connect to Gemini Web Chat: {exc}") from exc
         self._client, self._chat = client, chat
@@ -65,17 +78,20 @@ class WWClient:
     def list_chats(self) -> list[Any]:
         if self._client is None:
             raise RuntimeError("Connect before listing conversations.")
-        return list(self._client.list_chats() or [])
+        with _quiet_transport_output():
+            return list(self._client.list_chats() or [])
 
     def list_models(self) -> list[Any]:
         if self._client is None:
             raise RuntimeError("Connect before listing models.")
-        return list(self._client.list_models() or [])
+        with _quiet_transport_output():
+            return list(self._client.list_models() or [])
 
     async def list_gems(self) -> list[Any]:
         if self._client is None:
             raise RuntimeError("Connect before listing Gems.")
-        gems = await self._client.fetch_gems(include_hidden=False)
+        with _quiet_transport_output():
+            gems = await self._client.fetch_gems(include_hidden=False)
         try:
             return list(gems)
         except TypeError:
@@ -84,27 +100,31 @@ class WWClient:
     async def create_gem(self, name: str, prompt: str, description: str = "") -> Any:
         if self._client is None:
             raise RuntimeError("Connect before managing Gems.")
-        return await self._client.create_gem(name=name, prompt=prompt, description=description)
+        with _quiet_transport_output():
+            return await self._client.create_gem(name=name, prompt=prompt, description=description)
 
     async def update_gem(
         self, gem_id: str, name: str, prompt: str, description: str = ""
     ) -> Any:
         if self._client is None:
             raise RuntimeError("Connect before managing Gems.")
-        return await self._client.update_gem(
-            gem=gem_id, name=name, prompt=prompt, description=description
-        )
+        with _quiet_transport_output():
+            return await self._client.update_gem(
+                gem=gem_id, name=name, prompt=prompt, description=description
+            )
 
     async def delete_gem(self, gem_id: str) -> None:
         if self._client is None:
             raise RuntimeError("Connect before managing Gems.")
-        await self._client.delete_gem(gem_id)
+        with _quiet_transport_output():
+            await self._client.delete_gem(gem_id)
 
     async def resume_conversation(self, cid: str) -> None:
         """Resume a remote conversation using its latest turn metadata."""
         await self.connect()
         try:
-            history = await self._client.read_chat(cid, limit=1)
+            with _quiet_transport_output():
+                history = await self._client.read_chat(cid, limit=1)
             turns = getattr(history, "turns", ()) if history else ()
             latest_output = next(
                 (getattr(turn, "model_output", None) for turn in turns
@@ -137,9 +157,10 @@ class WWClient:
                 raise FileNotFoundError(f"Attachment does not exist or is not a file: {path}")
         await self.connect()
         try:
-            if attachments:
-                return await self._chat.send_message(prompt, files=attachments)
-            return await self._chat.send_message(prompt)
+            with _quiet_transport_output():
+                if attachments:
+                    return await self._chat.send_message(prompt, files=attachments)
+                return await self._chat.send_message(prompt)
         except Exception as exc:
             raise ConnectionError(f"Gemini Web Chat request failed: {exc}") from exc
 
@@ -159,7 +180,8 @@ class WWClient:
                 "Update it with: pip install -U gemini-webapi"
             )
         try:
-            return await method(prompt, chat=self._chat)
+            with _quiet_transport_output():
+                return await method(prompt, chat=self._chat)
         except Exception as exc:
             raise ConnectionError(f"Could not create a Deep Research plan: {exc}") from exc
 
@@ -170,7 +192,8 @@ class WWClient:
         if method is None:
             raise RuntimeError("The installed gemini-webapi does not support starting research.")
         try:
-            return await method(plan, chat=self._chat)
+            with _quiet_transport_output():
+                return await method(plan, chat=self._chat)
         except Exception as exc:
             raise ConnectionError(f"Could not start Deep Research: {exc}") from exc
 
@@ -183,7 +206,8 @@ class WWClient:
         if method is None:
             raise RuntimeError("The installed gemini-webapi does not support research polling.")
         try:
-            return await method(plan, poll_interval=poll_interval, timeout=timeout)
+            with _quiet_transport_output():
+                return await method(plan, poll_interval=poll_interval, timeout=timeout)
         except Exception as exc:
             raise ConnectionError(f"Deep Research polling failed: {exc}") from exc
 
@@ -196,7 +220,8 @@ class WWClient:
         reader = getattr(self._client, "read_chat", None)
         if reader is None:
             return None
-        history = await reader(self.active_chat_id, limit=20)
+        with _quiet_transport_output():
+            history = await reader(self.active_chat_id, limit=20)
         for turn in getattr(history, "turns", ()) or ():
             if getattr(turn, "role", None) != "model":
                 continue
@@ -216,7 +241,8 @@ class WWClient:
             options["model"] = model
         if gem is not None:
             options["gem"] = gem
-        self._chat = self._client.start_chat(**options)
+        with _quiet_transport_output():
+            self._chat = self._client.start_chat(**options)
 
     async def ask_stream(self, prompt: str) -> AsyncIterator[str]:
         """Yield text chunks for callers that explicitly want text-only streaming."""
@@ -228,7 +254,13 @@ class WWClient:
             yield await self.ask(prompt)
             return
         try:
-            async for chunk in streamer(prompt):
+            iterator = streamer(prompt).__aiter__()
+            while True:
+                try:
+                    with _quiet_transport_output():
+                        chunk = await iterator.__anext__()
+                except StopAsyncIteration:
+                    break
                 if isinstance(chunk, str):
                     text = chunk
                 else:
@@ -246,7 +278,8 @@ class WWClient:
             return
         closer = getattr(self._client, "close", None)
         if closer is not None:
-            result = closer()
-            if inspect.isawaitable(result):
-                await result
+            with _quiet_transport_output():
+                result = closer()
+                if inspect.isawaitable(result):
+                    await result
         self._client = self._chat = None

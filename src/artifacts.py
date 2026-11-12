@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.markdown_renderer import render_response
+from src.markdown_renderer import render_chat_response, render_response
 
 
 def artifact_root() -> Path:
@@ -141,7 +141,7 @@ async def render_model_output(
     """Render text and attached research/media, then persist downloadable artifacts."""
     response_text = getattr(output, "text", None)
     if response_text:
-        options = render_response(response_text)
+        options = render_chat_response(response_text)
     else:
         options = ()
 

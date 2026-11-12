@@ -8,12 +8,36 @@ from rich.console import Console
 from src.markdown_renderer import (
     Elicitation,
     parse_response,
+    parse_speaker_blocks,
+    render_chat_response,
     render_response,
     resolve_elicitation_selection,
 )
 
 
 class MarkdownRendererTests(unittest.TestCase):
+    def test_parses_speaker_prefixes_into_distinct_blocks(self):
+        source = "you> Please inspect this.\ngemini> I will inspect it.\nMore detail."
+        blocks = parse_speaker_blocks(source)
+        self.assertEqual(blocks, (
+            ("you", "Please inspect this."),
+            ("gemini", "I will inspect it.\nMore detail."),
+        ))
+
+    def test_speaker_prefixes_inside_code_fences_are_not_parsed(self):
+        source = 'gemini> Example:\n\n```text\nyou> this is literal\n```'
+        blocks = parse_speaker_blocks(source)
+        self.assertEqual(len(blocks), 1)
+        self.assertIn("you> this is literal", blocks[0][1])
+
+    def test_chat_renderer_labels_and_indents_speakers(self):
+        output = io.StringIO()
+        console = Console(file=output, force_terminal=False, width=80)
+        render_chat_response("gemini> A response.", console=console)
+        rendered = output.getvalue()
+        self.assertIn("Gemini:", rendered)
+        self.assertIn("A response.", rendered)
+
     def test_extracts_group_and_preserves_markdown(self):
         source = """## Result
 
