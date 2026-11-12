@@ -45,16 +45,13 @@ A focused terminal for Gemini conversations
 Type a prompt to chat  ·  /help for commands"""
 
 
-def configure_logging() -> None:
-    """Keep normal terminal output focused on responses, not library chatter.
-
-    Gemini Web API INFO/SUCCESS messages (quota refreshes, initialization
-    details, etc.) are operational diagnostics rather than chat output.
-    Warnings and errors remain visible so failures are still actionable.
-    """
-    logging.basicConfig(level=logging.WARNING)
+def configure_logging(debug: bool = False) -> None:
+    """Hide diagnostic chatter by default; expose it only in debug mode."""
+    level = logging.DEBUG if debug else logging.WARNING
+    logging.basicConfig(level=level, force=True)
+    logging.getLogger().setLevel(level)
     for name in ("gemini_webapi", "httpx", "httpcore", "websockets"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+        logging.getLogger(name).setLevel(level)
 
     # gemini-webapi currently uses Loguru. Keep this optional so WW's CLI
     # remains importable even if the transport dependency changes its logger.
@@ -63,7 +60,7 @@ def configure_logging() -> None:
     except ImportError:
         return
     logger.remove()
-    logger.add(sys.stderr, level="WARNING")
+    logger.add(sys.stderr, level="DEBUG" if debug else "WARNING")
 
 
 def format_chat_date(timestamp: object) -> str:
@@ -848,7 +845,9 @@ async def run_terminal(
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
-    configure_logging()
+    # Re-read WW_DEBUG after dotenv so it can be configured in the local .env.
+    env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    configure_logging(args.debug or env_debug)
     parser = argparse.ArgumentParser(
         prog="ww", description="A simple terminal client for Gemini Web Chat."
     )
@@ -859,6 +858,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Netscape-format cookie file (default: cookies.txt or WW_COOKIE_FILE)",
     )
     parser.add_argument("--no-banner", action="store_true", help="hide the startup banner")
+    parser.add_argument(
+        "--debug", action="store_true",
+        default=os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"},
+        help="show diagnostic/debug console output (also enabled by WW_DEBUG=1)",
+    )
     args = parser.parse_args(argv)
 
     try:
