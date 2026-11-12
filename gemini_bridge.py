@@ -21,6 +21,8 @@ import time
 from rich.console import Console
 from rich.live import Live
 from rich.text import Text
+from rich.panel import Panel
+from rich.table import Table
 
 from dotenv import load_dotenv
 
@@ -47,7 +49,10 @@ Type a prompt to chat  ·  /help for commands"""
 
 def configure_logging(debug: bool = False) -> None:
     """Hide diagnostic chatter by default; expose it only in debug mode."""
-    level = logging.DEBUG if debug else logging.WARNING
+    # Transport libraries are noisy even at WARNING (polling, retries and
+    # connection diagnostics). WW reports actionable failures itself.
+    level = logging.DEBUG if debug else logging.CRITICAL
+    logging.disable(logging.NOTSET if debug else logging.CRITICAL)
     logging.basicConfig(level=level, force=True)
     logging.getLogger().setLevel(level)
     for name in ("gemini_webapi", "httpx", "httpcore", "websockets"):
@@ -60,7 +65,8 @@ def configure_logging(debug: bool = False) -> None:
     except ImportError:
         return
     logger.remove()
-    logger.add(sys.stderr, level="DEBUG" if debug else "WARNING")
+    if debug:
+        logger.add(sys.stderr, level="DEBUG")
 
 
 def format_chat_date(timestamp: object) -> str:
@@ -79,8 +85,9 @@ def choose_startup_chat(
     folder_map: dict[str, str] | None = None,
 ) -> int | None:
     """Display paginated recent chats and let the user resume one or start fresh."""
+    console = Console()
     if not chats:
-        print("No previous Gemini conversations found. Starting a new chat.")
+        console.print(Panel("No previous conversations found. A new chat will be started.", title="WW", border_style="cyan"))
         return None
     page_size = max(1, min(int(page_size), 50))
     folder_map = folder_map or {}
@@ -89,17 +96,23 @@ def choose_startup_chat(
     while True:
         first = page * page_size
         visible = chats[first:first + page_size]
-        print(f"\nRecent Gemini conversations  (page {page + 1}/{page_count})")
-        print("  DATE        #  CONVERSATION")
-        print("  " + "-" * 66)
+        table = Table(title=f"Recent conversations · page {page + 1}/{page_count}", expand=True, header_style="bold cyan")
+        table.add_column("#", justify="right", style="dim", width=3)
+        table.add_column("Last active", style="dim", width=14)
+        table.add_column("Conversation", ratio=1)
+        table.add_column("Folder", style="magenta")
         for offset, chat in enumerate(visible):
             title = getattr(chat, "title", None) or "(untitled conversation)"
-            date_label = format_chat_date(getattr(chat, "timestamp", None))
+            date_label = format_chat_date(getattr(chat, "timestamp", None)).strip()
             folder = folder_map.get(getattr(chat, "cid", ""), "")
-            folder_label = f"  [{folder}]" if folder else ""
-            print(f"  {date_label}  {offset + 1:>2}. {title}{folder_label}")
-        print("\nEnter = most recent | number = open | > = next page | < = previous page")
-        print("n = new chat | q = cancel")
+            table.add_row(str(offset + 1), date_label, title, folder)
+        console.print(table)
+        console.print(Panel(
+            "[bold]Enter[/bold] resume most recent   [bold]number[/bold] open conversation   "
+            "[bold]>[/bold]/[bold]<[/bold] change page\n"
+            "[bold]n[/bold] new conversation   [bold]q[/bold] cancel",
+            border_style="dim",
+        ))
         try:
             choice = input("Continue [1]? ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -193,8 +206,8 @@ async def run_deep_research(client: WWClient, topic: str) -> None:
     await client.start_research(plan)
     print("Research started. Gemini does not expose a percentage or detailed task status.")
     print("WW will wait for the finished report; broad research can take several minutes.")
-    with Console().status("Gemini is researching…", spinner="dots"):
-        result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
+    print("Waiting for the completed research report…")
+    result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
     document = getattr(result, "document", None)
     if document is not None and getattr(document, "ready", bool(getattr(document, "content", ""))):
         markdown = getattr(document, "markdown", None) or getattr(document, "content", "")
@@ -229,12 +242,16 @@ async def run_generation(client: WWClient, kind: str, prompt: str) -> tuple:
 def show_artifacts() -> list:
     files = list_artifacts()
     if not files:
-        print("No saved artifacts yet.")
+        Console().print(Panel("No saved artifacts yet.", title="Artifacts", border_style="dim"))
         return files
-    print("\nSaved WW artifacts")
+    table = Table(title="Saved artifacts", expand=True, header_style="bold cyan")
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("File", ratio=1)
     for index, path in enumerate(files, 1):
-        print(f"  {index:>2}. {path}")
-    print("Open one with /open N.")
+        table.add_row(str(index), str(path))
+    console = Console()
+    console.print(table)
+    console.print("[dim]Open an item with /open N.[/dim]")
     return files
 
 
@@ -372,20 +389,30 @@ def show_diagnostics(client: WWClient) -> None:
         ("Image preview", next((name for name in ("chafa", "viu") if shutil.which(name)), "not installed")),
         ("File opener", next((name for name in ("termux-open", "xdg-open", "open") if shutil.which(name)), "not installed")),
     ]
-    print("\nWW diagnostics")
+    table = Table(title="Runtime diagnostics", expand=True, header_style="bold cyan")
+    table.add_column("Check", style="dim")
+    table.add_column("Value", ratio=1)
     for label, value in checks:
-        print(f"  {label:<22} {value}")
+        table.add_row(label, value)
+    Console().print(table)
 
 
 def show_status(client: WWClient, settings: dict[str, object]) -> None:
     chat = client._chat
-    print("\nWW status")
-    print(f"  Conversation: {client.active_chat_id or '(none)'}")
-    print(f"  Model: {getattr(getattr(chat, 'model', None), 'display_name', None) or getattr(chat, 'model', None) or 'account default'}")
-    print(f"  Default Gem: {settings.get('default_gem') or '(none)'}")
-    print(f"  Project context: {settings.get('context_root') or '(not exported yet)'}")
-    print(f"  Context exclusions: {', '.join(settings.get('context_ignores', [])) or '(defaults only)'}")
-    print(f"  Context inclusions: {', '.join(settings.get('context_includes', [])) or '(none)'}")
+    rows = [
+        ("Conversation", client.active_chat_id or "(none)"),
+        ("Model", getattr(getattr(chat, "model", None), "display_name", None) or getattr(chat, "model", None) or "account default"),
+        ("Default Gem", settings.get("default_gem") or "(none)"),
+        ("Project context", settings.get("context_root") or "(not exported yet)"),
+        ("Context exclusions", ", ".join(settings.get("context_ignores", [])) or "(defaults only)"),
+        ("Context inclusions", ", ".join(settings.get("context_includes", [])) or "(none)"),
+    ]
+    table = Table(title="WW status", expand=True, header_style="bold cyan")
+    table.add_column("Setting", style="dim")
+    table.add_column("Value", ratio=1)
+    for label, value in rows:
+        table.add_row(label, str(value))
+    Console().print(table)
 
 
 async def run_project_context_command(client: WWClient, argument: str, settings: dict[str, object]) -> None:
@@ -510,7 +537,7 @@ async def run_terminal(
 
     settings = load_settings()
     if show_banner:
-        print(BANNER)
+        Console().print(Panel(BANNER, border_style="cyan", padding=(1, 2)))
     try:
         chats = client.list_chats()
         selected = choose_startup_chat(
@@ -863,7 +890,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     # load_dotenv() ran before argument parsing, so .env settings are included.
     env_debug = os.getenv("WW_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
-    configure_logging(args.debug or env_debug)
+    debug = args.debug or env_debug
+    if debug:
+        os.environ["WW_DEBUG"] = "1"
+    configure_logging(debug)
 
     try:
         for key, value in extract_gemini_cookies(args.cookies).items():
