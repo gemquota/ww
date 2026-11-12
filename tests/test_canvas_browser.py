@@ -61,6 +61,9 @@ class CanvasBrowserTests(unittest.TestCase):
                 self.calls = []
                 instances.setdefault(type(self).__name__, []).append(self)
 
+            def __eq__(self, other):
+                return self.id == (other if isinstance(other, int) else getattr(other, "id", None))
+
             def setlinearlayoutparams(self, value):
                 self.calls.append(("weight", value))
 
