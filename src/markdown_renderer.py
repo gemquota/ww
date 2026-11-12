@@ -172,7 +172,7 @@ def parse_speaker_blocks(source: str) -> tuple[tuple[str, str], ...]:
         stripped = line.lstrip()
         if re.match(r"^(`{3,}|~{3,})", stripped):
             in_fence = not in_fence
-        match = None if in_fence else re.match(r"^\\s*(gemini|you)\\s*>\\s?(.*)$", line, re.IGNORECASE)
+        match = None if in_fence else re.match(r"^\s*(gemini|you)\s*>\s?(.*)$", line, re.IGNORECASE)
         if match:
             found = True
             if lines:
