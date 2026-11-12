@@ -50,5 +50,52 @@ class WWClientResumeTests(unittest.IsolatedAsyncioTestCase):
         await ww.close()
 
 
+class FakeResearchGemini(FakeGemini):
+    def start_chat(self, **kwargs):
+        async def send_message(prompt):
+            return SimpleNamespace(text=f"response: {prompt}", images=[])
+        chat = SimpleNamespace(
+            cid="research-chat",
+            metadata=kwargs.get("metadata"),
+            send_message=send_message,
+        )
+        self.chat_calls.append((chat, kwargs))
+        return chat
+
+    async def create_deep_research_plan(self, prompt, chat=None):
+        return SimpleNamespace(query=prompt, cid=chat.cid)
+
+    async def start_deep_research(self, plan, chat=None):
+        return SimpleNamespace(text="Research started")
+
+    async def wait_for_deep_research(self, plan, poll_interval, timeout):
+        return SimpleNamespace(done=True, document=SimpleNamespace(content="Report", ready=True))
+
+    async def read_chat(self, cid, limit=10):
+        document = SimpleNamespace(content="Completed report", ready=True)
+        output = SimpleNamespace(deep_research_document=document)
+        return SimpleNamespace(turns=[SimpleNamespace(role="model", model_output=output)])
+
+
+class WWClientStructuredTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ask_output_preserves_the_structured_response(self):
+        ww = WWClient("cookie", client_factory=FakeResearchGemini)
+        output = await ww.ask_output("hello")
+        self.assertEqual(output.text, "response: hello")
+        await ww.close()
+
+    async def test_deep_research_wrappers_use_active_chat(self):
+        ww = WWClient("cookie", client_factory=FakeResearchGemini)
+        plan = await ww.create_research_plan("Compare two ecosystems")
+        self.assertEqual(plan.query, "Compare two ecosystems")
+        await ww.start_research(plan)
+        result = await ww.wait_for_research(plan, poll_interval=1, timeout=5)
+        self.assertTrue(result.done)
+        self.assertEqual(result.document.content, "Report")
+        document = await ww.latest_research_document()
+        self.assertEqual(document.content, "Completed report")
+        await ww.close()
+
+
 if __name__ == "__main__":
     unittest.main()
