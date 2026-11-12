@@ -30,7 +30,7 @@ from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, render_user_message, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.project_context import export_project, find_project_root
-from src.terminal import configure_line_editor, get_line_history, save_line_history, search_line_history
+from src.terminal import configure_line_editor, get_line_history, load_fallback_history, save_line_history, search_line_history
 from src.ww_settings import (
     assign_chat_folder,
     chats_in_folder,
@@ -549,7 +549,7 @@ async def run_terminal(
     last_prompt = ""
     last_response = ""
     readline_module, history_file = configure_line_editor()
-    fallback_history: list[str] = []
+    fallback_history: list[str] = load_fallback_history(history_file) if readline_module is None else []
     try:
         while True:
             try:
@@ -613,7 +613,7 @@ async def run_terminal(
                 elif value:
                     print("Usage: /stream [on|off]")
                     continue
-                state = "on" if settings.get("stream_responses", True) else "off"
+                state = "on" if settings.get("stream_responses", False) else "off"
                 print(f"Live response streaming: {state}")
                 continue
             if command == "/clear":
@@ -837,7 +837,7 @@ async def run_terminal(
                 print(f"\nRequest error: {exc}", file=sys.stderr)
     finally:
         save_settings(settings)
-        save_line_history(readline_module, history_file)
+        save_line_history(readline_module, history_file, fallback_history)
         await client.close()
     return 0
 
