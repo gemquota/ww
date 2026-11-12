@@ -204,9 +204,7 @@ async def run_deep_research(client: WWClient, topic: str) -> None:
         print("Research plan cancelled. The plan remains in the conversation.")
         return
     await client.start_research(plan)
-    print("Research started. Gemini does not expose a percentage or detailed task status.")
-    print("WW will wait for the finished report; broad research can take several minutes.")
-    print("Waiting for the completed research report…")
+    print("Research is running. Waiting for the completed report…")
     result = await client.wait_for_research(plan, poll_interval=10.0, timeout=1800.0)
     document = getattr(result, "document", None)
     if document is not None and getattr(document, "ready", bool(getattr(document, "content", ""))):
