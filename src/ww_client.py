@@ -140,7 +140,12 @@ class WWClient:
     async def new_conversation(self, model: Any = None, gem: Any = None) -> None:
         """Start a new remote conversation with optional model and Gem settings."""
         await self.connect()
-        self._chat = self._client.start_chat(model=model, gem=gem)
+        options = {}
+        if model is not None:
+            options["model"] = model
+        if gem is not None:
+            options["gem"] = gem
+        self._chat = self._client.start_chat(**options)
 
     async def ask_stream(self, prompt: str) -> AsyncIterator[str]:
         """Yield response chunks when the web library supports streaming."""
