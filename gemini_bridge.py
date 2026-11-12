@@ -433,7 +433,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     except KeyboardInterrupt:
-        print("\\nGoodbye.")
+        print("\nGoodbye.")
         return 130
 
 
