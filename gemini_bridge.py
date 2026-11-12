@@ -197,7 +197,7 @@ async def run_deep_research(client: WWClient, topic: str) -> None:
             print(f"\nResearch report saved: {saved}")
     else:
         print("The report is not ready yet. Gemini continues the task server-side.")
-        print("Resume this conversation and run /research again to retrieve the completed report.")
+        print("Resume this conversation and run /research --latest to retrieve the completed report.")
 
 
 async def run_generation(client: WWClient, kind: str, prompt: str) -> tuple:
