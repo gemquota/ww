@@ -158,11 +158,12 @@ def export_project(
                     "mime_type": mimetypes.guess_type(filename)[0],
                     "sha256": None,
                 }
-                sensitive = (
-                    filename.lower() in SENSITIVE_NAMES
+                lower_name = filename.lower()
+                sensitive = lower_name != ".env.example" and (
+                    lower_name in SENSITIVE_NAMES
                     or suffix in SENSITIVE_SUFFIXES
-                    or filename.lower().startswith(".env.")
-                    or "cookie" in filename.lower() and suffix in {".txt", ".json"}
+                    or lower_name.startswith(".env.")
+                    or ("cookie" in lower_name and suffix in {".txt", ".json"})
                 )
                 if sensitive and not include_sensitive:
                     record.update({
@@ -188,7 +189,7 @@ def export_project(
                             "kind": "unreadable", "content": None,
                             "read_error": f"{type(exc).__name__}: {exc}",
                         })
-                if stat.st_size <= hash_limit:
+                if stat.st_size <= hash_limit and not sensitive:
                     digest = hashlib.sha256()
                     with path.open("rb") as stream:
                         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
