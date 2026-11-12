@@ -12,6 +12,7 @@ from typing import TextIO
 from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.padding import Padding
 from rich.text import Text
 
 
@@ -158,6 +159,65 @@ def render_response(
         console.print(Panel.fit(Group(*lines), title="Next actions", border_style="cyan"))
 
     return parsed.options
+
+
+def parse_speaker_blocks(source: str) -> tuple[tuple[str, str], ...]:
+    """Split transcript-style 'gemini>' / 'you>' lines without parsing code fences."""
+    blocks: list[tuple[str, list[str]]] = []
+    current = "gemini"
+    lines: list[str] = []
+    in_fence = False
+    found = False
+    for line in source.splitlines():
+        stripped = line.lstrip()
+        if re.match(r"^(`{3,}|~{3,})", stripped):
+            in_fence = not in_fence
+        match = None if in_fence else re.match(r"^\\s*(gemini|you)\\s*>\\s?(.*)$", line, re.IGNORECASE)
+        if match:
+            found = True
+            if lines:
+                blocks.append((current, lines))
+            current = match.group(1).lower()
+            lines = [match.group(2)]
+        else:
+            lines.append(line)
+    if lines:
+        blocks.append((current, lines))
+    if not found:
+        return (("gemini", source.strip()),) if source.strip() else ()
+    return tuple((speaker, "\\n".join(body).strip()) for speaker, body in blocks if "\\n".join(body).strip())
+
+
+def render_user_message(
+    source: str, *, console: Console | None = None, file: TextIO | None = None
+) -> None:
+    """Render a user's message as a labelled, indented Gemini-style block."""
+    if console is None:
+        width = max(20, shutil.get_terminal_size(fallback=(80, 24)).columns)
+        console = Console(file=file or sys.stdout, width=width, highlight=False)
+    console.print(Text("You:", style="bold green"))
+    if source.strip():
+        console.print(Padding(Markdown(source, code_theme="monokai"), (0, 0, 0, 2)))
+
+
+def render_chat_response(
+    source: str, *, console: Console | None = None, file: TextIO | None = None
+) -> tuple[Elicitation, ...]:
+    """Render Gemini output or a mixed you>/gemini> transcript with speaker blocks."""
+    if console is None:
+        width = max(20, shutil.get_terminal_size(fallback=(80, 24)).columns)
+        console = Console(file=file or sys.stdout, width=width, highlight=False)
+    options: list[Elicitation] = []
+    for speaker, body in parse_speaker_blocks(source):
+        label = "You:" if speaker == "you" else "Gemini:"
+        style = "bold green" if speaker == "you" else "bold cyan"
+        console.print(Text(label, style=style))
+        if body:
+            if speaker == "you":
+                console.print(Padding(Markdown(body, code_theme="monokai"), (0, 0, 0, 2)))
+            else:
+                options.extend(render_response(body, console=console))
+    return tuple(options)
 
 
 def resolve_elicitation_selection(
