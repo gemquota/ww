@@ -171,12 +171,31 @@ async def render_model_output(
 
 
 def list_artifacts() -> list[Path]:
-    """List saved artifacts, newest first."""
+    """List saved artifacts newest-first using one stat call per file.
+
+    os.scandir avoids constructing a Path object for every directory entry and
+    lets us reuse each DirEntry's cached metadata during the recursive walk.
+    Symlinks are intentionally not followed.
+    """
     root = artifact_root()
-    if not root.exists():
+    if not root.is_dir():
         return []
-    return sorted(
-        (path for path in root.rglob("*") if path.is_file()),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
+    found: list[tuple[float, Path]] = []
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            stat = entry.stat(follow_symlinks=False)
+                            found.append((stat.st_mtime, Path(entry.path)))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    found.sort(key=lambda item: item[0], reverse=True)
+    return [path for _modified, path in found]
