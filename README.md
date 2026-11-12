@@ -74,6 +74,7 @@ Prompts are entered at a compact `›` input marker, then echoed as a labelled `
 | `/context exclude DIR` / `/context include DIR` | Add or remove a directory-name exclusion for future exports |
 | `/status` | Show the active chat, model, and context settings |
 | `/models` | List models available to the signed-in Gemini account |
+| `/model NAME` / `/model default` | Set or reset the default model used for new chats |
 | `/last` | Resend the previous prompt in the active conversation |
 | `/copy` | Copy the last Gemini text response using the available system clipboard helper |
 | `/clear` | Clear the terminal display without closing the conversation |
