@@ -114,6 +114,8 @@ Run `/context` from inside a project to detect its Git/project root, recursively
 
 Small text files are embedded in full. Large text files are sampled from their beginning and end, while binary files are inventoried without embedding their bytes. Common generated directories are skipped. Sensitive files such as `.env`, browser cookies, and private keys remain in the inventory but their contents are omitted. The export is written to `.ww/project-context.json`, which is gitignored, and the default embedded-content budget is 12 MiB. WW refuses to attach an export larger than 20 MiB. Additional directory-name exclusions and explicit inclusions are saved in local WW settings. Explicit inclusions can restore normally skipped generated directories; version-control metadata directories remain excluded.
 
+You can also run the exporter without starting WW: `python -m src.project_context --root /path/to/project --output /tmp/project-context.json`. Its defaults are a 256 KiB full-text threshold, 32 KiB samples from each end of larger files, an 8 MiB per-file hashing ceiling, and a 12 MiB total embedded-content budget.
+
 This sends the JSON file through `gemini-webapi`'s file attachment support in the existing conversation. It does not upload the project to a WW server. Review the export before sharing it: filenames, source code, and other non-sensitive text are still sent to Gemini.
 
 ## Deep Research and generated media
