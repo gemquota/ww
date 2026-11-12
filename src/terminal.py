@@ -28,8 +28,8 @@ def configure_line_editor() -> tuple[Any | None, Path]:
     except ImportError:
         return None, path
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         readline.read_history_file(str(path))
     except FileNotFoundError:
         pass
@@ -66,8 +66,8 @@ def save_line_history(
     readline_module: Any | None, path: Path, fallback: list[str] | None = None
 ) -> None:
     """Persist readline history with owner-only permissions where supported."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         if readline_module is None:
             path.write_text("\n".join((fallback or [])[-5000:]) + "\n", encoding="utf-8")
         else:
