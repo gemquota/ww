@@ -383,6 +383,7 @@ def show_status(client: WWClient, settings: dict[str, object]) -> None:
     print(f"  Default Gem: {settings.get('default_gem') or '(none)'}")
     print(f"  Project context: {settings.get('context_root') or '(not exported yet)'}")
     print(f"  Context exclusions: {', '.join(settings.get('context_ignores', [])) or '(defaults only)'}")
+    print(f"  Context inclusions: {', '.join(settings.get('context_includes', [])) or '(none)'}")
 
 
 async def run_project_context_command(client: WWClient, argument: str, settings: dict[str, object]) -> None:
