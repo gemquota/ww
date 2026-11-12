@@ -242,12 +242,16 @@ async def run_generation(client: WWClient, kind: str, prompt: str) -> tuple:
 def show_artifacts() -> list:
     files = list_artifacts()
     if not files:
-        print("No saved artifacts yet.")
+        Console().print(Panel("No saved artifacts yet.", title="Artifacts", border_style="dim"))
         return files
-    print("\nSaved WW artifacts")
+    table = Table(title="Saved artifacts", expand=True, header_style="bold cyan")
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("File", ratio=1)
     for index, path in enumerate(files, 1):
-        print(f"  {index:>2}. {path}")
-    print("Open one with /open N.")
+        table.add_row(str(index), str(path))
+    console = Console()
+    console.print(table)
+    console.print("[dim]Open an item with /open N.[/dim]")
     return files
 
 
@@ -385,20 +389,30 @@ def show_diagnostics(client: WWClient) -> None:
         ("Image preview", next((name for name in ("chafa", "viu") if shutil.which(name)), "not installed")),
         ("File opener", next((name for name in ("termux-open", "xdg-open", "open") if shutil.which(name)), "not installed")),
     ]
-    print("\nWW diagnostics")
+    table = Table(title="Runtime diagnostics", expand=True, header_style="bold cyan")
+    table.add_column("Check", style="dim")
+    table.add_column("Value", ratio=1)
     for label, value in checks:
-        print(f"  {label:<22} {value}")
+        table.add_row(label, value)
+    Console().print(table)
 
 
 def show_status(client: WWClient, settings: dict[str, object]) -> None:
     chat = client._chat
-    print("\nWW status")
-    print(f"  Conversation: {client.active_chat_id or '(none)'}")
-    print(f"  Model: {getattr(getattr(chat, 'model', None), 'display_name', None) or getattr(chat, 'model', None) or 'account default'}")
-    print(f"  Default Gem: {settings.get('default_gem') or '(none)'}")
-    print(f"  Project context: {settings.get('context_root') or '(not exported yet)'}")
-    print(f"  Context exclusions: {', '.join(settings.get('context_ignores', [])) or '(defaults only)'}")
-    print(f"  Context inclusions: {', '.join(settings.get('context_includes', [])) or '(none)'}")
+    rows = [
+        ("Conversation", client.active_chat_id or "(none)"),
+        ("Model", getattr(getattr(chat, "model", None), "display_name", None) or getattr(chat, "model", None) or "account default"),
+        ("Default Gem", settings.get("default_gem") or "(none)"),
+        ("Project context", settings.get("context_root") or "(not exported yet)"),
+        ("Context exclusions", ", ".join(settings.get("context_ignores", [])) or "(defaults only)"),
+        ("Context inclusions", ", ".join(settings.get("context_includes", [])) or "(none)"),
+    ]
+    table = Table(title="WW status", expand=True, header_style="bold cyan")
+    table.add_column("Setting", style="dim")
+    table.add_column("Value", ratio=1)
+    for label, value in rows:
+        table.add_row(label, str(value))
+    Console().print(table)
 
 
 async def run_project_context_command(client: WWClient, argument: str, settings: dict[str, object]) -> None:
