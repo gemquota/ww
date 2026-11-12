@@ -125,7 +125,15 @@ def export_project(
     output_resolved = output.resolve()
     content_used = 0
 
-    for current, dirs, filenames in os.walk(root, topdown=True, followlinks=False):
+    def record_walk_error(error: OSError) -> None:
+        skipped.append({
+            "path": str(getattr(error, "filename", None) or root),
+            "error": f"{type(error).__name__}: {error}",
+        })
+
+    for current, dirs, filenames in os.walk(
+        root, topdown=True, followlinks=False, onerror=record_walk_error
+    ):
         base = Path(current)
         retained_dirs = []
         for name in dirs:
@@ -146,13 +154,13 @@ def export_project(
         for filename in sorted(filenames):
             path = base / filename
             try:
-                if path.resolve() == output_resolved:
-                    continue
                 relative = path.relative_to(root).as_posix()
                 if path.is_symlink():
                     entries.append({
                         "type": "symlink", "path": relative, "target": os.readlink(path),
                     })
+                    continue
+                if path == output_resolved:
                     continue
                 stat = path.stat()
                 suffix = path.suffix.lower()
