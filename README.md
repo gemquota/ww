@@ -131,13 +131,15 @@ You can omit the prompt after a command and paste a multi-line prompt, ending wi
 Generated images, videos, and audio are downloaded using the media objects' own save methods. Images are previewed inline when `chafa` or `viu` is installed; otherwise WW prints their saved paths. On Android, `/open N` hands a file to `termux-open` when available. Desktop environments can use `xdg-open`.
 
 
-### Gemini Canvas in an Android WebView
+### Embedded Gemini Canvas workspace on Android
 
-On Android, `/canvas` launches Gemini in a separate native WebView Activity through [Termux:GUI](https://github.com/termux/termux-gui). The Android WebView is the actual browser engine: it parses and renders HTML/CSS and executes JavaScript, rather than WW trying to imitate browser layout in the terminal.
+On Android, `/canvas` opens a **WW-owned native Activity with Gemini rendered inside an embedded Android WebView**. This is no longer just a bare browser launch: the workspace includes native Back, Forward, Reload, Gemini-home, and Done controls, a status line, and a full-height WebView. Your WW terminal session remains available in the background, so you can switch back to the conversation without closing the Canvas workspace.
+
+The WebView is the actual Android browser engine. Gemini Canvas remains Google's own interactive web application; WW does not attempt to parse or imitate its editor.
 
 Setup is optional:
 
-1. Install the **Termux:GUI** Android add-on from [F-Droid](https://f-droid.org/packages/com.termux.gui/) or its official releases.
+1. Install the **Termux:GUI** Android add-on from [F-Droid](https://f-droid.org/packages/com.termux.gui/) or its [official releases](https://github.com/termux/termux-gui/releases).
 2. In regular Termux (outside the Debian proot), install the Python bindings:
 
    ```bash
@@ -147,11 +149,11 @@ Setup is optional:
 
 3. Start WW in Debian and run `/canvas`.
 
-The first launch asks for permission to enable JavaScript. WW keeps WebView navigation restricted to HTTPS Google-owned hosts used by Gemini and sign-in; other HTTP(S) links are handed to Android's external browser. Sign in inside this WebView if prompted: its cookie store is separate from Chrome's.
+The first launch asks for permission to enable JavaScript. Navigation inside the WebView is restricted to HTTPS Google-owned hosts used by Gemini and sign-in. Other ordinary HTTP(S) links are handed to Android's external browser, keeping unrelated sites out of the JavaScript-enabled Google session. Sign in inside this WebView if prompted: its cookie store is separate from Chrome's.
 
 If WW cannot find the Termux host interpreter, set `WW_TERMUX_PYTHON` to its path, normally `/data/data/com.termux/files/usr/bin/python`. If your Termux home is mounted somewhere other than the default shared-home path, set `WW_TERMUX_HOME` as well.
 
-This is a browser-backed Canvas route, not a direct Gemini Canvas API. It depends on the installed Android WebView, Termux:GUI, Google's current Gemini web UI, and Canvas being enabled for the account. If Google blocks embedded sign-in on a particular device/account, open Gemini in the regular Android browser instead.
+This depends on Termux:GUI, the installed Android System WebView, Google's current Gemini web UI, and Canvas being enabled for the account. It has not been device-tested as part of the repository CI. If Google blocks embedded sign-in on a particular device/account, use the regular Android browser instead.
 
 ### Artifact storage
 
