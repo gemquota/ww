@@ -35,7 +35,7 @@ def save_settings(settings: dict[str, Any]) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(settings, stream, indent=2, ensure_ascii=False)
-            stream.write("\\n")
+            stream.write("\n")
         os.replace(temporary, path)
     finally:
         try:
