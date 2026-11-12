@@ -2,99 +2,116 @@
 
 **A lightweight terminal client for Gemini Web Chat.**
 
-WW's core job is deliberately simple: send prompts to Gemini Web Chat and display the responses. One remote conversation stays active during the terminal process, so follow-up prompts retain context.
+WW keeps the core job simple: authenticate to Gemini Web Chat, send prompts, and render responses. Interactive mode can resume previous conversations, organise them into local folders, and use Gemini Gems and account-available models.
 
-The Overseer, specialist agents, orchestration, tool execution, workspace scanning, plugins, persistent agent memory and dashboard are optional extensions. None is imported, initialized, or required by the basic terminal.
+The Overseer, specialist agents, orchestration, tool execution, workspace scanning, plugins, persistent agent memory and dashboard remain optional extensions. None is required by the basic terminal.
 
 ## Requirements
 
 - Python 3.11+
 - An authenticated Google Gemini Web session
-- A Netscape-format browser export named \`cookies.txt\`, containing \`__Secure-1PSID\`; \`__Secure-1PSIDTS\` is optional
+- A Netscape-format browser export named `cookies.txt`, containing `__Secure-1PSID`; `__Secure-1PSIDTS` is optional
 
 ## Install
 
-\`\`\`bash
+```bash
 git clone https://github.com/gemquota/ww.git
 cd ww
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-\`\`\`
+```
 
 ## Authentication
 
 Export your Google cookies from your browser in **Netscape cookies.txt format** and place the file in the WW project root:
 
-\`\`\`text
+```text
 ww/
 ├── cookies.txt
 ├── gemini_bridge.py
 └── ...
-\`\`\`
+```
 
-WW automatically extracts \`__Secure-1PSID\` and \`__Secure-1PSIDTS\` from Google-domain entries in that file. It ignores cookies for other domains and never prints cookie values.
+WW extracts `__Secure-1PSID` and `__Secure-1PSIDTS` from Google-domain entries. It ignores cookies for other domains and never prints cookie values.
 
 Start with the default file:
 
-\`\`\`bash
+```bash
 python gemini_bridge.py
-\`\`\`
+```
 
 Or specify another file:
 
-\`\`\`bash
+```bash
 python gemini_bridge.py --cookies /path/to/cookies.txt
-\`\`\`
+```
 
-You can also set \`WW_COOKIE_FILE\` to choose a different default path. Explicit \`SECURE_1PSID\` / \`SECURE_1PSIDTS\` environment variables, or values in a local \`.env\`, take precedence over values extracted from the cookie file. Manual \`.env\` configuration remains available as a fallback:
+Set `WW_COOKIE_FILE` to choose a different default path. Explicit `SECURE_1PSID` / `SECURE_1PSIDTS` environment variables, or values in a local `.env`, take precedence over values extracted from the cookie file.
 
-\`\`\`dotenv
-SECURE_1PSID=your_cookie_value
-SECURE_1PSIDTS=your_cookie_timestamp_value
-\`\`\`
+**Security:** `cookies.txt` and `.env` are gitignored. Do not commit or share browser session cookies. They can grant access to your signed-in Google account. Rotate the session if the file is exposed.
 
-**Security:** \`cookies.txt\` and \`.env\` are gitignored. Do not commit or share browser session cookies. They can grant access to your signed-in Google account. Rotate the session if the file is exposed.
+## Interactive chat
 
-## Start chatting
+On startup, WW loads up to 20 recent Gemini conversations and displays them in pages. The default page size is 15.
 
-\`\`\`bash
-python gemini_bridge.py
-\`\`\`
+- Dates appear in a fixed-width column on the **left**, formatted as `DD/MM HH:MM` with leading zeroes and no year.
+- Press **Enter** to resume the most recent conversation.
+- Enter a visible number to resume that conversation.
+- Enter `>` or `<` to move between pages.
+- Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-Enter prompts at \`you>\`; Gemini responses appear at \`gemini>\` as they stream in. The same chat is retained for the process lifetime. Gemini responses are rendered as Markdown (headings, lists, tables, links, and fenced code blocks). Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions are shown as numbered choices; enter the number to send that option's exact `query` as your next prompt.
+Prompts are entered at `you>`. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
 
 ### Commands
 
 | Command | Action |
 |---|---|
-| \`/new\` | Start a fresh Gemini conversation |
-| \`/help\` | Show help |
-| \`/exit\` or \`/quit\` | Exit WW |
+| `/new` | Start a fresh Gemini conversation |
+| `/chats` | Browse and switch conversations |
+| `/chats FOLDER` | Browse only conversations assigned to a local folder |
+| `/folders` | List folders currently in use |
+| `/folder NAME` | Assign the active conversation to a folder (creates it if needed) |
+| `/folder clear` | Remove the active conversation's folder assignment |
+| `/gems` | List, create, edit, delete, or select Gemini Gems |
+| `/customize` | Set conversations per page and the default model for new chats |
+| `/help` | Show help |
+| `/exit` or `/quit` | Exit WW |
+
+Folders are local labels associated with Gemini conversation IDs. They do not create, move, or delete anything in Google's cloud history. A selected Gem and model are defaults for **new** conversations; resuming an existing chat preserves that conversation's own settings.
 
 ### One-shot prompt
 
-\`\`\`bash
+```bash
 python gemini_bridge.py --prompt "Explain TCP versus UDP"
-\`\`\`
+```
+
+## Local settings
+
+WW stores preferences and folder assignments in:
+
+- `~/.config/ww/settings.json`, or
+- `$XDG_CONFIG_HOME/ww/settings.json` when `XDG_CONFIG_HOME` is set.
+
+The settings file contains the chat page size, default model, default Gem ID, and local chat-folder assignments. It contains no authentication cookies.
 
 ## Core architecture
 
-\`\`\`text
+```text
 Terminal -> cookie loader -> WWClient -> Gemini Web Chat
-\`\`\`
+                         \-> local preferences and folder metadata
+```
 
-The core runtime is limited to the terminal entry point, a small cookie loader, a conversation transport, local JSON preferences/folder metadata, and the Gemini Web client library. Preferences live under \\`~/.config/ww/settings.json\\` (or \\`$XDG_CONFIG_HOME/ww/settings.json\\`). Folder assignments are local labels keyed by Gemini conversation ID; they do not create folders in Google's cloud history. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
-
-The existing advanced modules are retained as optional/legacy code while the basic terminal is made reliable. They must not become core imports or installation requirements.
+The core runtime uses the terminal entry point, a small cookie loader, the conversation transport, local JSON preferences, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
 
 ## Notes
 
-WW uses the unofficial \`gemini-webapi\` integration. Google can change its web interface or invalidate session cookies, so the integration may need maintenance. This is a web-session client, not an official Google API.
+WW uses the unofficial `gemini-webapi` integration. Google can change its web interface or invalidate session cookies, so the integration may need maintenance. This is a web-session client, not an official Google API.
 
 ## Development
 
-\`\`\`bash
+```bash
 python -m pip install -r requirements.txt
-python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py src/markdown_renderer.py
-\`\`\`
+python -m py_compile gemini_bridge.py src/cookie_loader.py src/ww_client.py src/ww_settings.py src/markdown_renderer.py
+python -m unittest discover -s tests -v
+```
