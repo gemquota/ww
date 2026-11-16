@@ -1,6 +1,6 @@
 # Optional legacy/extension modules. Not imported by the core terminal.
 colorama>=0.4.6
-loguru>=0.7.0
+loguru>=0.8.0
 pathspec>=0.11.0
 prompt_toolkit>=3.0.0
 pydantic-settings>=2.0.0
