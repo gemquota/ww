@@ -11,7 +11,7 @@
 header{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(18px,calc((100vw - 1000px)/2));background:#090d16cc;backdrop-filter:blur(12px)}
 .brand{font-weight:750;letter-spacing:.08em}.brand span{color:var(--cyan)}.status{font-size:12px;color:var(--muted)}.status:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px}
 main{width:min(900px,100%);margin:0 auto;flex:1;display:flex;flex-direction:column;padding:24px 16px 18px;min-height:0}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px}.toolbar input{min-width:0;flex:1}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.toolbar input{min-width:0;flex:1 1 220px}
 input,textarea,button{font:inherit;color:inherit;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:11px 13px}
 input:focus,textarea:focus{outline:1px solid var(--cyan);border-color:var(--cyan)}
 button{cursor:pointer;background:var(--panel2)}button.primary{background:#087e88;border-color:#139ba5;font-weight:650}button:disabled{opacity:.45;cursor:not-allowed}
@@ -29,8 +29,9 @@ textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:tran
 <header><div class="brand">🧠 WW <span>NEURAL BRIDGE</span></div><div class="status" id="status">Ready</div></header>
 <main>
   <div class="toolbar">
-    <input id="apiKey" type="password" autocomplete="off" placeholder="Dashboard API key (if configured)" aria-label="Dashboard API key">
-    <button id="saveKey" type="button">Connect</button>
+    <input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="WW API URL (https://…)" aria-label="WW API URL">
+    <input id="apiKey" type="password" autocomplete="off" placeholder="WW API key" aria-label="WW API key">
+    <button id="connect" type="button">Connect</button>
     <button id="clear" type="button" title="Clear this conversation">Clear</button>
   </div>
   <section id="messages" aria-live="polite">
@@ -41,27 +42,51 @@ textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:tran
     <textarea id="message" rows="1" placeholder="Message WW… (Enter to send, Shift+Enter for newline)" aria-label="Message"></textarea>
     <button class="primary" id="send" type="submit">Send ↑</button>
   </form>
-  <div class="hint">Messages are sent to the configured WW dashboard API. The API key stays in this browser tab's session storage.</div>
+  <div class="hint">Connect to your device-hosted WW API. The API URL and key are kept in this browser tab's session storage.</div>
 </main>
 <script>
 (() => {
  const $=id=>document.getElementById(id);
- const key=$('apiKey'),messages=$('messages'),input=$('message'),send=$('send'),status=$('status'),error=$('error');
+ const key=$('apiKey'),apiUrl=$('apiUrl'),messages=$('messages'),input=$('message'),send=$('send'),status=$('status'),error=$('error');
  const newSession=()=>('browser-'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()));
  let sessionName=sessionStorage.getItem('ww-chat-session')||newSession();
  sessionStorage.setItem('ww-chat-session',sessionName);
- const history=[]; 
+ const history=[];
+ const defaultApiUrl=location.hostname.endsWith('github.io')?'':location.origin;
+ apiUrl.value=sessionStorage.getItem('ww-api-url')||defaultApiUrl;
  key.value=sessionStorage.getItem('ww-api-key')||'';
- $('saveKey').addEventListener('click',()=>{sessionStorage.setItem('ww-api-key',key.value.trim());error.textContent='';status.textContent='Key saved for this tab';});
+ function apiBase(){
+   const raw=apiUrl.value.trim();
+   if(!raw)throw new Error('Enter the HTTPS URL of your running WW API.');
+   let parsed;
+   try{parsed=new URL(raw);}catch{throw new Error('The WW API URL is not valid.');}
+   if(!['http:','https:'].includes(parsed.protocol))throw new Error('The WW API URL must use HTTP or HTTPS.');
+   if(location.protocol==='https:'&&parsed.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(parsed.hostname))
+     throw new Error('An HTTPS Pages site cannot call an HTTP device address. Use an HTTPS tunnel or VPN endpoint.');
+   return parsed.href.replace(/\\/+$/,'');
+ }
+ $('connect').addEventListener('click',async()=>{
+   error.textContent='';
+   try{
+     const base=apiBase();
+     sessionStorage.setItem('ww-api-url',base);
+     sessionStorage.setItem('ww-api-key',key.value.trim());
+     status.textContent='Connecting…';
+     const response=await fetch(base+'/api/v1/health');
+     if(!response.ok)throw new Error('WW API health check returned HTTP '+response.status+'.');
+     const data=await response.json();
+     status.textContent='Connected · '+(data.version||'WW');
+   }catch(e){status.textContent='Not connected';error.textContent=e.message+' Check that WW is running and its CORS allowlist includes https://gemquota.github.io.';}
+ });
  $('clear').addEventListener('click',()=>{messages.replaceChildren();history.length=0;sessionName=newSession();sessionStorage.setItem('ww-chat-session',sessionName);addMessage('assistant','Conversation cleared.');});
  function addMessage(role,text){const el=document.createElement('article');el.className='message '+role;const label=document.createElement('div');label.className='role';label.textContent=role==='user'?'YOU':'WW';const body=document.createElement('div');body.textContent=text;el.append(label,body);messages.append(el);messages.scrollTop=messages.scrollHeight;return body;}
  async function submit(){const text=input.value.trim();if(!text||send.disabled)return;error.textContent='';addMessage('user',text);history.push({role:'user',content:text});input.value='';send.disabled=true;status.textContent='Thinking…';const pending=addMessage('assistant','');pending.textContent='…';
  try{const headers={'Content-Type':'application/json'};const apiKey=key.value.trim();if(apiKey)headers['X-API-Key']=apiKey;
- const response=await fetch('/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:sessionName,history})});
+ const response=await fetch(apiBase()+'/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:sessionName,history})});
  const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));
  if(!response.ok)throw new Error(data.detail||('HTTP '+response.status));
  pending.textContent=data.response||'(empty response)';history.push({role:'assistant',content:pending.textContent});status.textContent='Connected';
- }catch(e){pending.textContent='';pending.remove();error.textContent=e.message;status.textContent='Connection error';}
+ }catch(e){pending.textContent='';pending.remove();error.textContent=e.message+' If this is a browser network error, check HTTPS, CORS, and device reachability.';status.textContent='Connection error';}
  finally{send.disabled=false;input.focus();messages.scrollTop=messages.scrollHeight;}}
  $('composer').addEventListener('submit',e=>{e.preventDefault();submit();});
  input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
