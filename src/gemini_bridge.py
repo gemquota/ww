@@ -849,8 +849,6 @@ async def main():
                 print()
                 continue
 
-            # The prompt echo is erased; render one formatted transcript entry.
-            print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\n")
             if cmd.lower() in ('exit', 'quit'):
                 telemetry.end_session(summary="User exited.")
                 break
@@ -903,6 +901,8 @@ async def main():
                     print(f"  Valid commands: tokens, undo, compact, reload, init, verbose, history, memory, save, load, sessions, export, policy, plugins")
                     continue
 
+            # The prompt echo is erased; render one formatted transcript entry.
+            print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\n")
             telemetry.log_interaction("user", user_input)
             conversation.add_turn("user", user_input)
             memory.add_turn("user", user_input)
