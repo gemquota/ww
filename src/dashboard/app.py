@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
     from pydantic import BaseModel
     from src.utils.web_client import WebGeminiClient
     from src.telemetry import TelemetryManager
@@ -318,6 +319,12 @@ async def usage_metering():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat-ui", include_in_schema=False)
+async def chat_ui():
+    """Serve the lightweight browser chat client."""
+    return FileResponse(Path(__file__).with_name("chat.html"), media_type="text/html")
 
 
 @app.get("/")
