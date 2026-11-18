@@ -155,8 +155,7 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
             output += stdout.decode(errors="replace")
         if stderr:
             output += f"\nSTDERR: {stderr.decode(errors='replace')}"
-        if process.returncode != 0:
-            output += f"\n[Exit code: {process.returncode}]"
+        output += f"\n[Exit code: {process.returncode}]"
 
         if len(output) > 10000:
             output = output[:4000] + f"\n\n[... {len(output) - 8000} chars truncated ...]\n\n" + output[-4000:]
