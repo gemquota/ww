@@ -152,7 +152,6 @@ async def _create_browser_client() -> WebGeminiClient:
         api_key=os.getenv("GEMINI_API_KEY", ""),
     )
     if not await client.init():
-        await client.close()
         raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
     return client
 
