@@ -101,9 +101,9 @@ class LocalApprovalController:
                 tool_name=canonical_name,
                 arguments=arguments,
             )
-        except Exception as exc:
-            self.output(f"DENIED: Approval could not be completed ({exc}).")
-            return False
         except (EOFError, KeyboardInterrupt):
             self.output("DENIED: No local approval decision was received.")
+            return False
+        except Exception as exc:
+            self.output(f"DENIED: Approval could not be completed ({exc}).")
             return False
