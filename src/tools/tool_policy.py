@@ -69,5 +69,6 @@ def policy_for_tool(name: str) -> ToolPolicy:
 
 
 def remote_tool_allowed(name: str) -> bool:
-    """Whether the tool belongs on the narrow remote read-only surface."""
-    return policy_for_tool(name).remote_allowed
+    """Whether the exact canonical tool name belongs on the remote surface."""
+    policy = _POLICIES.get(name)
+    return bool(policy and policy.remote_allowed)
