@@ -2,7 +2,7 @@
 colorama>=0.4.6
 loguru>=0.8.0
 pathspec>=0.11.0
-prompt_toolkit>=3.0.0
+prompt_toolkit>=3.0.53
 pydantic-settings>=2.0.0
 pydantic>=2.14.3
 pyyaml>=6.0
