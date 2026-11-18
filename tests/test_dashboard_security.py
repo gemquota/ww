@@ -180,8 +180,9 @@ class BrowserSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             return client
 
         async with store.acquire("tab-a", factory) as first:
-            async with store.acquire("tab-a", factory) as second:
-                self.assertIs(first, second)
+            first_client = first
+        async with store.acquire("tab-a", factory) as second:
+            self.assertIs(first_client, second)
         self.assertEqual(len(created), 1)
         await store.close_all()
         self.assertTrue(created[0].closed)
