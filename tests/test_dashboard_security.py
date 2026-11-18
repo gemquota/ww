@@ -11,6 +11,7 @@ from fastapi.responses import Response
 
 from src.dashboard import routes_auth
 from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
+from src.utils.web_client import WebGeminiClient
 from src.tools.system_tools import (
     _is_sensitive_workspace_path,
     _read_capped_stream,
@@ -146,6 +147,27 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertEqual(asyncio.run(run()), b"abcde")
 
+
+
+class WebGeminiClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_close_releases_async_transport_and_is_idempotent(self):
+        class FakeTransport:
+            def __init__(self):
+                self.closed = 0
+
+            async def aclose(self):
+                self.closed += 1
+
+        transport = FakeTransport()
+        client = WebGeminiClient()
+        client.client = transport
+        client.chat = object()
+        await client.close()
+        await client.close()
+        self.assertEqual(transport.closed, 1)
+        self.assertIsNone(client.client)
+        self.assertIsNone(client.chat)
+        self.assertFalse(client._use_api_key)
 
 
 class TrustedProxyTests(unittest.TestCase):
