@@ -22,19 +22,37 @@ _last_prune = 0.0
 
 
 async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
-    """Require a configured key and compare it without timing-sensitive equality."""
-    expected = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
-    if not expected:
+    """Require a configured key and compare against active keys without early exit.
+
+    WW_DASHBOARD_API_KEYS supports overlap during rotation; the singular
+    WW_DASHBOARD_API_KEY remains supported for existing installations.
+    """
+    configured = os.getenv("WW_DASHBOARD_API_KEYS", "")
+    expected_keys = [
+        value.strip()
+        for value in configured.split(",")
+        if value.strip()
+    ]
+    legacy_key = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
+    if legacy_key:
+        expected_keys.append(legacy_key)
+
+    if not expected_keys:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="WW API authentication is not configured. Set WW_DASHBOARD_API_KEY.",
+            detail="WW API authentication is not configured. Set WW_DASHBOARD_API_KEY or WW_DASHBOARD_API_KEYS.",
         )
-    if not api_key or not hmac.compare_digest(api_key, expected):
+
+    supplied = api_key or ""
+    matched = False
+    for expected in expected_keys:
+        matched = hmac.compare_digest(supplied, expected) or matched
+    if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key.",
         )
-    return api_key
+    return supplied
 
 
 def _trusted_proxy_networks():
