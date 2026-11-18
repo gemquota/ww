@@ -47,16 +47,19 @@ textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:tran
 (() => {
  const $=id=>document.getElementById(id);
  const key=$('apiKey'),messages=$('messages'),input=$('message'),send=$('send'),status=$('status'),error=$('error');
+ const sessionName=sessionStorage.getItem('ww-chat-session')||('browser-'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()));
+ sessionStorage.setItem('ww-chat-session',sessionName);
+ const history=[]; 
  key.value=sessionStorage.getItem('ww-api-key')||'';
  $('saveKey').addEventListener('click',()=>{sessionStorage.setItem('ww-api-key',key.value.trim());error.textContent='';status.textContent='Key saved for this tab';});
- $('clear').addEventListener('click',()=>{messages.replaceChildren();addMessage('assistant','Conversation cleared.');});
+ $('clear').addEventListener('click',()=>{messages.replaceChildren();history.length=0;addMessage('assistant','Conversation cleared.');});
  function addMessage(role,text){const el=document.createElement('article');el.className='message '+role;const label=document.createElement('div');label.className='role';label.textContent=role==='user'?'YOU':'WW';const body=document.createElement('div');body.textContent=text;el.append(label,body);messages.append(el);messages.scrollTop=messages.scrollHeight;return body;}
- async function submit(){const text=input.value.trim();if(!text||send.disabled)return;error.textContent='';addMessage('user',text);input.value='';send.disabled=true;status.textContent='Thinking…';const pending=addMessage('assistant','');pending.textContent='…';
+ async function submit(){const text=input.value.trim();if(!text||send.disabled)return;error.textContent='';addMessage('user',text);history.push({role:'user',content:text});input.value='';send.disabled=true;status.textContent='Thinking…';const pending=addMessage('assistant','');pending.textContent='…';
  try{const headers={'Content-Type':'application/json'};const apiKey=key.value.trim();if(apiKey)headers['X-API-Key']=apiKey;
- const response=await fetch('/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:'browser'})});
+ const response=await fetch('/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:sessionName,history})});
  const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));
  if(!response.ok)throw new Error(data.detail||('HTTP '+response.status));
- pending.textContent=data.response||'(empty response)';status.textContent='Connected';
+ pending.textContent=data.response||'(empty response)';history.push({role:'assistant',content:pending.textContent});status.textContent='Connected';
  }catch(e){pending.textContent='';pending.remove();error.textContent=e.message;status.textContent='Connection error';}
  finally{send.disabled=false;input.focus();messages.scrollTop=messages.scrollHeight;}}
  $('composer').addEventListener('submit',e=>{e.preventDefault();submit();});
