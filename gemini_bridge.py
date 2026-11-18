@@ -37,7 +37,7 @@ from src.ww_settings import (
 
 
 BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
+Enter adds a line; Escape then Enter sends the complete message. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
 
 
 def configure_logging() -> None:
