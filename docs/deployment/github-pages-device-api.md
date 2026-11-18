@@ -69,9 +69,10 @@ shows a successful connection.
 
 ## Security notes
 
-- Keep `WW_DASHBOARD_API_KEY` set whenever the API is reachable beyond
-  loopback. Without it, the existing API-key dependency permits unauthenticated
-  requests.
+- `WW_DASHBOARD_API_KEY` is mandatory for the health check, chat and protected
+  endpoints. If it is missing, protected routes fail closed with HTTP 503.
+- The browser sends the API key with its health check, so a successful
+  connection confirms both reachability and authentication.
 - CORS is a browser-origin policy, not authentication. The API key is still
   required for protected endpoints.
 - Do not commit API keys, Gemini cookies, tunnel credentials or `.env` files.
@@ -80,3 +81,18 @@ shows a successful connection.
 - Mobile networks and battery optimisation can interrupt a device-hosted
   backend. The Pages frontend remains available but cannot chat while the
   device or tunnel is offline.
+
+
+## Remote tool safety defaults
+
+The dashboard API now fails closed if `WW_DASHBOARD_API_KEY` is missing. Set a long random key before starting the server; protected routes return HTTP 503 until it is configured and HTTP 401 for missing or incorrect client keys.
+
+Remote tool execution is disabled by default. To enable the restricted browser tool endpoint, set:
+
+```bash
+export WW_REMOTE_TOOLS_ENABLED=1
+```
+
+Even when enabled, the browser API exposes only `read_file` and `list_dir`, both confined to the configured WW workspace. Shell execution, Git mutations, file writes, patching, arbitrary code search and URL fetching are deliberately not exposed through the browser API. The local terminal tool workflow is unchanged.
+
+Do not treat the API key or CORS as a sandbox. Keep the server bound to loopback and use an authenticated private tunnel for remote access. The in-memory rate limit is per observed client address; tunnel deployments may cause multiple users to share the same observed address.

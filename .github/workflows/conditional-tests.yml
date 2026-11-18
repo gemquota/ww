@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
-      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: pip install -r requirements.txt fastapi pytest pytest-asyncio
       - run: python -m unittest discover -s tests -v
 
   integration:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
-      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: pip install -r requirements.txt fastapi pytest pytest-asyncio
       - run: python -m unittest discover -s tests -v
 
   quality:
@@ -35,5 +35,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
-      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: pip install -r requirements.txt fastapi pytest pytest-asyncio
       - run: python -m unittest discover -s tests -v

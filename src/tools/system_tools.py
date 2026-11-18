@@ -16,15 +16,83 @@ from src.tools.args import (
 from src.tools.workspace import _get_workspace_root, set_workspace_root
 
 
+def _resolve_workspace_path(path: str | Path) -> Path:
+    """Resolve a path and reject anything outside the configured workspace."""
+    root = _get_workspace_root().expanduser().resolve()
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise PermissionError(f"Path is outside workspace: {path}") from exc
+    return resolved
+
+
+async def _read_capped_stream(reader, limit: int = 5 * 1024 * 1024) -> bytes:
+    """Drain a subprocess pipe while retaining at most limit bytes."""
+    chunks = []
+    remaining = limit
+    while chunk := await reader.read(65536):
+        if remaining:
+            kept = chunk[:remaining]
+            chunks.append(kept)
+            remaining -= len(kept)
+    return b"".join(chunks)
+
+
+async def _stop_process_group(process, streams_task) -> None:
+    """Terminate a command and its descendants, then drain pipes and reap it."""
+    import signal
+
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    except ProcessLookupError:
+        pass
+
+    try:
+        await asyncio.wait_for(asyncio.shield(streams_task), timeout=2)
+    except asyncio.TimeoutError:
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        await asyncio.gather(streams_task, return_exceptions=True)
+    await process.wait()
+
+
+def _is_sensitive_workspace_path(path: Path) -> bool:
+    """Avoid exposing common credential files through remote read tools."""
+    protected_parts = {".git", ".ssh", ".aws", ".gnupg"}
+    protected_names = {
+        ".env", ".npmrc", "credentials", "secrets",
+        "id_rsa", "id_ed25519",
+    }
+    lowered_parts = {part.lower() for part in path.parts}
+    name = path.name.lower()
+    return (
+        bool(lowered_parts & protected_parts)
+        or name in protected_names
+        or name.startswith(".env.")
+        or path.suffix.lower() in {".pem", ".key", ".p12", ".pfx"}
+    )
+
+
 # Tool Implementations
 def read_file(file_path: str) -> str:
     """Read a file using surgical truncation if it's too large."""
     from src.smart_context import read_file_surgical
-    p = Path(file_path).resolve()
-    root = _get_workspace_root()
     try:
-        if not str(p).startswith(str(root)):
-            return f"ERROR: Access denied. Path '{file_path}' is outside workspace."
+        p = _resolve_workspace_path(file_path)
+        if _is_sensitive_workspace_path(p):
+            return "ERROR: Access denied. Sensitive files are not available through remote read tools."
         if not p.exists():
             return f"ERROR: File '{file_path}' not found."
         return read_file_surgical(p, max_lines=500)
@@ -33,11 +101,8 @@ def read_file(file_path: str) -> str:
 
 def list_dir(dir_path: str = ".") -> str:
     try:
-        p = Path(dir_path).resolve()
-        root = _get_workspace_root()
-        if not str(p).startswith(str(root)):
-             return f"ERROR: Access denied. Path '{dir_path}' is outside workspace."
-        files = os.listdir(dir_path)
+        p = _resolve_workspace_path(dir_path)
+        files = os.listdir(p)
         entries = []
         for f in sorted(files):
             full = p / f
@@ -53,10 +118,7 @@ async def write_file(file_path: str, content: str, permission_mgr=None, checkpoi
     """Write content to a file with permission checks, checkpoints, and diffs."""
     from src.permissions import PermissionLevel
     try:
-        p = Path(file_path).resolve()
-        root = _get_workspace_root()
-        if not str(p).startswith(str(root)):
-            return f"ERROR: Access denied. Path '{file_path}' is outside workspace."
+        p = _resolve_workspace_path(file_path)
 
         if permission_mgr:
             perm = permission_mgr.classify_write(str(file_path))
@@ -99,16 +161,9 @@ async def write_file(file_path: str, content: str, permission_mgr=None, checkpoi
         return f"ERROR: {e}"
 
 async def shell_exec(command: str, permission_mgr=None) -> str:
-    """Execute a shell command with permission checks and resource limits."""
+    """Execute a locally approved shell command with bounded output and cleanup."""
     from src.permissions import PermissionLevel
-    
-    # Define resource limits (applied per-call, restored afterward)
-    _RLIMITS = {
-        "RLIMIT_CPU": 30,      # 30 seconds CPU time
-        "RLIMIT_AS": 256 * 1024 * 1024,      # 256MB virtual memory
-        "RLIMIT_NOFILE": 128,  # Max open file descriptors
-    }
-    
+
     try:
         if permission_mgr:
             perm = permission_mgr.classify_command(command)
@@ -116,54 +171,55 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
                 return f"DENIED: Command '{command}' is not allowed."
             if perm == PermissionLevel.ASK:
                 from colorama import Fore, Style
-                resp = input(f"  {Fore.YELLOW}Request Approval: Run command '{command}' (y/n/always): {Style.RESET_ALL}").lower()
-                if resp == "n":
+                resp = input(
+                    f"  {Fore.YELLOW}Request Approval: Run command "
+                    f"'{command}' (y/n/always): {Style.RESET_ALL}"
+                ).strip().lower()
+                if resp not in {"y", "yes", "always"}:
                     return "DENIED: User rejected command execution."
-                elif resp == "always":
+                if resp == "always":
                     permission_mgr.always_allow.add(command)
-        
-        # Apply resource limits with save/restore
-        import resource
-        _saved_limits = {}
-        for _rl_name, _rl_value in _RLIMITS.items():
-            _rl_const = getattr(resource, _rl_name, None)
-            if _rl_const is not None:
-                try:
-                    _saved_limits[_rl_const] = resource.getrlimit(_rl_const)
-                    resource.setrlimit(_rl_const, (_rl_value, _rl_value))
-                except (ValueError, resource.error):
-                    pass  # Silently skip limits that can't be set in this environment
-        
+
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(_get_workspace_root()),
+            start_new_session=(os.name == "posix"),
+        )
+        stdout_task = asyncio.create_task(_read_capped_stream(process.stdout))
+        stderr_task = asyncio.create_task(_read_capped_stream(process.stderr))
+        streams_task = asyncio.gather(stdout_task, stderr_task)
+
         try:
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(_get_workspace_root())
+            stdout, stderr = await asyncio.wait_for(
+                asyncio.shield(streams_task),
+                timeout=60,
             )
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-        finally:
-            # Restore original resource limits
-            for _rl_const, _saved in _saved_limits.items():
-                try:
-                    resource.setrlimit(_rl_const, _saved)
-                except Exception:
-                    pass
-        
-        output = ""
-        if stdout:
-            output += stdout.decode(errors="replace")
+            await process.wait()
+        except asyncio.TimeoutError:
+            await _stop_process_group(process, streams_task)
+            return "ERROR: Command timed out after 60 seconds; process group terminated."
+        except asyncio.CancelledError:
+            await _stop_process_group(process, streams_task)
+            raise
+
+        output = stdout.decode(errors="replace")
         if stderr:
             output += f"\nSTDERR: {stderr.decode(errors='replace')}"
         output += f"\n[Exit code: {process.returncode}]"
-
         if len(output) > 10000:
-            output = output[:4000] + f"\n\n[... {len(output) - 8000} chars truncated ...]\n\n" + output[-4000:]
+            output = (
+                output[:4000]
+                + f"\n\n[... {len(output) - 8000} characters omitted ...]\n\n"
+                + output[-4000:]
+            )
+        if len(stdout) >= 5 * 1024 * 1024 or len(stderr) >= 5 * 1024 * 1024:
+            output += "\n[Output capture limited to 5 MiB per stream.]"
         return output or "(no output)"
-    except asyncio.TimeoutError:
-        return "ERROR: Command timed out after 60 seconds."
-    except Exception as e:
-        return f"ERROR: {e}"
+    except Exception as exc:
+        return f"ERROR: {exc}"
+
 
 async def git_tool(command: str, message: Optional[str] = None) -> str:
     try:
@@ -234,10 +290,7 @@ async def code_search(pattern: str, path: str = ".") -> str:
 async def file_patch(file_path: str, search_text: str, replace_text: str, checkpoint_mgr=None, diff_engine=None) -> str:
     """Apply a surgical text replacement in a file with checkpoints and diffs."""
     try:
-        p = Path(file_path).resolve()
-        root = _get_workspace_root()
-        if not str(p).startswith(str(root)):
-            return "ERROR: Access denied. Path outside workspace."
+        p = _resolve_workspace_path(file_path)
         if not p.exists():
             return f"ERROR: File '{file_path}' not found."
 

@@ -69,10 +69,12 @@ textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:tran
    error.textContent='';
    try{
      const base=apiBase();
+     const apiKey=key.value.trim();
+     if(!apiKey)throw new Error('Enter your WW API key before connecting.');
      sessionStorage.setItem('ww-api-url',base);
-     sessionStorage.setItem('ww-api-key',key.value.trim());
+     sessionStorage.setItem('ww-api-key',apiKey);
      status.textContent='Connecting…';
-     const response=await fetch(base+'/api/v1/health');
+     const response=await fetch(base+'/api/v1/health',{headers:{'X-API-Key':apiKey}});
      if(!response.ok)throw new Error('WW API health check returned HTTP '+response.status+'.');
      const data=await response.json();
      status.textContent='Connected · '+(data.version||'WW');

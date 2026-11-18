@@ -16,10 +16,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install core dependencies
+      - name: Install core and dashboard test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt fastapi
       - name: Compile the core entry points
         run: python -m compileall -q src gemini_bridge.py
       - name: Test Markdown and elicitation rendering

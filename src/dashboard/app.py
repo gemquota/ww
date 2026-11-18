@@ -17,7 +17,7 @@ try:
     from fastapi import FastAPI, HTTPException, Security
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse
-    from pydantic import BaseModel
+    from pydantic import BaseModel, Field
     from src.utils.web_client import WebGeminiClient
     from src.telemetry import TelemetryManager
     from dotenv import load_dotenv
@@ -56,7 +56,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-API-Key"],
 )
 
-WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd()))
+WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd())).expanduser().resolve()
+from src.tools.workspace import set_workspace_root
+
+set_workspace_root(WORKSPACE_ROOT)
 
 
 class ChatRequest(BaseModel):
@@ -78,17 +81,12 @@ from src.core.api_keys import APIKeyManager
 
 
 # API Versioning & Rate Limiting
-from src.dashboard.routes_auth import rate_limit_middleware, api_versioning_redirect
+from src.dashboard.routes_auth import dispatch_request
 from src.core.api_keys import APIKeyManager
 
 @app.middleware("http")
 async def api_versioning_and_rate_limit(request, call_next):
-    # API versioning first
-    redirect = await api_versioning_redirect(request, call_next)
-    if redirect.status_code in (307, 308):
-        return redirect
-    # Then rate limiting
-    return await rate_limit_middleware(request, call_next)
+    return await dispatch_request(request, call_next)
 @app.get("/memory/graph/{session_id}", dependencies=[Security(verify_api_key)])
 async def get_memory_graph(session_id: int):
     """Get the Persistent Cognitive Graph (PCG) for a session."""
@@ -131,14 +129,13 @@ async def get_memory_graph(session_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", dependencies=[Security(verify_api_key)])
 async def health():
     """Bridge health check endpoint."""
     db_exists = get_db_path().exists()
     return {
         "status": "ok",
         "version": "0.2.0",
-        "workspace": str(WORKSPACE_ROOT),
         "database": "connected" if db_exists else "no sessions yet"
     }
 
@@ -279,7 +276,7 @@ async def stats():
 
 class ToolExecuteRequest(BaseModel):
     tool: str
-    args: dict = {}
+    args: dict = Field(default_factory=dict)
 
 
 @app.post("/tools/execute", dependencies=[Security(verify_api_key)])
@@ -294,25 +291,26 @@ async def execute_tool(request: ToolExecuteRequest):
         Tool output as JSON.
     """
     from src.tools.registry import ToolRegistry
-    from src.tools.system_tools import (
-        read_file, write_file, list_dir, shell_exec, git_tool,
-        doc_search, request_clarification, code_search, file_patch, url_fetch,
-        ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
-        GitArgs, DocSearchArgs, ClarificationArgs,
-        CodeSearchArgs, FilePatchArgs, UrlFetchArgs
-    )
+    from src.tools.system_tools import read_file, list_dir
+    from src.tools.args import ReadFileArgs, ListDirArgs
     
+    # Remote tool execution is deliberately opt-in. The initial browser API
+    # surface is read-only; shell, git, writes and other powerful tools remain
+    # unavailable until a separate approval and isolation design is deployed.
+    if os.getenv("WW_REMOTE_TOOLS_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Remote tools are disabled. Set WW_REMOTE_TOOLS_ENABLED=1 to enable the restricted read-only tool API.",
+        )
+    if request.tool not in {"read_file", "list_dir"}:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Remote tool '{request.tool}' is not exposed by the restricted browser API.",
+        )
+
     registry = ToolRegistry()
-    registry.register("read_file", read_file, "Read contents of a file.", ReadFileArgs)
-    registry.register("write_file", write_file, "Write contents to a file.", WriteFileArgs)
-    registry.register("list_dir", list_dir, "List files in a directory.", ListDirArgs)
-    registry.register("shell_exec", shell_exec, "Execute a shell command.", ShellExecArgs)
-    registry.register("git", git_tool, "Execute git commands.", GitArgs)
-    registry.register("doc_search", doc_search, "Search project documentation.", DocSearchArgs)
-    registry.register("request_clarification", request_clarification, "Ask user for clarification.", ClarificationArgs)
-    registry.register("code_search", code_search, "Search for regex pattern across files.", CodeSearchArgs)
-    registry.register("file_patch", file_patch, "Apply surgical text replacement.", FilePatchArgs)
-    registry.register("url_fetch", url_fetch, "Fetch a URL via HTTP GET.", UrlFetchArgs)
+    registry.register("read_file", read_file, "Read contents of a workspace file.", ReadFileArgs)
+    registry.register("list_dir", list_dir, "List workspace directory contents.", ListDirArgs)
     
     try:
         result = await registry.execute(request.tool, request.args)
