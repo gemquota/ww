@@ -17,7 +17,7 @@ try:
     from fastapi import FastAPI, HTTPException, Security
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse
-    from pydantic import BaseModel
+    from pydantic import BaseModel, Field
     from src.utils.web_client import WebGeminiClient
     from src.telemetry import TelemetryManager
     from dotenv import load_dotenv
@@ -56,7 +56,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-API-Key"],
 )
 
-WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd()))
+WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd())).expanduser().resolve()
+from src.tools.workspace import set_workspace_root
+
+set_workspace_root(WORKSPACE_ROOT)
 
 
 class ChatRequest(BaseModel):
@@ -274,7 +277,7 @@ async def stats():
 
 class ToolExecuteRequest(BaseModel):
     tool: str
-    args: dict = {}
+    args: dict = Field(default_factory=dict)
 
 
 @app.post("/tools/execute", dependencies=[Security(verify_api_key)])
