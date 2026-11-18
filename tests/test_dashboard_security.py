@@ -9,7 +9,11 @@ from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.dashboard import routes_auth
-from src.tools.system_tools import _read_capped_stream, _resolve_workspace_path
+from src.tools.system_tools import (
+    _is_sensitive_workspace_path,
+    _read_capped_stream,
+    _resolve_workspace_path,
+)
 
 
 class DashboardAuthenticationTests(unittest.IsolatedAsyncioTestCase):
@@ -94,6 +98,13 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             with patch("src.tools.system_tools._get_workspace_root", return_value=root):
                 with self.assertRaises(PermissionError):
                     _resolve_workspace_path("escape/secret.txt")
+
+    def test_remote_read_guard_rejects_credentials_and_git_metadata(self):
+        self.assertTrue(_is_sensitive_workspace_path(Path("/workspace/.env")))
+        self.assertTrue(_is_sensitive_workspace_path(Path("/workspace/.env.production")))
+        self.assertTrue(_is_sensitive_workspace_path(Path("/workspace/.ssh/id_ed25519")))
+        self.assertTrue(_is_sensitive_workspace_path(Path("/workspace/.git/config")))
+        self.assertFalse(_is_sensitive_workspace_path(Path("/workspace/src/main.py")))
 
     def test_subprocess_output_reader_caps_retained_bytes(self):
         import asyncio
