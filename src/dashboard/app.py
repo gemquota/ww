@@ -144,6 +144,13 @@ async def chat(request: ChatRequest):
             if not await client.init():
                 raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
             _browser_clients[session_name] = client
+            # Bound in-memory browser sessions so abandoned tabs cannot grow this cache forever.
+            while len(_browser_clients) > 64:
+                oldest_session = next(iter(_browser_clients))
+                if oldest_session == session_name:
+                    break
+                _browser_clients.pop(oldest_session, None)
+                _browser_client_locks.pop(oldest_session, None)
         try:
             prompt = request.message
             if getattr(client, "_use_api_key", False) and request.history:
