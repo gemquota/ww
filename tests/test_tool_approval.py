@@ -42,6 +42,16 @@ class LocalApprovalControllerTests(unittest.TestCase):
         )
         self.assertTrue(controller.authorize("read_file", {"file_path": "README.md"}))
 
+    def test_git_registry_alias_requires_local_approval(self):
+        prompts = []
+        controller = LocalApprovalController(
+            prompt=lambda prompt: prompts.append(prompt) or "y",
+            output=lambda _: None,
+        )
+        self.assertTrue(controller.authorize("git", {"command": "status"}))
+        self.assertEqual(len(prompts), 1)
+
+
     def test_write_requires_explicit_local_yes_and_shows_exact_arguments(self):
         with tempfile.TemporaryDirectory() as workspace:
             previews = []
