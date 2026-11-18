@@ -841,15 +841,16 @@ async def main():
                     )
                     for output_line in str(shell_output).splitlines() or ["(no output)"]:
                         print(f"  {output_line}")
+                    telemetry.log_interaction("system", str(shell_output), "terminal_output")
                 except Exception as shell_error:
                     print(f"  {Fore.RED}Terminal error: {shell_error}{Style.RESET_ALL}")
-                print()
+                    telemetry.log_interaction("system", str(shell_error), "terminal_error")
                 telemetry.log_interaction("user", user_input, "terminal_command")
-                telemetry.log_interaction("system", str(shell_output) if "shell_output" in locals() else str(shell_error), "terminal_output")
+                print()
                 continue
 
-            # Render one formatted transcript entry; don't leave the raw prompt echo behind.
-            print(f"\\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\\n")
+            # The prompt echo is erased; render one formatted transcript entry.
+            print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\n")
             if cmd.lower() in ('exit', 'quit'):
                 telemetry.end_session(summary="User exited.")
                 break
