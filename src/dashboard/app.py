@@ -289,13 +289,8 @@ async def execute_tool(request: ToolExecuteRequest):
         Tool output as JSON.
     """
     from src.tools.registry import ToolRegistry
-    from src.tools.system_tools import (
-        read_file, write_file, list_dir, shell_exec, git_tool,
-        doc_search, request_clarification, code_search, file_patch, url_fetch,
-        ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
-        GitArgs, DocSearchArgs, ClarificationArgs,
-        CodeSearchArgs, FilePatchArgs, UrlFetchArgs
-    )
+    from src.tools.system_tools import read_file, list_dir
+    from src.tools.args import ReadFileArgs, ListDirArgs
     
     # Remote tool execution is deliberately opt-in. The initial browser API
     # surface is read-only; shell, git, writes and other powerful tools remain
@@ -312,16 +307,8 @@ async def execute_tool(request: ToolExecuteRequest):
         )
 
     registry = ToolRegistry()
-    registry.register("read_file", read_file, "Read contents of a file.", ReadFileArgs)
-    registry.register("write_file", write_file, "Write contents to a file.", WriteFileArgs)
-    registry.register("list_dir", list_dir, "List files in a directory.", ListDirArgs)
-    registry.register("shell_exec", shell_exec, "Execute a shell command.", ShellExecArgs)
-    registry.register("git", git_tool, "Execute git commands.", GitArgs)
-    registry.register("doc_search", doc_search, "Search project documentation.", DocSearchArgs)
-    registry.register("request_clarification", request_clarification, "Ask user for clarification.", ClarificationArgs)
-    registry.register("code_search", code_search, "Search for regex pattern across files.", CodeSearchArgs)
-    registry.register("file_patch", file_patch, "Apply surgical text replacement.", FilePatchArgs)
-    registry.register("url_fetch", url_fetch, "Fetch a URL via HTTP GET.", UrlFetchArgs)
+    registry.register("read_file", read_file, "Read contents of a workspace file.", ReadFileArgs)
+    registry.register("list_dir", list_dir, "List workspace directory contents.", ListDirArgs)
     
     try:
         result = await registry.execute(request.tool, request.args)
