@@ -4,7 +4,7 @@ from __future__ import annotations
 import hmac
 import os
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 
 from fastapi import HTTPException, Security, status
 from fastapi.responses import RedirectResponse
@@ -15,7 +15,8 @@ api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
 RATE_LIMIT_DEFAULT = 100  # requests per minute per client address
 _RATE_WINDOW_SECONDS = 60
-_rate_limit_store: dict[str, deque[float]] = defaultdict(deque)
+_MAX_RATE_LIMIT_CLIENTS = 4096
+_rate_limit_store: OrderedDict[str, deque[float]] = OrderedDict()
 _last_prune = 0.0
 
 
@@ -52,7 +53,13 @@ async def rate_limit_middleware(request, call_next):
 
     client_ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
-    entries = _rate_limit_store[client_ip]
+    entries = _rate_limit_store.get(client_ip)
+    if entries is None:
+        if len(_rate_limit_store) >= _MAX_RATE_LIMIT_CLIENTS:
+            _rate_limit_store.popitem(last=False)
+        entries = deque()
+        _rate_limit_store[client_ip] = entries
+    _rate_limit_store.move_to_end(client_ip)
     while entries and now - entries[0] >= _RATE_WINDOW_SECONDS:
         entries.popleft()
 
