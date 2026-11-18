@@ -7,7 +7,7 @@ Provides:
   - GET  /sessions        — list all sessions
   - GET  /stats           — telemetry event timeline + tool usage stats
 """
-import sys, os, json, sqlite3, datetime, asyncio
+import sys, os, json, sqlite3, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -172,7 +172,7 @@ async def chat(request: ChatRequest):
             prompt = request.message
             if getattr(client, "_use_api_key", False) and request.history:
                 turns = request.history[-40:]
-                prompt = "\\n\\n".join(
+                prompt = "\n\n".join(
                     f"{'User' if item.get('role') == 'user' else 'Assistant'}: {item.get('content', '')[:12000]}"
                     for item in turns if item.get("role") in ("user", "assistant")
                 )
