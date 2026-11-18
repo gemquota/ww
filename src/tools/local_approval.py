@@ -51,25 +51,25 @@ class LocalApprovalController:
 
         # Retain the existing hard-deny path checks, but do not rely on its
         # softer on-request/always prompt policy as the approval mechanism.
-        if permission_mgr is not None:
-            if canonical_name in {"write_file", "file_patch"}:
-                file_path = arguments.get("file_path")
-                if not isinstance(file_path, str) or not file_path:
-                    self.output("DENIED: A valid file_path is required for this operation.")
-                    return False
-                if permission_mgr.classify_write(file_path) is PermissionLevel.DENY:
-                    self.output(f"DENIED: The target path is protected: {file_path}")
-                    return False
-            elif canonical_name == "shell_exec":
-                command = arguments.get("command")
-                if not isinstance(command, str) or not command:
-                    self.output("DENIED: A non-empty command is required.")
-                    return False
-                if permission_mgr.classify_command(command) is PermissionLevel.DENY:
-                    self.output("DENIED: The command matches a hard-deny rule.")
-                    return False
-
         try:
+            if permission_mgr is not None:
+                if canonical_name in {"write_file", "file_patch"}:
+                    file_path = arguments.get("file_path")
+                    if not isinstance(file_path, str) or not file_path:
+                        self.output("DENIED: A valid file_path is required for this operation.")
+                        return False
+                    if permission_mgr.classify_write(file_path) is PermissionLevel.DENY:
+                        self.output(f"DENIED: The target path is protected: {file_path}")
+                        return False
+                elif canonical_name == "shell_exec":
+                    command = arguments.get("command")
+                    if not isinstance(command, str) or not command:
+                        self.output("DENIED: A non-empty command is required.")
+                        return False
+                    if permission_mgr.classify_command(command) is PermissionLevel.DENY:
+                        self.output("DENIED: The command matches a hard-deny rule.")
+                        return False
+
             request = self.ledger.request(
                 session_id=self.session_id,
                 tool_name=canonical_name,
