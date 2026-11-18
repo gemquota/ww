@@ -64,26 +64,26 @@ def extract_tool_blocks(response_text: str) -> List[tuple[str, str]]:
     body: List[str] = []
 
     for line in (response_text or "").splitlines():
-        opener = re.match(r"^ {0,3}(\\x60{3,}|~{3,})(.*)$", line)
+        opener = re.match(r"^ {0,3}(\x60{3,}|~{3,})(.*)$", line)
         if fence_char is None:
             if not opener:
                 continue
             marker, info = opener.groups()
             fence_char = marker[0]
             fence_length = len(marker)
-            tool_match = re.fullmatch(r"tool:(\\w+)(?:\\s+.*)?", info.strip())
+            tool_match = re.fullmatch(r"tool:(\w+)(?:\s+.*)?", info.strip())
             active_tool = tool_match.group(1) if tool_match else None
             body = []
             continue
 
-        closer = re.match(r"^ {0,3}(\\x60+|~+)\\s*$", line)
+        closer = re.match(r"^ {0,3}(\x60+|~+)\s*$", line)
         if (
             closer
             and closer.group(1)[0] == fence_char
             and len(closer.group(1)) >= fence_length
         ):
             if active_tool:
-                blocks.append((active_tool, "\\n".join(body).strip("\\n")))
+                blocks.append((active_tool, "\n".join(body).strip("\n")))
             fence_char = None
             fence_length = 0
             active_tool = None
@@ -93,7 +93,6 @@ def extract_tool_blocks(response_text: str) -> List[tuple[str, str]]:
 
     # An unclosed fence is deliberately ignored: partial output is not executable.
     return blocks
-
 
 def log_status(emoji: str, title: str, detail: str = "", telemetry: Optional[TelemetryManager] = None) -> None:
     """Utility for status logging during tool execution."""
