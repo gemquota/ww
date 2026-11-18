@@ -146,6 +146,14 @@ class ToolExecutor:
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self.max_concurrency = max_concurrency
         self.prompt_registry = create_default_registry()
+        # Bound autonomous tool feedback so a malformed or unproductive model
+        # response cannot recurse forever or consume an unlimited command budget.
+        self.MAX_TOOL_ROUNDS = 12
+        self.MAX_TOOL_CALLS = 32
+        self.MAX_FEEDBACK_CHARS = 12000
+        self._loop_active = False
+        self._loop_round = 0
+        self._tool_call_count = 0
 
     # ── Public entry point ──────────────────────────────────────────
 
@@ -155,12 +163,63 @@ class ToolExecutor:
         chat_context: Dict[str, Any],
         safe_send_message: callable,
     ) -> bool:
-        """Parse tool blocks from response_text and dispatch each."""
+        """Run a bounded Gemini -> tools -> Gemini feedback loop."""
+        is_root_call = not self._loop_active
+        if is_root_call:
+            self._loop_active = True
+            self._loop_round = 0
+            self._tool_call_count = 0
+
+        if self._loop_round >= self.MAX_TOOL_ROUNDS:
+            log_status(
+                "⚠️", "Execution loop limit reached",
+                f"stopped after {self.MAX_TOOL_ROUNDS} feedback rounds",
+                telemetry=self.telemetry,
+            )
+            if is_root_call:
+                self._loop_active = False
+            return False
+
+        self._loop_round += 1
+        try:
+            return await self._execute_round(
+                response_text, chat_context, safe_send_message
+            )
+        finally:
+            if is_root_call:
+                self._loop_active = False
+                self._loop_round = 0
+                self._tool_call_count = 0
+
+    async def _execute_round(
+        self,
+        response_text: str,
+        chat_context: Dict[str, Any],
+        safe_send_message: callable,
+    ) -> bool:
+        """Parse and dispatch one model response's tool blocks."""
         blocks = re.findall(
             r"```tool:(\w+)\s*\n?(.*?)\n?```", response_text, re.DOTALL
         )
         if not blocks:
             return False
+
+        available_calls = self.MAX_TOOL_CALLS - self._tool_call_count
+        if available_calls <= 0:
+            log_status(
+                "⚠️", "Execution command limit reached",
+                f"stopped after {self.MAX_TOOL_CALLS} tool calls",
+                telemetry=self.telemetry,
+            )
+            return False
+        if len(blocks) > available_calls:
+            log_status(
+                "⚠️", "Trimming tool batch",
+                f"only {available_calls} of {len(blocks)} calls remain in this task",
+                telemetry=self.telemetry,
+            )
+            blocks = blocks[:available_calls]
+        self._tool_call_count += len(blocks)
 
         agents_dir = self.workspace_root / "agents"
         known_agents = (
@@ -391,19 +450,31 @@ class ToolExecutor:
             if self.verbose_mode:
                 print(f"  {Fore.YELLOW}{result}{Style.RESET_ALL}")
 
+        bounded_output = tool_output
+        if len(bounded_output) > self.MAX_FEEDBACK_CHARS:
+            bounded_output = (
+                bounded_output[: self.MAX_FEEDBACK_CHARS - 120]
+                + "\n[OUTPUT TRUNCATED BEFORE SENDING TO GEMINI]"
+            )
         feedback_msg = (
-            f"TOOL_OUTPUT ({tool.upper()}):\n{tool_output}\n\n"
-            f"[AUTO-PROCEED]: Continuing task execution..."
+            f"TOOL_OUTPUT ({tool.upper()}):\n{bounded_output}\n\n"
+            f"[AUTO-PROCEED]: Interpret this result, then continue the task. "
+            f"Use another tool block if more work is required; otherwise give the final answer."
         )
         response = await safe_send_message(chat_context["chat"], feedback_msg)
-        self.conversation.add_turn("assistant", response.text)
+        response_text = getattr(response, "text", "") or ""
+        self.conversation.add_turn("assistant", response_text)
 
-        if self.verbose_mode:
+        if response_text and not re.search(r"\x60\x60\x60tool:\\w+", response_text):
+            print(f"\n{response_text}\n")
+
+        if self.verbose_mode and response_text:
             print(
-                f"  {Fore.WHITE}[Feedback Response]: {response.text[:200]}...{Style.RESET_ALL}"
+                f"  {Fore.WHITE}[Feedback Response]: {response_text[:200]}...{Style.RESET_ALL}"
             )
 
-        await self.execute(response.text, chat_context, safe_send_message)
+        if response_text:
+            await self.execute(response_text, chat_context, safe_send_message)
 
     # ── Field parsing ───────────────────────────────────────────────
 
