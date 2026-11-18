@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - run: pip install -r requirements.txt pytest pytest-asyncio
-      - run: python -m pytest .tests/test_core.py .tests/test_tools.py .tests/test_v5_implementations.py -v --tb=short
+      - run: python -m unittest discover -s tests -v
 
   integration:
     if: github.event.pull_request.draft == false
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - run: pip install -r requirements.txt pytest pytest-asyncio
-      - run: python -m pytest .tests/test_integration.py .tests/test_hard_v5.py -v --tb=short
+      - run: python -m unittest discover -s tests -v
 
   quality:
     if: contains(github.event.pull_request.labels.*.name, 'quality')
@@ -36,4 +36,4 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - run: pip install -r requirements.txt pytest pytest-asyncio
-      - run: python -m pytest .tests/test_quality_10dim.py .tests/test_evaluation_quality.py -v --tb=short
+      - run: python -m unittest discover -s tests -v

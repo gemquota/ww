@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>WW · Neural Bridge</title>
+<style>
+:root{color-scheme:dark;--bg:#090d16;--panel:#111827;--panel2:#172235;--line:#263449;--text:#e8eef8;--muted:#91a1b8;--cyan:#5ce1e6;--green:#8ce99a;--red:#ff8787}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#172b42 0%,var(--bg) 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(18px,calc((100vw - 1000px)/2));background:#090d16cc;backdrop-filter:blur(12px)}
+.brand{font-weight:750;letter-spacing:.08em}.brand span{color:var(--cyan)}.status{font-size:12px;color:var(--muted)}.status:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px}
+main{width:min(900px,100%);margin:0 auto;flex:1;display:flex;flex-direction:column;padding:24px 16px 18px;min-height:0}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px}.toolbar input{min-width:0;flex:1}
+input,textarea,button{font:inherit;color:inherit;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:11px 13px}
+input:focus,textarea:focus{outline:1px solid var(--cyan);border-color:var(--cyan)}
+button{cursor:pointer;background:var(--panel2)}button.primary{background:#087e88;border-color:#139ba5;font-weight:650}button:disabled{opacity:.45;cursor:not-allowed}
+#messages{flex:1;min-height:250px;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:8px 2px 20px}
+.message{max-width:90%;border:1px solid var(--line);border-radius:14px;padding:12px 15px;white-space:pre-wrap;overflow-wrap:anywhere}
+.message.user{align-self:flex-end;background:#12313b;border-color:#1b5961}.message.assistant{align-self:flex-start;background:var(--panel)}.message .role{font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:700;margin-bottom:5px}
+.composer{border:1px solid var(--line);background:#0e1725;border-radius:15px;padding:10px;display:flex;gap:10px;align-items:flex-end}
+textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:transparent;border:0;padding:8px;outline:none}
+.composer button{min-width:84px}.hint{color:var(--muted);font-size:11px;margin:8px 4px 0}
+#error{color:var(--red);font-size:13px;min-height:20px;padding:5px 4px}
+@media(max-width:600px){header{height:56px}.toolbar{flex-wrap:wrap}.toolbar input{flex-basis:100%}.message{max-width:96%}main{padding:14px 10px}.composer button{min-width:68px;padding:10px}}
+</style>
+</head>
+<body>
+<header><div class="brand">🧠 WW <span>NEURAL BRIDGE</span></div><div class="status" id="status">Ready</div></header>
+<main>
+  <div class="toolbar">
+    <input id="apiKey" type="password" autocomplete="off" placeholder="Dashboard API key (if configured)" aria-label="Dashboard API key">
+    <button id="saveKey" type="button">Connect</button>
+    <button id="clear" type="button" title="Clear this conversation">Clear</button>
+  </div>
+  <section id="messages" aria-live="polite">
+    <div class="message assistant"><div class="role">WW</div>Bridge interface ready. Enter a message below to start a conversation.</div>
+  </section>
+  <div id="error" role="alert"></div>
+  <form class="composer" id="composer">
+    <textarea id="message" rows="1" placeholder="Message WW… (Enter to send, Shift+Enter for newline)" aria-label="Message"></textarea>
+    <button class="primary" id="send" type="submit">Send ↑</button>
+  </form>
+  <div class="hint">Messages are sent to the configured WW dashboard API. The API key stays in this browser tab's session storage.</div>
+</main>
+<script>
+(() => {
+ const $=id=>document.getElementById(id);
+ const key=$('apiKey'),messages=$('messages'),input=$('message'),send=$('send'),status=$('status'),error=$('error');
+ const newSession=()=>('browser-'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()));
+ let sessionName=sessionStorage.getItem('ww-chat-session')||newSession();
+ sessionStorage.setItem('ww-chat-session',sessionName);
+ const history=[]; 
+ key.value=sessionStorage.getItem('ww-api-key')||'';
+ $('saveKey').addEventListener('click',()=>{sessionStorage.setItem('ww-api-key',key.value.trim());error.textContent='';status.textContent='Key saved for this tab';});
+ $('clear').addEventListener('click',()=>{messages.replaceChildren();history.length=0;sessionName=newSession();sessionStorage.setItem('ww-chat-session',sessionName);addMessage('assistant','Conversation cleared.');});
+ function addMessage(role,text){const el=document.createElement('article');el.className='message '+role;const label=document.createElement('div');label.className='role';label.textContent=role==='user'?'YOU':'WW';const body=document.createElement('div');body.textContent=text;el.append(label,body);messages.append(el);messages.scrollTop=messages.scrollHeight;return body;}
+ async function submit(){const text=input.value.trim();if(!text||send.disabled)return;error.textContent='';addMessage('user',text);history.push({role:'user',content:text});input.value='';send.disabled=true;status.textContent='Thinking…';const pending=addMessage('assistant','');pending.textContent='…';
+ try{const headers={'Content-Type':'application/json'};const apiKey=key.value.trim();if(apiKey)headers['X-API-Key']=apiKey;
+ const response=await fetch('/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:sessionName,history})});
+ const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));
+ if(!response.ok)throw new Error(data.detail||('HTTP '+response.status));
+ pending.textContent=data.response||'(empty response)';history.push({role:'assistant',content:pending.textContent});status.textContent='Connected';
+ }catch(e){pending.textContent='';pending.remove();error.textContent=e.message;status.textContent='Connection error';}
+ finally{send.disabled=false;input.focus();messages.scrollTop=messages.scrollHeight;}}
+ $('composer').addEventListener('submit',e=>{e.preventDefault();submit();});
+ input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+})();
+</script>
+</body>
+</html>

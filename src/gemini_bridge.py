@@ -96,7 +96,7 @@ from src.config import get_settings
 
 
 # UI Imports
-from prompt_toolkit import PromptSession
+from src.prompting import create_terminal_session
 from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style as PtStyle
@@ -756,7 +756,7 @@ async def main():
     from prompt_toolkit.history import FileHistory
     _hist_path = WORKSPACE_ROOT / ".ww" / "history.txt"
     _hist_path.parent.mkdir(parents=True, exist_ok=True)
-    session = PromptSession(
+    session = create_terminal_session(
         style=pt_style,
         key_bindings=kb,
         mouse_support=False,
@@ -800,6 +800,7 @@ async def main():
         print(f"    Bridge init:    {_t_init - _t_before_init:.2f}s")
         print(f"    Tool executor:  {_t_executor - _t_init:.2f}s")
         print(f"    Total startup:  {_t_done - _t0:.2f}s")
+    print(f"  {Fore.WHITE}Multiline input: Enter adds a line; Esc+Enter submits the whole message.{Style.RESET_ALL}")
     print(f"\n  {Fore.WHITE}Commands: /tokens /undo /compact /reload /init /verbose /policy /history /save /load /sessions /memory /export exit{Style.RESET_ALL}")
     print(f"  {Fore.WHITE}Policy: {permission_mgr.policy.value} | Workspace: {WORKSPACE_ROOT}{Style.RESET_ALL}\n")
 
@@ -817,10 +818,38 @@ async def main():
                 f'<style fg="#30363d">\ue0b0</style> '
             )
 
-            user_input = await session.prompt_async(prompt_html, bottom_toolbar=get_bottom_toolbar)
+            # Erase the raw prompt line after submission. The conversation transcript
+            # below is the single, consistently formatted rendering of the user turn.
+            user_input = await session.prompt_async(
+                prompt_html,
+                bottom_toolbar=get_bottom_toolbar,
+                erase_when_done=True,
+            )
             if not user_input: continue
-            
+
             cmd = user_input.strip()
+            if cmd.startswith(("/sh ", "/shell ")):
+                shell_command = cmd.split(" ", 1)[1].strip()
+                if not shell_command:
+                    print(f"  {Fore.YELLOW}Usage: /sh <command>{Style.RESET_ALL}")
+                    continue
+                print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}")
+                print(f"  {Fore.MAGENTA}⌘ Terminal:{Style.RESET_ALL} {shell_command}")
+                try:
+                    shell_output = await shell_exec(
+                        shell_command,
+                        permission_mgr=permission_mgr,
+                    )
+                    for output_line in str(shell_output).splitlines() or ["(no output)"]:
+                        print(f"  {output_line}")
+                    telemetry.log_interaction("system", str(shell_output), "terminal_output")
+                except Exception as shell_error:
+                    print(f"  {Fore.RED}Terminal error: {shell_error}{Style.RESET_ALL}")
+                    telemetry.log_interaction("system", str(shell_error), "terminal_error")
+                telemetry.log_interaction("user", user_input, "terminal_command")
+                print()
+                continue
+
             if cmd.lower() in ('exit', 'quit'):
                 telemetry.end_session(summary="User exited.")
                 break
@@ -873,6 +902,8 @@ async def main():
                     print(f"  Valid commands: tokens, undo, compact, reload, init, verbose, history, memory, save, load, sessions, export, policy, plugins")
                     continue
 
+            # The prompt echo is erased; render one formatted transcript entry.
+            print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\n")
             telemetry.log_interaction("user", user_input)
             conversation.add_turn("user", user_input)
             memory.add_turn("user", user_input)
