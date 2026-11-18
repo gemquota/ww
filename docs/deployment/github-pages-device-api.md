@@ -71,6 +71,7 @@ shows a successful connection.
 
 - `WW_DASHBOARD_API_KEY` is mandatory for the health check, chat and protected
   endpoints. If it is missing, protected routes fail closed with HTTP 503.
+- For zero-downtime key rotation, set `WW_DASHBOARD_API_KEYS` to a comma-separated overlap of active keys, deploy/restart WW, update browser clients to the new key, then remove the old key. The legacy singular `WW_DASHBOARD_API_KEY` remains accepted.
 - The browser sends the API key with its health check, so a successful
   connection confirms both reachability and authentication.
 - CORS is a browser-origin policy, not authentication. The API key is still
