@@ -55,6 +55,7 @@ class LocalApprovalController:
             self.output("DENIED: The local permission manager is unavailable.")
             return False
 
+        request_id = None
         try:
             if permission_mgr is not None:
                 if canonical_name in {"write_file", "file_patch"}:
@@ -79,6 +80,7 @@ class LocalApprovalController:
                 tool_name=canonical_name,
                 arguments=arguments,
             )
+            request_id = request.request_id
             preview = json.dumps(
                 arguments,
                 sort_keys=True,
@@ -96,6 +98,7 @@ class LocalApprovalController:
             self.output("╰───────────────────────────────────────────────────")
             decision = self.prompt("Approve this exact operation? [y/N] ").strip().lower()
             if decision not in {"y", "yes"}:
+                self.ledger.reject(request_id)
                 return False
 
             grant = self.ledger.approve(request.request_id)
@@ -106,8 +109,12 @@ class LocalApprovalController:
                 arguments=arguments,
             )
         except (EOFError, KeyboardInterrupt):
+            if request_id:
+                self.ledger.reject(request_id)
             self.output("DENIED: No local approval decision was received.")
             return False
         except Exception as exc:
+            if request_id:
+                self.ledger.reject(request_id)
             self.output(f"DENIED: Approval could not be completed ({exc}).")
             return False
