@@ -27,15 +27,16 @@ async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
     WW_DASHBOARD_API_KEYS supports overlap during rotation; the singular
     WW_DASHBOARD_API_KEY remains supported for existing installations.
     """
-    configured = os.getenv("WW_DASHBOARD_API_KEYS", "")
-    expected_keys = [
-        value.strip()
-        for value in configured.split(",")
-        if value.strip()
-    ]
-    legacy_key = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
-    if legacy_key:
-        expected_keys.append(legacy_key)
+    configured = os.getenv("WW_DASHBOARD_API_KEYS", "").strip()
+    if configured:
+        expected_keys = [
+            value.strip()
+            for value in configured.split(",")
+            if value.strip()
+        ]
+    else:
+        legacy_key = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
+        expected_keys = [legacy_key] if legacy_key else []
 
     if not expected_keys:
         raise HTTPException(
