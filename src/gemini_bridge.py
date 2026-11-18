@@ -817,10 +817,39 @@ async def main():
                 f'<style fg="#30363d">\ue0b0</style> '
             )
 
-            user_input = await session.prompt_async(prompt_html, bottom_toolbar=get_bottom_toolbar)
+            # Erase the raw prompt line after submission. The conversation transcript
+            # below is the single, consistently formatted rendering of the user turn.
+            user_input = await session.prompt_async(
+                prompt_html,
+                bottom_toolbar=get_bottom_toolbar,
+                erase_when_done=True,
+            )
             if not user_input: continue
-            
+
             cmd = user_input.strip()
+            if cmd.startswith(("/sh ", "/shell ")):
+                shell_command = cmd.split(" ", 1)[1].strip()
+                if not shell_command:
+                    print(f"  {Fore.YELLOW}Usage: /sh <command>{Style.RESET_ALL}")
+                    continue
+                print(f"\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}")
+                print(f"  {Fore.MAGENTA}⌘ Terminal:{Style.RESET_ALL} {shell_command}")
+                try:
+                    shell_output = await shell_exec(
+                        shell_command,
+                        permission_mgr=permission_mgr,
+                    )
+                    for output_line in str(shell_output).splitlines() or ["(no output)"]:
+                        print(f"  {output_line}")
+                except Exception as shell_error:
+                    print(f"  {Fore.RED}Terminal error: {shell_error}{Style.RESET_ALL}")
+                print()
+                telemetry.log_interaction("user", user_input, "terminal_command")
+                telemetry.log_interaction("system", str(shell_output) if "shell_output" in locals() else str(shell_error), "terminal_output")
+                continue
+
+            # Render one formatted transcript entry; don't leave the raw prompt echo behind.
+            print(f"\\n  {Fore.CYAN}User:{Style.RESET_ALL} {user_input}\\n")
             if cmd.lower() in ('exit', 'quit'):
                 telemetry.end_session(summary="User exited.")
                 break
