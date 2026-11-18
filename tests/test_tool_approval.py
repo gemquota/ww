@@ -85,6 +85,32 @@ class LocalApprovalControllerTests(unittest.TestCase):
         self.assertFalse(controller.authorize("unregistered_tool", {}))
 
 
+    def test_protected_write_target_is_denied_before_prompt(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            controller = LocalApprovalController(
+                prompt=lambda _: self.fail("protected paths must not prompt"),
+                output=lambda _: None,
+            )
+            permission_mgr = PermissionManager(workspace)
+            self.assertFalse(controller.authorize(
+                "write_file",
+                {"file_path": ".env", "content": "SECRET=value"},
+                permission_mgr,
+            ))
+
+    def test_eof_is_a_rejection(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            controller = LocalApprovalController(
+                prompt=lambda _: (_ for _ in ()).throw(EOFError()),
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "write_file",
+                {"file_path": "README.md", "content": "content"},
+                PermissionManager(workspace),
+            ))
+
+
 class ApprovalLedgerTests(unittest.TestCase):
     def test_grant_is_bound_to_session_tool_and_exact_arguments(self):
         args = {"file_path": "src/example.py", "content": "safe"}
