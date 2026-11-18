@@ -140,40 +140,40 @@ async def health():
     }
 
 
-_browser_clients: dict[str, WebGeminiClient] = {}
-_browser_client_locks: dict[str, asyncio.Lock] = {}
+from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
+
+_browser_sessions = BrowserSessionStore(max_sessions=64, idle_ttl=1800)
+
+
+async def _create_browser_client() -> WebGeminiClient:
+    client = WebGeminiClient(
+        secure_1psid=os.getenv("SECURE_1PSID", ""),
+        secure_1psidts=os.getenv("SECURE_1PSIDTS", ""),
+        api_key=os.getenv("GEMINI_API_KEY", ""),
+    )
+    if not await client.init():
+        await client.close()
+        raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
+    return client
+
+
+@app.on_event("shutdown")
+async def close_browser_sessions() -> None:
+    await _browser_sessions.close_all()
 
 
 @app.post("/chat", response_model=ChatResponse, dependencies=[Security(verify_api_key)])
 async def chat(request: ChatRequest):
-    """Stateful browser chat; cookie sessions persist in Gemini and API-key sessions use supplied history."""
+    """Stateful browser chat with bounded, serialized per-tab sessions."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Empty message")
-    session_name = request.session_name[:128] or "api_default"
-    lock = _browser_client_locks.setdefault(session_name, asyncio.Lock())
-    async with lock:
-        client = _browser_clients.get(session_name)
-        if client is None:
-            client = WebGeminiClient(
-                secure_1psid=os.getenv("SECURE_1PSID", ""),
-                secure_1psidts=os.getenv("SECURE_1PSIDTS", ""),
-                api_key=os.getenv("GEMINI_API_KEY", ""),
-            )
-            if not await client.init():
-                raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
-            _browser_clients[session_name] = client
-            # Bound in-memory browser sessions so abandoned tabs cannot grow this cache forever.
-            while len(_browser_clients) > 64:
-                oldest_session = next(iter(_browser_clients))
-                if oldest_session == session_name:
-                    break
-                _browser_clients.pop(oldest_session, None)
-                _browser_client_locks.pop(oldest_session, None)
-        try:
+    session_name = request.session_name.strip()[:128] or "api_default"
+    try:
+        async with _browser_sessions.acquire(session_name, _create_browser_client) as client:
             prompt = request.message
             if getattr(client, "_use_api_key", False) and request.history:
                 turns = request.history[-40:]
-                prompt = "\n\n".join(
+                prompt = "\\n\\n".join(
                     f"{'User' if item.get('role') == 'user' else 'Assistant'}: {item.get('content', '')[:12000]}"
                     for item in turns if item.get("role") in ("user", "assistant")
                 )
@@ -181,10 +181,12 @@ async def chat(request: ChatRequest):
             if resp is None:
                 raise HTTPException(status_code=502, detail="No response from Gemini")
             return ChatResponse(status="ok", response=resp, session_name=session_name)
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    except SessionCapacityError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/sessions", dependencies=[Security(verify_api_key)])
