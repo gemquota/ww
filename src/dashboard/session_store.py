@@ -18,7 +18,7 @@ class SessionCapacityError(RuntimeError):
 
 @dataclass
 class _Session:
-    client: Any
+    client: Any | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_access: float = field(default_factory=time.monotonic)
     active: int = 0
@@ -36,7 +36,9 @@ class BrowserSessionStore:
         self._guard = asyncio.Lock()
 
     @staticmethod
-    async def _close(client: Any) -> None:
+    async def _close(client: Any | None) -> None:
+        if client is None:
+            return
         close = getattr(client, "close", None)
         if close is None:
             return
@@ -44,7 +46,7 @@ class BrowserSessionStore:
         if hasattr(result, "__await__"):
             await result
 
-    async def _remove_idle(self, now: float, *, force_one: bool = False) -> list[Any]:
+    def _remove_idle(self, now: float, *, force_one: bool = False) -> list[Any]:
         removed: list[Any] = []
         expired = [
             key for key, entry in self._sessions.items()
@@ -76,17 +78,16 @@ class BrowserSessionStore:
 
         async with self._guard:
             now = time.monotonic()
-            removed = await self._remove_idle(now)
+            removed = self._remove_idle(now)
             entry = self._sessions.get(session_id)
             if entry is None:
                 if len(self._sessions) >= self.max_sessions:
-                    removed.extend(await self._remove_idle(now, force_one=True))
+                    removed.extend(self._remove_idle(now, force_one=True))
                 if len(self._sessions) >= self.max_sessions:
                     capacity_error = True
                 else:
                     capacity_error = False
-                    client = await create_client()
-                    entry = _Session(client=client)
+                    entry = _Session()
                     self._sessions[session_id] = entry
             else:
                 capacity_error = False
@@ -107,12 +108,16 @@ class BrowserSessionStore:
             raise
 
         try:
+            if entry.client is None:
+                entry.client = await create_client()
             yield entry.client
         finally:
             entry.lock.release()
             async with self._guard:
                 entry.active -= 1
                 entry.last_access = time.monotonic()
+                if entry.client is None and self._sessions.get(session_id) is entry:
+                    self._sessions.pop(session_id, None)
 
     async def close_all(self) -> None:
         """Close all idle sessions during application shutdown."""
