@@ -61,7 +61,7 @@ On startup, WW loads up to 20 recent Gemini conversations and displays them in p
 - Enter `>` or `<` to move between pages.
 - Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-Prompts are entered at `you>`. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
+Prompts are entered at `you>`. **Press Enter to add another line; press Escape, then Enter, to send the complete multi-line message.** This keeps pasted scripts and diagnostic batches together as one Gemini turn. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
 
 ### Commands
 
