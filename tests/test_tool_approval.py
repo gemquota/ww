@@ -71,6 +71,26 @@ class ApprovalLedgerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     ledger.request(session_id="s", tool_name=name, arguments={})
 
+    def test_pending_and_grant_stores_are_bounded(self):
+        ledger = ApprovalLedger(max_pending=1, max_grants=1)
+        first = ledger.request(
+            session_id="s", tool_name="write_file", arguments={"file_path": "a"}
+        )
+        with self.assertRaises(RuntimeError):
+            ledger.request(
+                session_id="s", tool_name="write_file", arguments={"file_path": "b"}
+            )
+        token = ledger.approve(first.request_id)
+        second = ledger.request(
+            session_id="s", tool_name="write_file", arguments={"file_path": "b"}
+        )
+        with self.assertRaises(RuntimeError):
+            ledger.approve(second.request_id)
+        self.assertTrue(ledger.consume(
+            token, session_id="s", tool_name="write_file", arguments={"file_path": "a"}
+        ))
+        self.assertIsNotNone(ledger.approve(second.request_id))
+
     def test_pending_request_and_grant_expire(self):
         ledger = ApprovalLedger(request_ttl=0.01, grant_ttl=0.01)
         pending = ledger.request(
