@@ -47,7 +47,7 @@ async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
     supplied = api_key or ""
     matched = False
     for expected in expected_keys:
-        matched = hmac.compare_digest(supplied, expected) or matched
+        matched = hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")) or matched
     if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
