@@ -27,7 +27,7 @@ class DashboardAuthenticationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_or_wrong_client_key_is_rejected(self):
         with patch.dict(os.environ, {"WW_DASHBOARD_API_KEY": "correct-key"}):
-            for supplied in ("", "wrong-key"):
+            for supplied in ("", "wrong-key", "clé-invalide"):
                 with self.subTest(supplied=supplied):
                     with self.assertRaises(HTTPException) as raised:
                         await routes_auth.verify_api_key(supplied)
