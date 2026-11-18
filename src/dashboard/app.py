@@ -129,14 +129,13 @@ async def get_memory_graph(session_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", dependencies=[Security(verify_api_key)])
 async def health():
     """Bridge health check endpoint."""
     db_exists = get_db_path().exists()
     return {
         "status": "ok",
         "version": "0.2.0",
-        "workspace": str(WORKSPACE_ROOT),
         "database": "connected" if db_exists else "no sessions yet"
     }
 
