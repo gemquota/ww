@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from fastapi import FastAPI, HTTPException, Security
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse
     from pydantic import BaseModel
     from src.utils.web_client import WebGeminiClient
@@ -34,6 +35,26 @@ from src.dashboard.routes_auth import verify_api_key
 from src.core.api_keys import APIKeyManager
 
 app = FastAPI(title="WW Bridge API", version="0.2.0", description="Gemini Multi-Agent Bridge REST Interface")
+
+# Browser access is limited to explicitly trusted origins. Override with a
+# comma-separated WW_CORS_ORIGINS environment variable when using a custom
+# domain or another frontend. Never use "*" with an authenticated API.
+_default_cors_origins = "https://gemquota.github.io"
+_cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("WW_CORS_ORIGINS", _default_cors_origins).split(",")
+    if origin.strip()
+]
+if "*" in _cors_origins:
+    raise RuntimeError("WW_CORS_ORIGINS must list explicit origins; wildcard CORS is unsafe.")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key"],
+)
 
 WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd()))
 
