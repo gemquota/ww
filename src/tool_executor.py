@@ -22,6 +22,7 @@ from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from typing import TYPE_CHECKING
 from src.tools.registry import ToolRegistry
+from src.tools.local_approval import LocalApprovalController
 from src.bridge.decision_tracer import DecisionTracer
 from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
@@ -142,6 +143,7 @@ class ToolExecutor:
         self.checkpoint_mgr = checkpoint_mgr
         self.diff_engine = diff_engine
         self.tool_registry = tool_registry
+        self.approval_controller = LocalApprovalController()
         self.verbose_mode = verbose_mode
         self.ctx = ctx
         self.agent_sessions: Dict[str, Any] = {}
@@ -342,6 +344,26 @@ class ToolExecutor:
                         import inspect
                         sig = inspect.signature(node.func)
                         final_args = {k: v for k, v in fields.items() if k in sig.parameters}
+
+                        # Privileged tools require an explicit decision at the local
+                        # terminal. Injected managers are not part of the approved
+                        # operation digest or the human-readable argument preview.
+                        approval_args = {
+                            k: v for k, v in final_args.items()
+                            if k not in {"permission_mgr", "checkpoint_mgr", "diff_engine"}
+                        }
+                        if not self.approval_controller.authorize(
+                            registry_name, approval_args, self.permission_mgr
+                        ):
+                            tool_output = f"DENIED: Local approval was not granted for '{registry_name}'."
+                            await self._process_tool_output(
+                                tool_output, tool, chat_context, safe_send_message
+                            )
+                            continue
+                        # Avoid asking twice: the controller has already checked
+                        # hard-deny rules and obtained the one-use approval grant.
+                        if "permission_mgr" in final_args:
+                            final_args["permission_mgr"] = None
 
                         # PCG: Add node for tool call
                         tool_node_id = -1
