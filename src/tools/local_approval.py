@@ -51,6 +51,10 @@ class LocalApprovalController:
 
         # Retain the existing hard-deny path checks, but do not rely on its
         # softer on-request/always prompt policy as the approval mechanism.
+        if canonical_name in {"write_file", "file_patch", "shell_exec"} and permission_mgr is None:
+            self.output("DENIED: The local permission manager is unavailable.")
+            return False
+
         try:
             if permission_mgr is not None:
                 if canonical_name in {"write_file", "file_patch"}:
