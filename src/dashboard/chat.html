@@ -63,7 +63,7 @@ textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:tran
    if(!['http:','https:'].includes(parsed.protocol))throw new Error('The WW API URL must use HTTP or HTTPS.');
    if(location.protocol==='https:'&&parsed.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(parsed.hostname))
      throw new Error('An HTTPS Pages site cannot call an HTTP device address. Use an HTTPS tunnel or VPN endpoint.');
-   return parsed.href.replace(/\\/+$/,'');
+   return parsed.href.replace(/\/+$/,'');
  }
  $('connect').addEventListener('click',async()=>{
    error.textContent='';
