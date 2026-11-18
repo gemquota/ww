@@ -1,5 +1,5 @@
 # WW core: Gemini Web Chat terminal client
 gemini-webapi>=2.1.1
-python-dotenv>=1.0.0
+python-dotenv>=1.2.4
 rich>=15.0.0
 prompt-toolkit>=3.0.53
