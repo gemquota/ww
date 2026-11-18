@@ -246,10 +246,16 @@ class ToolExecutor:
                     if registry_name not in self.tool_registry.tools:
                         return ""
                     fields = self._parse_fields(content)
-                    if registry_name == "read_file" and "read" not in fields:
-                        fields = {"file_path": content.strip()}
-                    elif registry_name == "list_dir" and "list" not in fields:
-                        fields = {"dir_path": content.strip() or "."}
+                    if registry_name == "read_file":
+                        if "read" in fields:
+                            fields["file_path"] = fields.pop("read")
+                        elif "file_path" not in fields:
+                            fields = {"file_path": content.strip()}
+                    elif registry_name == "list_dir":
+                        if "list" in fields:
+                            fields["dir_path"] = fields.pop("list")
+                        elif "dir_path" not in fields:
+                            fields = {"dir_path": content.strip() or "."}
                     fields["permission_mgr"] = self.permission_mgr
                     node = self.tool_registry.tools[registry_name]
                     import inspect
@@ -279,10 +285,16 @@ class ToolExecutor:
                     registry_name = self.TOOL_NAME_MAP.get(tool, tool)
                     if registry_name in self.tool_registry.tools:
                         fields = self._parse_fields(content)
-                        if registry_name == "read_file" and "read" not in fields:
-                            fields = {"file_path": content.strip()}
-                        elif registry_name == "list_dir" and "list" not in fields:
-                            fields = {"dir_path": content.strip() or "."}
+                        if registry_name == "read_file":
+                            if "read" in fields:
+                                fields["file_path"] = fields.pop("read")
+                            elif "file_path" not in fields:
+                                fields = {"file_path": content.strip()}
+                        elif registry_name == "list_dir":
+                            if "list" in fields:
+                                fields["dir_path"] = fields.pop("list")
+                            elif "dir_path" not in fields:
+                                fields = {"dir_path": content.strip() or "."}
                         fields["permission_mgr"] = self.permission_mgr
                         node = self.tool_registry.tools[registry_name]
                         import inspect
