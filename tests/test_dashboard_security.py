@@ -55,6 +55,22 @@ class DashboardAuthenticationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(response.headers["X-API-Version"], "v1")
 
+    async def test_rate_limit_client_cache_has_a_hard_bound(self):
+        routes_auth._rate_limit_store.clear()
+        with patch.object(routes_auth, "_MAX_RATE_LIMIT_CLIENTS", 2):
+            for address in ("client-a", "client-b", "client-c"):
+                request = SimpleNamespace(
+                    url=SimpleNamespace(path="/health"),
+                    client=SimpleNamespace(host=address),
+                )
+
+                async def call_next(_request):
+                    return Response("ok")
+
+                await routes_auth.dispatch_request(request, call_next)
+        self.assertLessEqual(len(routes_auth._rate_limit_store), 2)
+        routes_auth._rate_limit_store.clear()
+
     async def test_legacy_api_path_redirects_without_dispatch(self):
         request = SimpleNamespace(
             url=SimpleNamespace(path="/api/health"),
