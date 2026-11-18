@@ -33,6 +33,13 @@ class DashboardAuthenticationTests(unittest.IsolatedAsyncioTestCase):
                         await routes_auth.verify_api_key(supplied)
                     self.assertEqual(raised.exception.status_code, 401)
 
+    async def test_overlapping_keys_support_zero_downtime_rotation(self):
+        with patch.dict(os.environ, {
+            "WW_DASHBOARD_API_KEYS": "old-key, new-key",
+        }, clear=True):
+            self.assertEqual(await routes_auth.verify_api_key("old-key"), "old-key")
+            self.assertEqual(await routes_auth.verify_api_key("new-key"), "new-key")
+
     async def test_correct_key_is_accepted(self):
         with patch.dict(os.environ, {"WW_DASHBOARD_API_KEY": "correct-key"}):
             self.assertEqual(
