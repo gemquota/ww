@@ -72,7 +72,7 @@ python -m pytest -q
         )
 
     def test_ignores_unclosed_tool_fence(self):
-        response = "Here is a command:\\n\\n```tool:shell\\necho unsafe"
+        response = "Here is a command:\n\n```tool:shell\necho unsafe"
         self.assertEqual(extract_tool_blocks(response), [])
 
     def test_ignores_normal_markdown_code_fences(self):
