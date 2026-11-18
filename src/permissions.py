@@ -47,7 +47,7 @@ class PermissionManager:
     """Classify file writes and shell commands against the selected policy."""
 
     _HARD_DENY = (
-        re.compile(r"(^|[;&|]\s*)rm\s+(-[^\s]*r[^\s]*f|--recursive\s+--force)\s+(/|/\*|~)(\s|$)", re.I),
+        re.compile(r"(^|[;&|]\s*)rm\s+(?:(?=[^\s]*r)(?=[^\s]*f)[^\s]+|--recursive\s+--force|--force\s+--recursive)\s+(/|/\*|~)(\s|$)", re.I),
         re.compile(r"\bmkfs(?:\.[a-z0-9]+)?\b", re.I),
         re.compile(r"\bwipefs\b", re.I),
         re.compile(r"\bdd\b[^\n]*\bof=/dev/", re.I),
@@ -94,6 +94,7 @@ class PermissionManager:
         name = path.name.lower()
         if (
             name in self._PROTECTED_NAMES
+            or name.startswith(".env.")
             or any(part in self._PROTECTED_PARTS for part in lowered_parts)
             or path.suffix.lower() in self._PROTECTED_SUFFIXES
         ):
@@ -107,10 +108,10 @@ class PermissionManager:
         command = (command or "").strip()
         if not command or len(command) > 2000:
             return PermissionLevel.DENY
-        if command in self.always_allow:
-            return PermissionLevel.ALLOW
         if any(pattern.search(command) for pattern in self._HARD_DENY):
             return PermissionLevel.DENY
+        if command in self.always_allow:
+            return PermissionLevel.ALLOW
         if self.policy is ApprovalPolicy.ALWAYS:
             return PermissionLevel.ASK
         if self.policy is ApprovalPolicy.NEVER:
