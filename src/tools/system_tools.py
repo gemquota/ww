@@ -145,10 +145,11 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
         )
         stdout_task = asyncio.create_task(_read_capped_stream(process.stdout))
         stderr_task = asyncio.create_task(_read_capped_stream(process.stderr))
+        streams_task = asyncio.gather(stdout_task, stderr_task)
 
         try:
             stdout, stderr = await asyncio.wait_for(
-                asyncio.gather(stdout_task, stderr_task),
+                asyncio.shield(streams_task),
                 timeout=60,
             )
             await process.wait()
@@ -163,10 +164,7 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
             except ProcessLookupError:
                 pass
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(stdout_task, stderr_task),
-                    timeout=2,
-                )
+                await asyncio.wait_for(asyncio.shield(streams_task), timeout=2)
             except asyncio.TimeoutError:
                 try:
                     if os.name == "posix":
@@ -175,7 +173,7 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
                         process.kill()
                 except ProcessLookupError:
                     pass
-                await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+                await asyncio.gather(streams_task, return_exceptions=True)
             await process.wait()
             return "ERROR: Command timed out after 60 seconds; process group terminated."
 
