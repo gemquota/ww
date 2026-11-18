@@ -96,7 +96,7 @@ from src.config import get_settings
 
 
 # UI Imports
-from prompt_toolkit import PromptSession
+from src.prompting import create_terminal_session
 from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style as PtStyle
@@ -756,7 +756,7 @@ async def main():
     from prompt_toolkit.history import FileHistory
     _hist_path = WORKSPACE_ROOT / ".ww" / "history.txt"
     _hist_path.parent.mkdir(parents=True, exist_ok=True)
-    session = PromptSession(
+    session = create_terminal_session(
         style=pt_style,
         key_bindings=kb,
         mouse_support=False,
@@ -800,6 +800,7 @@ async def main():
         print(f"    Bridge init:    {_t_init - _t_before_init:.2f}s")
         print(f"    Tool executor:  {_t_executor - _t_init:.2f}s")
         print(f"    Total startup:  {_t_done - _t0:.2f}s")
+    print(f"  {Fore.WHITE}Multiline input: Enter adds a line; Esc+Enter submits the whole message.{Style.RESET_ALL}")
     print(f"\n  {Fore.WHITE}Commands: /tokens /undo /compact /reload /init /verbose /policy /history /save /load /sessions /memory /export exit{Style.RESET_ALL}")
     print(f"  {Fore.WHITE}Policy: {permission_mgr.policy.value} | Workspace: {WORKSPACE_ROOT}{Style.RESET_ALL}\n")
 
