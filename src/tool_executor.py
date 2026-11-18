@@ -358,6 +358,12 @@ class ToolExecutor:
                             fields = {"command": content.strip()}
                         elif registry_name == "code_search" and "pattern" not in fields:
                             fields = {"pattern": content.strip()}
+                        elif registry_name == "url_fetch" and "url" not in fields:
+                            fields = {"url": content.strip()}
+                        elif registry_name == "doc_search" and "query" not in fields:
+                            fields = {"query": content.strip()}
+                        elif registry_name == "request_clarification" and "question" not in fields:
+                            fields = {"question": content.strip()}
 
                         # Inject managers for tools that need them
                         fields["permission_mgr"] = self.permission_mgr
