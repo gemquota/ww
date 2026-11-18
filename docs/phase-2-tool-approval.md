@@ -9,7 +9,7 @@ The first Phase 2 commit introduces two foundations:
 - `src/tools/tool_policy.py` classifies known tools by risk. Unknown tools are denied. Only `read_file` and `list_dir` are marked as remotely exposable.
 - `src/tools/approvals.py` provides short-lived, one-use approval grants bound to the exact session, tool name and canonical argument digest. A grant cannot be replayed with changed arguments or in another session.
 
-The approval ledger is in-memory. Pending requests expire after five minutes; approved grants expire after two minutes. Restarting WW invalidates all pending requests and grants. The ledger is not wired to an HTTP endpoint, and no remote mutation or shell execution is enabled by this foundation.
+The approval ledger is in-memory. Pending requests expire after five minutes; approved grants expire after two minutes. Pending requests and grants are each capped at 256 records, with expired entries pruned before capacity checks. Restarting WW invalidates all pending requests and grants. The ledger is not wired to an HTTP endpoint, and no remote mutation or shell execution is enabled by this foundation.
 
 ## Required execution flow
 
