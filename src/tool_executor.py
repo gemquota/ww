@@ -82,8 +82,11 @@ class ToolExecutor:
     """Parses and dispatches tool blocks from LLM responses."""
 
     KNOWN_KEYS = {
-        "agent", "task", "filepath", "content",
-        "find", "replace", "pattern", "path", "depth",
+        "agent", "task", "filepath", "file_path", "content",
+        "find", "replace", "search_text", "replace_text",
+        "pattern", "path", "depth", "command", "message",
+        "query", "url", "timeout", "question", "dir_path",
+        "read", "list",
     }
 
     # Default per-tool execution timeout in seconds
@@ -319,20 +322,30 @@ class ToolExecutor:
                         fields = self._parse_fields(content)
                         
                         # Inconsistent field naming fix for registry compatibility
-                        if registry_name == "read_file" and "read" not in fields:
-                            fields = {"file_path": content.strip()}
-                        elif registry_name == "list_dir" and "list" not in fields:
-                            fields = {"dir_path": content.strip() or "."}
-                        elif registry_name == "write_file":
-                            if "filepath" in fields: fields["file_path"] = fields.pop("filepath")
-                        elif registry_name == "file_patch":
-                            if "filepath" in fields: fields["file_path"] = fields.pop("filepath")
-                            if "find" in fields: fields["search_text"] = fields.pop("find")
-                            if "replace" in fields: fields["replace_text"] = fields.pop("replace")
-                        elif registry_name == "shell_exec":
-                            if "command" not in fields: fields = {"command": content.strip()}
-                        elif registry_name == "code_search":
-                            if "pattern" not in fields: fields = {"pattern": content.strip()}
+                        if registry_name == "read_file":
+                            if "read" in fields:
+                                fields["file_path"] = fields.pop("read")
+                            elif "file_path" not in fields:
+                                fields = {"file_path": content.strip()}
+                        elif registry_name == "list_dir":
+                            if "list" in fields:
+                                fields["dir_path"] = fields.pop("list")
+                            elif "dir_path" not in fields:
+                                fields = {"dir_path": content.strip() or "."}
+                        elif registry_name in {"write_file", "file_patch"}:
+                            if "filepath" in fields:
+                                fields["file_path"] = fields.pop("filepath")
+                        if registry_name == "file_patch":
+                            if "find" in fields:
+                                fields["search_text"] = fields.pop("find")
+                            if "replace" in fields:
+                                fields["replace_text"] = fields.pop("replace")
+                        elif registry_name == "shell_exec" and "command" not in fields:
+                            fields = {"command": content.strip()}
+                        elif registry_name == "git" and "command" not in fields:
+                            fields = {"command": content.strip()}
+                        elif registry_name == "code_search" and "pattern" not in fields:
+                            fields = {"pattern": content.strip()}
 
                         # Inject managers for tools that need them
                         fields["permission_mgr"] = self.permission_mgr
