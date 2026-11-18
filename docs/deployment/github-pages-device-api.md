@@ -69,9 +69,10 @@ shows a successful connection.
 
 ## Security notes
 
-- Keep `WW_DASHBOARD_API_KEY` set whenever the API is reachable beyond
-  loopback. Without it, the existing API-key dependency permits unauthenticated
-  requests.
+- `WW_DASHBOARD_API_KEY` is mandatory for the health check, chat and protected
+  endpoints. If it is missing, protected routes fail closed with HTTP 503.
+- The browser sends the API key with its health check, so a successful
+  connection confirms both reachability and authentication.
 - CORS is a browser-origin policy, not authentication. The API key is still
   required for protected endpoints.
 - Do not commit API keys, Gemini cookies, tunnel credentials or `.env` files.
