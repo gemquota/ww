@@ -438,6 +438,11 @@ class ToolExecutor:
         safe_send_message: callable,
     ) -> None:
         """Handle tool output: log, compact context, send feedback."""
+        if tool in ("shell", "shell_exec"):
+            print(f"\\n{Fore.MAGENTA}⌘ Terminal output:{Style.RESET_ALL}")
+            print(tool_output)
+            print()
+
         log_status("📡", "Feedback", f"{len(tool_output)} chars", telemetry=self.telemetry)
         self.telemetry.log_interaction(
             "system", f"Tool Output ({tool.upper()}):\n{tool_output}", "tool_output"
