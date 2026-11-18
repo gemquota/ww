@@ -37,7 +37,7 @@ from src.ww_settings import (
 
 
 BANNER = """WW | Gemini Web Chat
-Send a prompt and press Enter. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
+Enter adds a line; Escape then Enter sends the complete message. Commands: /context, /doctor, /status, /research, /canvas, /help, /exit"""
 
 
 def configure_logging() -> None:
@@ -520,11 +520,14 @@ async def run_terminal(
             gem=settings.get("default_gem"),
         )
 
+    from src.prompting import create_terminal_session
+    prompt_session = create_terminal_session()
+
     pending_options = ()
     try:
         while True:
             try:
-                message = await asyncio.to_thread(input, "you> ")
+                message = await prompt_session.prompt_async("you> ")
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
