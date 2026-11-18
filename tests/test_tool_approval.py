@@ -13,6 +13,8 @@ class ToolPolicyTests(unittest.TestCase):
     def test_remote_surface_is_explicitly_read_only(self):
         self.assertTrue(remote_tool_allowed("read_file"))
         self.assertTrue(remote_tool_allowed("list_dir"))
+        self.assertFalse(remote_tool_allowed("read"))
+        self.assertFalse(remote_tool_allowed("list"))
         for name in ("write_file", "file_patch", "git_tool", "shell_exec", "url_fetch"):
             with self.subTest(tool=name):
                 self.assertFalse(remote_tool_allowed(name))
