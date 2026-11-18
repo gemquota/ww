@@ -44,7 +44,9 @@ async def _read_capped_stream(reader, limit: int = 5 * 1024 * 1024) -> bytes:
 
 async def _stop_process_group(process, streams_task) -> None:
     """Terminate a command and its descendants, then drain pipes and reap it."""
-    try:
+    import signal
+
+    try
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGTERM)
         else:
@@ -161,7 +163,6 @@ async def write_file(file_path: str, content: str, permission_mgr=None, checkpoi
 async def shell_exec(command: str, permission_mgr=None) -> str:
     """Execute a locally approved shell command with bounded output and cleanup."""
     from src.permissions import PermissionLevel
-    import signal
 
     try:
         if permission_mgr:
