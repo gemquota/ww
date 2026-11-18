@@ -26,26 +26,27 @@ class ToolPolicyTests(unittest.TestCase):
 
 class ApprovalLedgerTests(unittest.TestCase):
     def test_grant_is_bound_to_session_tool_and_exact_arguments(self):
-        ledger = ApprovalLedger()
         args = {"file_path": "src/example.py", "content": "safe"}
-        request = ledger.request(
-            session_id="browser-tab-a",
-            tool_name="write_file",
-            arguments=args,
+        mismatches = (
+            ("other-session", "write_file", args),
+            ("browser-tab-a", "shell_exec", args),
+            ("browser-tab-a", "write_file", {**args, "content": "different"}),
         )
-        token = ledger.approve(request.request_id)
-
-        self.assertFalse(ledger.consume(
-            token, session_id="browser-tab-b", tool_name="write_file", arguments=args
-        ))
-        self.assertFalse(ledger.consume(
-            token, session_id="browser-tab-a", tool_name="write_file",
-            arguments={**args, "content": "different"},
-        ))
-        # A failed context match consumes the one-time grant.
-        self.assertFalse(ledger.consume(
-            token, session_id="browser-tab-a", tool_name="write_file", arguments=args
-        ))
+        for session_id, tool_name, supplied_args in mismatches:
+            with self.subTest(session=session_id, tool=tool_name, args=supplied_args):
+                ledger = ApprovalLedger()
+                request = ledger.request(
+                    session_id="browser-tab-a",
+                    tool_name="write_file",
+                    arguments=args,
+                )
+                token = ledger.approve(request.request_id)
+                self.assertFalse(ledger.consume(
+                    token,
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    arguments=supplied_args,
+                ))
 
     def test_valid_grant_is_single_use(self):
         ledger = ApprovalLedger()
