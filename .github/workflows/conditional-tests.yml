@@ -24,6 +24,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
 
   integration:
+    timeout-minutes: 10
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
@@ -34,6 +35,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
 
   quality:
+    timeout-minutes: 10
     if: contains(github.event.pull_request.labels.*.name, 'quality')
     runs-on: ubuntu-latest
     steps:
