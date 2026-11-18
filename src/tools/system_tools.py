@@ -42,12 +42,31 @@ async def _read_capped_stream(reader, limit: int = 5 * 1024 * 1024) -> bytes:
     return b"".join(chunks)
 
 
+def _is_sensitive_workspace_path(path: Path) -> bool:
+    """Avoid exposing common credential files through remote read tools."""
+    protected_parts = {".git", ".ssh", ".aws", ".gnupg"}
+    protected_names = {
+        ".env", ".npmrc", "credentials", "secrets",
+        "id_rsa", "id_ed25519",
+    }
+    lowered_parts = {part.lower() for part in path.parts}
+    name = path.name.lower()
+    return (
+        bool(lowered_parts & protected_parts)
+        or name in protected_names
+        or name.startswith(".env.")
+        or path.suffix.lower() in {".pem", ".key", ".p12", ".pfx"}
+    )
+
+
 # Tool Implementations
 def read_file(file_path: str) -> str:
     """Read a file using surgical truncation if it's too large."""
     from src.smart_context import read_file_surgical
     try:
         p = _resolve_workspace_path(file_path)
+        if _is_sensitive_workspace_path(p):
+            return "ERROR: Access denied. Sensitive files are not available through remote read tools."
         if not p.exists():
             return f"ERROR: File '{file_path}' not found."
         return read_file_surgical(p, max_lines=500)
