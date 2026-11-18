@@ -101,7 +101,7 @@ class LocalApprovalController:
                 tool_name=canonical_name,
                 arguments=arguments,
             )
-        except (ValueError, RuntimeError, TypeError) as exc:
+        except Exception as exc:
             self.output(f"DENIED: Approval could not be completed ({exc}).")
             return False
         except (EOFError, KeyboardInterrupt):
