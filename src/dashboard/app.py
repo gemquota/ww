@@ -7,7 +7,7 @@ Provides:
   - GET  /sessions        — list all sessions
   - GET  /stats           — telemetry event timeline + tool usage stats
 """
-import sys, os, json, sqlite3, datetime
+import sys, os, json, sqlite3, datetime, asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -41,6 +41,7 @@ WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd()))
 class ChatRequest(BaseModel):
     message: str
     session_name: str = "api_default"
+    history: Optional[list[dict[str, str]]] = None
 
 
 class ChatResponse(BaseModel):
@@ -121,26 +122,44 @@ async def health():
     }
 
 
+_browser_clients: dict[str, WebGeminiClient] = {}
+_browser_client_locks: dict[str, asyncio.Lock] = {}
+
+
 @app.post("/chat", response_model=ChatResponse, dependencies=[Security(verify_api_key)])
 async def chat(request: ChatRequest):
-    """Single-turn query via Gemini Web API."""
+    """Stateful browser chat; cookie sessions persist in Gemini and API-key sessions use supplied history."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Empty message")
-    import os
-    client = WebGeminiClient(
-        secure_1psid=os.getenv("SECURE_1PSID", ""),
-        secure_1psidts=os.getenv("SECURE_1PSIDTS", ""),
-        api_key=os.getenv("GEMINI_API_KEY", ""),
-    )
-    if not await client.init():
-        raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
-    try:
-        resp = await client.ask(request.message)
-        if resp is None:
-            raise HTTPException(status_code=502, detail="No response from Gemini")
-        return ChatResponse(status="ok", response=resp, session_name=request.session_name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    session_name = request.session_name[:128] or "api_default"
+    lock = _browser_client_locks.setdefault(session_name, asyncio.Lock())
+    async with lock:
+        client = _browser_clients.get(session_name)
+        if client is None:
+            client = WebGeminiClient(
+                secure_1psid=os.getenv("SECURE_1PSID", ""),
+                secure_1psidts=os.getenv("SECURE_1PSIDTS", ""),
+                api_key=os.getenv("GEMINI_API_KEY", ""),
+            )
+            if not await client.init():
+                raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
+            _browser_clients[session_name] = client
+        try:
+            prompt = request.message
+            if getattr(client, "_use_api_key", False) and request.history:
+                turns = request.history[-40:]
+                prompt = "\n\n".join(
+                    f"{'User' if item.get('role') == 'user' else 'Assistant'}: {item.get('content', '')[:12000]}"
+                    for item in turns if item.get("role") in ("user", "assistant")
+                )
+            resp = await client.ask(prompt)
+            if resp is None:
+                raise HTTPException(status_code=502, detail="No response from Gemini")
+            return ChatResponse(status="ok", response=resp, session_name=session_name)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/sessions", dependencies=[Security(verify_api_key)])
