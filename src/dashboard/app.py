@@ -83,11 +83,11 @@ from src.core.api_keys import APIKeyManager
 
 @app.middleware("http")
 async def api_versioning_and_rate_limit(request, call_next):
-    # API versioning first
-    redirect = await api_versioning_redirect(request, call_next)
-    if redirect.status_code in (307, 308):
+    # Redirect legacy paths without dispatching the downstream handler. The
+    # normal path is dispatched exactly once by the rate-limit middleware.
+    redirect = api_versioning_redirect(request)
+    if redirect is not None:
         return redirect
-    # Then rate limiting
     return await rate_limit_middleware(request, call_next)
 @app.get("/memory/graph/{session_id}", dependencies=[Security(verify_api_key)])
 async def get_memory_graph(session_id: int):
@@ -302,6 +302,20 @@ async def execute_tool(request: ToolExecuteRequest):
         CodeSearchArgs, FilePatchArgs, UrlFetchArgs
     )
     
+    # Remote tool execution is deliberately opt-in. The initial browser API
+    # surface is read-only; shell, git, writes and other powerful tools remain
+    # unavailable until a separate approval and isolation design is deployed.
+    if os.getenv("WW_REMOTE_TOOLS_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Remote tools are disabled. Set WW_REMOTE_TOOLS_ENABLED=1 to enable the restricted read-only tool API.",
+        )
+    if request.tool not in {"read_file", "list_dir"}:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Remote tool '{request.tool}' is not exposed by the restricted browser API.",
+        )
+
     registry = ToolRegistry()
     registry.register("read_file", read_file, "Read contents of a file.", ReadFileArgs)
     registry.register("write_file", write_file, "Write contents to a file.", WriteFileArgs)
