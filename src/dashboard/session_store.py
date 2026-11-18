@@ -116,7 +116,7 @@ class BrowserSessionStore:
             async with self._guard:
                 entry.active -= 1
                 entry.last_access = time.monotonic()
-                if entry.client is None and self._sessions.get(session_id) is entry:
+                if entry.client is None and entry.active == 0 and self._sessions.get(session_id) is entry:
                     self._sessions.pop(session_id, None)
 
     async def close_all(self) -> None:
