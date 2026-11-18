@@ -38,11 +38,20 @@ def _arguments_digest(arguments: dict[str, Any]) -> str:
 class ApprovalLedger:
     """Issue and consume short-lived grants scoped to one exact operation."""
 
-    def __init__(self, *, request_ttl: float = 300.0, grant_ttl: float = 120.0):
-        if request_ttl <= 0 or grant_ttl <= 0:
-            raise ValueError("approval lifetimes must be positive")
+    def __init__(
+        self,
+        *,
+        request_ttl: float = 300.0,
+        grant_ttl: float = 120.0,
+        max_pending: int = 256,
+        max_grants: int = 256,
+    ):
+        if request_ttl <= 0 or grant_ttl <= 0 or max_pending < 1 or max_grants < 1:
+            raise ValueError("approval lifetimes and capacities must be positive")
         self.request_ttl = request_ttl
         self.grant_ttl = grant_ttl
+        self.max_pending = max_pending
+        self.max_grants = max_grants
         self._pending: dict[str, dict[str, Any]] = {}
         self._grants: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
@@ -82,6 +91,8 @@ class ApprovalLedger:
         }
         with self._lock:
             self._prune(now)
+            if len(self._pending) >= self.max_pending:
+                raise RuntimeError("Pending approval capacity reached; retry after expiry")
             self._pending[request_id] = record
         return ApprovalRequest(request_id, tool_name, expires_at)
 
@@ -90,9 +101,12 @@ class ApprovalLedger:
         now = time.monotonic()
         with self._lock:
             self._prune(now)
-            record = self._pending.pop(request_id, None)
+            record = self._pending.get(request_id)
             if record is None:
                 raise ValueError("Approval request is missing, expired, or already decided")
+            if len(self._grants) >= self.max_grants:
+                raise RuntimeError("Approval grant capacity reached; retry after expiry")
+            self._pending.pop(request_id)
             token = secrets.token_urlsafe(32)
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             self._grants[token_hash] = {
