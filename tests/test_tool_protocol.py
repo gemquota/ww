@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.tool_executor import extract_tool_blocks
+from src.tool_protocol import extract_tool_blocks
 
 
 class ToolFenceParserTests(unittest.TestCase):
