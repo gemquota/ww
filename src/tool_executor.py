@@ -470,7 +470,7 @@ class ToolExecutor:
         response_text = getattr(response, "text", "") or ""
         self.conversation.add_turn("assistant", response_text)
 
-        if response_text and not re.search(r"\x60\x60\x60tool:\\w+", response_text):
+        if response_text and not re.search(r"```tool:\w+", response_text):
             print(f"\n{response_text}\n")
 
         if self.verbose_mode and response_text:
