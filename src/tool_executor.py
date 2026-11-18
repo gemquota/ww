@@ -46,53 +46,11 @@ from src.bridge.decision_tracer import DecisionTracer
 from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from src.utils.validation import format_error
+from src.tool_protocol import extract_tool_blocks
 from src.bridge.decision_tracer import DecisionTracer
 from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 
-
-def extract_tool_blocks(response_text: str) -> List[tuple[str, str]]:
-    """Extract explicit top-level WW tool fences, ignoring ordinary code examples.
-
-    Normal Markdown fences are opaque. Only an info string beginning with
-    tool:<name> is executable. Closing fences must match the opening marker.
-    """
-    blocks: List[tuple[str, str]] = []
-    fence_char: Optional[str] = None
-    fence_length = 0
-    active_tool: Optional[str] = None
-    body: List[str] = []
-
-    for line in (response_text or "").splitlines():
-        opener = re.match(r"^ {0,3}(\x60{3,}|~{3,})(.*)$", line)
-        if fence_char is None:
-            if not opener:
-                continue
-            marker, info = opener.groups()
-            fence_char = marker[0]
-            fence_length = len(marker)
-            tool_match = re.fullmatch(r"tool:(\w+)(?:\s+.*)?", info.strip())
-            active_tool = tool_match.group(1) if tool_match else None
-            body = []
-            continue
-
-        closer = re.match(r"^ {0,3}(\x60+|~+)\s*$", line)
-        if (
-            closer
-            and closer.group(1)[0] == fence_char
-            and len(closer.group(1)) >= fence_length
-        ):
-            if active_tool:
-                blocks.append((active_tool, "\n".join(body).strip("\n")))
-            fence_char = None
-            fence_length = 0
-            active_tool = None
-            body = []
-        elif active_tool:
-            body.append(line)
-
-    # An unclosed fence is deliberately ignored: partial output is not executable.
-    return blocks
 
 def log_status(emoji: str, title: str, detail: str = "", telemetry: Optional[TelemetryManager] = None) -> None:
     """Utility for status logging during tool execution."""
