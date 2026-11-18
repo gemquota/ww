@@ -439,7 +439,7 @@ class ToolExecutor:
     ) -> None:
         """Handle tool output: log, compact context, send feedback."""
         if tool in ("shell", "shell_exec"):
-            print(f"\\n{Fore.MAGENTA}⌘ Terminal output:{Style.RESET_ALL}")
+            print(f"\n{Fore.MAGENTA}⌘ Terminal output:{Style.RESET_ALL}")
             print(tool_output)
             print()
 
