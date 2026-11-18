@@ -78,17 +78,12 @@ from src.core.api_keys import APIKeyManager
 
 
 # API Versioning & Rate Limiting
-from src.dashboard.routes_auth import rate_limit_middleware, api_versioning_redirect
+from src.dashboard.routes_auth import dispatch_request
 from src.core.api_keys import APIKeyManager
 
 @app.middleware("http")
 async def api_versioning_and_rate_limit(request, call_next):
-    # Redirect legacy paths without dispatching the downstream handler. The
-    # normal path is dispatched exactly once by the rate-limit middleware.
-    redirect = api_versioning_redirect(request)
-    if redirect is not None:
-        return redirect
-    return await rate_limit_middleware(request, call_next)
+    return await dispatch_request(request, call_next)
 @app.get("/memory/graph/{session_id}", dependencies=[Security(verify_api_key)])
 async def get_memory_graph(session_id: int):
     """Get the Persistent Cognitive Graph (PCG) for a session."""
