@@ -71,6 +71,21 @@ class LocalApprovalControllerTests(unittest.TestCase):
             self.assertIn("README.md", rendered)
             self.assertEqual(len(prompts), 1)
 
+    def test_rejected_prompt_clears_pending_request(self):
+        ledger = ApprovalLedger()
+        with tempfile.TemporaryDirectory() as workspace:
+            controller = LocalApprovalController(
+                ledger=ledger,
+                prompt=lambda _: "no",
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "write_file",
+                {"file_path": "README.md", "content": "not approved"},
+                PermissionManager(workspace),
+            ))
+        self.assertEqual(len(ledger._pending), 0)
+
     def test_rejection_and_hard_deny_never_authorize(self):
         with tempfile.TemporaryDirectory() as workspace:
             controller = LocalApprovalController(
@@ -159,6 +174,18 @@ class ApprovalLedgerTests(unittest.TestCase):
                     tool_name=tool_name,
                     arguments=supplied_args,
                 ))
+
+    def test_rejected_request_is_removed_and_cannot_be_approved(self):
+        ledger = ApprovalLedger()
+        request = ledger.request(
+            session_id="local-session",
+            tool_name="write_file",
+            arguments={"file_path": "README.md", "content": "x"},
+        )
+        self.assertTrue(ledger.reject(request.request_id))
+        self.assertFalse(ledger.reject(request.request_id))
+        with self.assertRaises(ValueError):
+            ledger.approve(request.request_id)
 
     def test_valid_grant_is_single_use(self):
         ledger = ApprovalLedger()
