@@ -80,3 +80,11 @@ async def rate_limit_middleware(request, call_next):
     response = await call_next(request)
     response.headers["X-API-Version"] = "v1"
     return response
+
+
+async def dispatch_request(request, call_next):
+    """Apply legacy redirects or rate limiting, dispatching normal requests once."""
+    redirect = api_versioning_redirect(request)
+    if redirect is not None:
+        return redirect
+    return await rate_limit_middleware(request, call_next)
