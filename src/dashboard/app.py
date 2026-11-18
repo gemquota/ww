@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from fastapi import FastAPI, HTTPException, Security
-from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse
     from pydantic import BaseModel
     from src.utils.web_client import WebGeminiClient
     from src.telemetry import TelemetryManager
