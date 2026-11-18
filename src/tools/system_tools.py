@@ -46,7 +46,7 @@ async def _stop_process_group(process, streams_task) -> None:
     """Terminate a command and its descendants, then drain pipes and reap it."""
     import signal
 
-    try
+    try:
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGTERM)
         else:
