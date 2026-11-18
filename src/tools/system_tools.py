@@ -42,6 +42,30 @@ async def _read_capped_stream(reader, limit: int = 5 * 1024 * 1024) -> bytes:
     return b"".join(chunks)
 
 
+async def _stop_process_group(process, streams_task) -> None:
+    """Terminate a command and its descendants, then drain pipes and reap it."""
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    except ProcessLookupError:
+        pass
+
+    try:
+        await asyncio.wait_for(asyncio.shield(streams_task), timeout=2)
+    except asyncio.TimeoutError:
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        await asyncio.gather(streams_task, return_exceptions=True)
+    await process.wait()
+
+
 def _is_sensitive_workspace_path(path: Path) -> bool:
     """Avoid exposing common credential files through remote read tools."""
     protected_parts = {".git", ".ssh", ".aws", ".gnupg"}
@@ -173,28 +197,11 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
             )
             await process.wait()
         except asyncio.TimeoutError:
-            # Kill the whole process group so child processes cannot outlive
-            # the command that WW reports as timed out.
-            try:
-                if os.name == "posix":
-                    os.killpg(process.pid, signal.SIGTERM)
-                else:
-                    process.terminate()
-            except ProcessLookupError:
-                pass
-            try:
-                await asyncio.wait_for(asyncio.shield(streams_task), timeout=2)
-            except asyncio.TimeoutError:
-                try:
-                    if os.name == "posix":
-                        os.killpg(process.pid, signal.SIGKILL)
-                    else:
-                        process.kill()
-                except ProcessLookupError:
-                    pass
-                await asyncio.gather(streams_task, return_exceptions=True)
-            await process.wait()
+            await _stop_process_group(process, streams_task)
             return "ERROR: Command timed out after 60 seconds; process group terminated."
+        except asyncio.CancelledError:
+            await _stop_process_group(process, streams_task)
+            raise
 
         output = stdout.decode(errors="replace")
         if stderr:
