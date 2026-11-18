@@ -520,11 +520,14 @@ async def run_terminal(
             gem=settings.get("default_gem"),
         )
 
+    from src.prompting import create_terminal_session
+    prompt_session = create_terminal_session()
+
     pending_options = ()
     try:
         while True:
             try:
-                message = await asyncio.to_thread(input, "you> ")
+                message = await prompt_session.prompt_async("you> ")
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 break
