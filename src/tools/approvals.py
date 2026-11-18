@@ -96,6 +96,13 @@ class ApprovalLedger:
             self._pending[request_id] = record
         return ApprovalRequest(request_id, tool_name, expires_at)
 
+    def reject(self, request_id: str) -> bool:
+        """Discard a pending request after a local rejection or interrupted prompt."""
+        now = time.monotonic()
+        with self._lock:
+            self._prune(now)
+            return self._pending.pop(request_id, None) is not None
+
     def approve(self, request_id: str) -> str:
         """Approve a pending request from a trusted local control surface."""
         now = time.monotonic()
