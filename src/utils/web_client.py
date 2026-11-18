@@ -2,6 +2,7 @@
 import os
 import time
 import asyncio
+import inspect
 from typing import Optional, AsyncIterator
 from loguru import logger
 from gemini_webapi import GeminiClient
@@ -57,6 +58,20 @@ class WebGeminiClient:
         self._request_times: list = []
         self._rate_limit_rpm = rate_limit_rpm or self._get_config_rate_limit()
         self._rate_lock = asyncio.Lock()
+
+    async def close(self) -> None:
+        """Release the underlying transport when it exposes a close method."""
+        client, self.client = self.client, None
+        self.chat = None
+        self._use_api_key = False
+        if client is None:
+            return
+        closer = getattr(client, "aclose", None) or getattr(client, "close", None)
+        if closer is None:
+            return
+        result = closer()
+        if inspect.isawaitable(result):
+            await result
 
     @staticmethod
     def _get_config_rate_limit() -> int:

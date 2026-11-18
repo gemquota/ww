@@ -71,6 +71,7 @@ shows a successful connection.
 
 - `WW_DASHBOARD_API_KEY` is mandatory for the health check, chat and protected
   endpoints. If it is missing, protected routes fail closed with HTTP 503.
+- For zero-downtime key rotation, set `WW_DASHBOARD_API_KEYS` to a comma-separated overlap of active keys, deploy/restart WW, update browser clients to the new key, then remove the old key from that list. When the plural setting is non-empty it is authoritative and the legacy singular setting is ignored; if the plural setting is empty, `WW_DASHBOARD_API_KEY` remains supported.
 - The browser sends the API key with its health check, so a successful
   connection confirms both reachability and authentication.
 - CORS is a browser-origin policy, not authentication. The API key is still
@@ -96,3 +97,5 @@ export WW_REMOTE_TOOLS_ENABLED=1
 Even when enabled, the browser API exposes only `read_file` and `list_dir`, both confined to the configured WW workspace. Shell execution, Git mutations, file writes, patching, arbitrary code search and URL fetching are deliberately not exposed through the browser API. The local terminal tool workflow is unchanged.
 
 Do not treat the API key or CORS as a sandbox. Keep the server bound to loopback and use an authenticated private tunnel for remote access. The in-memory rate limit is per observed client address; tunnel deployments may cause multiple users to share the same observed address.
+- Browser chat sessions are kept in a bounded in-memory store (64 sessions by default) and expire after 30 minutes of inactivity. Requests within one tab/session are serialized; active sessions are never evicted to make room. Restarting WW clears these in-memory sessions.
+- Rate limiting uses the direct TCP peer address by default and ignores `X-Forwarded-For`. If WW is behind a reverse proxy, configure `WW_TRUSTED_PROXY_CIDRS` with only the proxy IPs/CIDRs you control (comma-separated). Forwarded addresses are considered only when the immediate peer is in that trust list. Never trust all networks or accept forwarded headers directly from arbitrary clients.

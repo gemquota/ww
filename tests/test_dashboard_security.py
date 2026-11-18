@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 import unittest
@@ -9,6 +10,8 @@ from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.dashboard import routes_auth
+from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
+from src.utils.web_client import WebGeminiClient
 from src.tools.system_tools import (
     _is_sensitive_workspace_path,
     _read_capped_stream,
@@ -25,11 +28,22 @@ class DashboardAuthenticationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_or_wrong_client_key_is_rejected(self):
         with patch.dict(os.environ, {"WW_DASHBOARD_API_KEY": "correct-key"}):
-            for supplied in ("", "wrong-key"):
+            for supplied in ("", "wrong-key", "clé-invalide"):
                 with self.subTest(supplied=supplied):
                     with self.assertRaises(HTTPException) as raised:
                         await routes_auth.verify_api_key(supplied)
                     self.assertEqual(raised.exception.status_code, 401)
+
+    async def test_overlapping_keys_support_zero_downtime_rotation(self):
+        with patch.dict(os.environ, {
+            "WW_DASHBOARD_API_KEYS": "old-key, new-key",
+            "WW_DASHBOARD_API_KEY": "retired-legacy-key",
+        }, clear=True):
+            self.assertEqual(await routes_auth.verify_api_key("old-key"), "old-key")
+            self.assertEqual(await routes_auth.verify_api_key("new-key"), "new-key")
+            with self.assertRaises(HTTPException) as raised:
+                await routes_auth.verify_api_key("retired-legacy-key")
+            self.assertEqual(raised.exception.status_code, 401)
 
     async def test_correct_key_is_accepted(self):
         with patch.dict(os.environ, {"WW_DASHBOARD_API_KEY": "correct-key"}):
@@ -132,6 +146,119 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             return await _read_capped_stream(reader, limit=5)
 
         self.assertEqual(asyncio.run(run()), b"abcde")
+
+
+
+class WebGeminiClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_close_releases_async_transport_and_is_idempotent(self):
+        class FakeTransport:
+            def __init__(self):
+                self.closed = 0
+
+            async def aclose(self):
+                self.closed += 1
+
+        transport = FakeTransport()
+        client = WebGeminiClient()
+        client.client = transport
+        client.chat = object()
+        await client.close()
+        await client.close()
+        self.assertEqual(transport.closed, 1)
+        self.assertIsNone(client.client)
+        self.assertIsNone(client.chat)
+        self.assertFalse(client._use_api_key)
+
+
+class TrustedProxyTests(unittest.TestCase):
+    def test_forwarded_header_is_ignored_without_trusted_proxy_config(self):
+        request = SimpleNamespace(
+            client=SimpleNamespace(host="198.51.100.10"),
+            headers={"x-forwarded-for": "203.0.113.99"},
+        )
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(routes_auth._client_address(request), "198.51.100.10")
+
+    def test_trusted_proxy_chain_uses_nearest_untrusted_address(self):
+        request = SimpleNamespace(
+            client=SimpleNamespace(host="10.0.0.3"),
+            headers={"x-forwarded-for": "203.0.113.99, 198.51.100.20, 10.0.0.2"},
+        )
+        with patch.dict(os.environ, {"WW_TRUSTED_PROXY_CIDRS": "10.0.0.0/8"}):
+            self.assertEqual(routes_auth._client_address(request), "198.51.100.20")
+
+
+class BrowserSessionStoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sessions_are_reused_and_closed_on_shutdown(self):
+        class FakeClient:
+            def __init__(self):
+                self.closed = False
+
+            async def close(self):
+                self.closed = True
+
+        store = BrowserSessionStore(max_sessions=2, idle_ttl=60)
+        created = []
+
+        async def factory():
+            client = FakeClient()
+            created.append(client)
+            return client
+
+        async with store.acquire("tab-a", factory) as first:
+            first_client = first
+        async with store.acquire("tab-a", factory) as second:
+            self.assertIs(first_client, second)
+        self.assertEqual(len(created), 1)
+        await store.close_all()
+        self.assertTrue(created[0].closed)
+        self.assertEqual(store.retained_count, 0)
+
+    async def test_active_sessions_are_not_evicted_at_capacity(self):
+        store = BrowserSessionStore(max_sessions=1, idle_ttl=60)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def factory():
+            return object()
+
+        async def hold_session():
+            async with store.acquire("active", factory):
+                entered.set()
+                await release.wait()
+
+        task = asyncio.create_task(hold_session())
+        await entered.wait()
+        with self.assertRaises(SessionCapacityError):
+            async with store.acquire("second", factory):
+                self.fail("A full store must reject rather than evict an active session.")
+        release.set()
+        await task
+
+    async def test_idle_sessions_are_evicted_to_make_room(self):
+        class FakeClient:
+            def __init__(self):
+                self.closed = False
+
+            async def close(self):
+                self.closed = True
+
+        store = BrowserSessionStore(max_sessions=1, idle_ttl=0.01)
+        clients = []
+
+        async def factory():
+            client = FakeClient()
+            clients.append(client)
+            return client
+
+        async with store.acquire("old", factory):
+            pass
+        store._sessions["old"].last_access -= 1
+        async with store.acquire("new", factory):
+            pass
+        self.assertTrue(clients[0].closed)
+        self.assertEqual(store.retained_count, 1)
+        await store.close_all()
 
 
 if __name__ == "__main__":

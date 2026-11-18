@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import os
 import time
 from collections import OrderedDict, deque
@@ -21,19 +22,82 @@ _last_prune = 0.0
 
 
 async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
-    """Require a configured key and compare it without timing-sensitive equality."""
-    expected = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
-    if not expected:
+    """Require a configured key and compare against active keys without early exit.
+
+    WW_DASHBOARD_API_KEYS supports overlap during rotation; the singular
+    WW_DASHBOARD_API_KEY remains supported for existing installations.
+    """
+    configured = os.getenv("WW_DASHBOARD_API_KEYS", "").strip()
+    if configured:
+        expected_keys = [
+            value.strip()
+            for value in configured.split(",")
+            if value.strip()
+        ]
+    else:
+        legacy_key = os.getenv("WW_DASHBOARD_API_KEY", "").strip()
+        expected_keys = [legacy_key] if legacy_key else []
+
+    if not expected_keys:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="WW API authentication is not configured. Set WW_DASHBOARD_API_KEY.",
+            detail="WW API authentication is not configured. Set WW_DASHBOARD_API_KEY or WW_DASHBOARD_API_KEYS.",
         )
-    if not api_key or not hmac.compare_digest(api_key, expected):
+
+    supplied = api_key or ""
+    matched = False
+    for expected in expected_keys:
+        matched = hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")) or matched
+    if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key.",
         )
-    return api_key
+    return supplied
+
+
+def _trusted_proxy_networks():
+    """Parse explicitly trusted reverse-proxy CIDRs; forwarding headers are ignored otherwise."""
+    networks = []
+    for value in os.getenv("WW_TRUSTED_PROXY_CIDRS", "").split(","):
+        value = value.strip()
+        if not value:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(value, strict=False))
+        except ValueError:
+            # Invalid trust configuration must not expand the trusted boundary.
+            continue
+    return networks
+
+
+def _client_address(request) -> str:
+    peer_text = request.client.host if request.client else "unknown"
+    try:
+        peer = ipaddress.ip_address(peer_text)
+    except ValueError:
+        return peer_text
+
+    trusted = _trusted_proxy_networks()
+    if not any(peer in network for network in trusted):
+        return peer.compressed
+
+    forwarded = request.headers.get("x-forwarded-for", "")
+    candidates = []
+    for value in forwarded.split(",")[-16:]:
+        try:
+            candidates.append(ipaddress.ip_address(value.strip()))
+        except ValueError:
+            return peer.compressed
+
+    # Walk from the immediate proxy toward the client. Stop at the first
+    # address not explicitly trusted, preventing spoofed leftmost entries.
+    current = peer
+    for candidate in reversed(candidates):
+        if not any(current in network for network in trusted):
+            break
+        current = candidate
+    return current.compressed
 
 
 def api_versioning_redirect(request):
@@ -51,7 +115,7 @@ async def rate_limit_middleware(request, call_next):
     """Apply a bounded in-memory per-client sliding-window limit."""
     global _last_prune
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _client_address(request)
     now = time.monotonic()
     entries = _rate_limit_store.get(client_ip)
     if entries is None:

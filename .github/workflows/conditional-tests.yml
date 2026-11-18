@@ -1,4 +1,8 @@
 # Conditional test execution — V6-T3#2
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 name: Conditional Tests
 
 on:
@@ -10,6 +14,7 @@ on:
 
 jobs:
   unit:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

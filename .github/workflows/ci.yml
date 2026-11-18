@@ -1,5 +1,9 @@
 name: WW Core CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main, master, "reboot/**"]
@@ -9,6 +13,7 @@ on:
 jobs:
   core:
     name: Core terminal checks
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
