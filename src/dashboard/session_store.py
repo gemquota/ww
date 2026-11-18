@@ -105,6 +105,8 @@ class BrowserSessionStore:
         except BaseException:
             async with self._guard:
                 entry.active -= 1
+                if entry.active == 0 and entry.client is None and self._sessions.get(session_id) is entry:
+                    self._sessions.pop(session_id, None)
             raise
 
         try:
