@@ -8,8 +8,10 @@ The first Phase 2 commit introduces two foundations:
 
 - `src/tools/tool_policy.py` classifies known tools by risk. Unknown tools are denied. Only `read_file` and `list_dir` are marked as remotely exposable.
 - `src/tools/approvals.py` provides short-lived, one-use approval grants bound to the exact session, tool name and canonical argument digest. A grant cannot be replayed with changed arguments or in another session.
+- `src/tools/local_approval.py` provides a terminal-only human approval controller. The interactive tool executor displays the exact arguments and requires an explicit `y`/`yes` decision before mutations, shell execution, Git operations or network fetches. Rejection, EOF and approval errors fail closed.
+- Tool aliases are normalized before policy lookup, including the actual registry name `git`.
 
-The approval ledger is in-memory. Pending requests expire after five minutes; approved grants expire after two minutes. Pending requests and grants are each capped at 256 records, with expired entries pruned before capacity checks. Restarting WW invalidates all pending requests and grants. The ledger is not wired to an HTTP endpoint, and no remote mutation or shell execution is enabled by this foundation.
+The approval ledger is in-memory. Pending requests expire after five minutes; approved grants expire after two minutes. Pending requests and grants are each capped at 256 records, with expired entries pruned before capacity checks. Restarting WW invalidates all pending requests and grants. The ledger is not wired to an HTTP endpoint. The local terminal is the only approval surface; browser clients cannot approve requests. The browser API remains limited to read-only tools.
 
 ## Required execution flow
 
@@ -41,14 +43,14 @@ The backend must be capability-detected on the actual deployment platform. Termu
 ## Delivery sequence
 
 - **2A, policy and grants:** risk classification, one-use approval primitives and tests. Started.
-- **2B, local approval UX:** show a human-readable, immutable preview of the exact operation; approve/reject locally; no model-controlled approval path.
+- **2B, local approval UX:** implemented in the terminal executor with exact argument previews and explicit local approve/reject decisions; add richer diff previews and terminal-specific usability tests before calling it complete.
 - **2C, isolated runner:** select and verify a platform-specific sandbox; enforce resource, filesystem and network boundaries.
 - **2D, audit and recovery:** structured redacted audit records, cancellation cleanup, grant expiry/replay tests and failure recovery.
 - **2E, remote integration:** only after 2B–2D pass, expose a narrow approval-request/status API. Approval itself remains a local device action. Shell access is not automatically granted by approving an individual operation.
 
 ## Acceptance criteria
 
-- No privileged tool can run without a valid one-use grant.
+- No privileged model-issued tool call can run without a valid one-use grant consumed immediately before execution.
 - Grants are bound to the exact tool, argument digest and session, expire quickly and cannot be replayed.
 - A model or remote browser client cannot approve its own request.
 - No sandbox means no privileged execution.
