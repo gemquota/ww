@@ -111,6 +111,19 @@ class LocalApprovalControllerTests(unittest.TestCase):
             ))
 
 
+    def test_mutations_fail_closed_without_permission_manager(self):
+        controller = LocalApprovalController(
+            prompt=lambda _: self.fail("missing permission manager must deny"),
+            output=lambda _: None,
+        )
+        self.assertFalse(controller.authorize(
+            "write_file", {"file_path": "README.md", "content": "content"}
+        ))
+        self.assertFalse(controller.authorize(
+            "shell_exec", {"command": "echo hello"}
+        ))
+
+
 class ApprovalLedgerTests(unittest.TestCase):
     def test_grant_is_bound_to_session_tool_and_exact_arguments(self):
         args = {"file_path": "src/example.py", "content": "safe"}
