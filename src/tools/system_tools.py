@@ -3,7 +3,8 @@ import os
 import subprocess
 import asyncio
 import shlex
-import os
+import tempfile
+import stat
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -30,6 +31,37 @@ def _resolve_workspace_path(path: str | Path) -> Path:
     except ValueError as exc:
         raise PermissionError(f"Path is outside workspace: {path}") from exc
     return resolved
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Replace a text file atomically, preserving existing mode where possible."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".wwtmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            os.chmod(temporary_name, mode)
+        os.replace(temporary_name, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+    except Exception:
+        try:
+            os.unlink(temporary_name)
+        except OSError:
+            pass
+        raise
 
 
 async def _read_capped_stream(reader, limit: int = 5 * 1024 * 1024) -> bytes:
@@ -173,7 +205,7 @@ async def write_file(file_path: str, content: str, permission_mgr=None, checkpoi
 
         old_content = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        _atomic_write_text(p, content)
 
         if diff_engine and old_content and old_content != content:
             diff = diff_engine.colorize_diff(old_content, content, str(file_path))
@@ -327,14 +359,14 @@ async def file_patch(file_path: str, search_text: str, replace_text: str, checkp
             return message
         else:
             new_content = content.replace(search_text, replace_text, 1)
-            p.write_text(new_content, encoding="utf-8")
+            _atomic_write_text(p, new_content)
             # Syntax validation for Python files
             syntax_warning = ""
             if file_path.endswith('.py'):
                 try:
                     import py_compile as _py_compile
-                    _py_compile.compile(file_path, doraise=True)
-                except py_compile.PyCompileError as _e:
+                    _py_compile.compile(str(p), doraise=True)
+                except _py_compile.PyCompileError as _e:
                     syntax_warning = f"\n⚠ WARNING: Python syntax error: {_e}"
                 except Exception:
                     pass
