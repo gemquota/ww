@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 Interactive tutorial mode for onboarding.
 Addresses NEW-V6-O4#1 (Jack Thompson).
 """
