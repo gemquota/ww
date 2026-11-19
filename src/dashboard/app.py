@@ -131,7 +131,7 @@ async def get_memory_graph(session_id: int):
 
 @app.get("/api/v1/health", dependencies=[Security(verify_api_key)])
 async def health():
-    """Bridge health check endpoint."""
+    """Authenticated local backend health check."""
     db_exists = get_db_path().exists()
     return {
         "status": "ok",
@@ -456,14 +456,16 @@ async def chat_ui():
 async def root():
     """Dashboard index with API documentation."""
     return {
-        "name": "WW Bridge API",
-        "version": "0.2.0",
+        "name": "WW Local API",
+        "version": "0.3.0",
         "endpoints": {
-            "GET  /health": "Bridge health check",
-            "POST /chat": "Single-turn Gemini query",
-            "GET  /sessions": "List recent sessions",
-            "GET  /session/{id}": "Get session history",
-            "GET  /stats": "Aggregated telemetry statistics",
+            "GET  /api/v1/health": "Authenticated backend health",
+            "GET  /api/v1/runtime": "Workspace and runtime readiness",
+            "POST /api/v1/chat/stream": "Streaming chat and tool events",
+            "POST /chat": "Non-streaming compatibility chat",
+            "POST /tools/execute": "Opt-in read-only tool execution",
+            "GET  /chat-ui": "Serve the browser workspace",
+            "GET  /sessions": "List recent telemetry sessions",
             "GET  /docs": "OpenAPI documentation (Swagger UI)"
         }
     }
