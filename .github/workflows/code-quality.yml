@@ -30,6 +30,7 @@ on:
       - 'tests/test_cookie_loader.py'
       - 'tests/test_dashboard_runtime.py'
       - 'tests/test_prompting.py'
+      - 'tests/test_tool_environment.py'
       - 'tests/test_subprocess_cleanup.py'
       - 'requirements-dashboard.txt'
       - '.github/workflows/ci.yml'
