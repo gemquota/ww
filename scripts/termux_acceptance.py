@@ -9,6 +9,7 @@ browser acceptance sequence documented in docs/architecture-review.md.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -186,14 +187,21 @@ def check_local_api(repo: Path) -> None:
             log.close()
 
 
-async def main() -> int:
+async def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run WW Termux/PRoot acceptance checks.")
+    parser.add_argument(
+        "--skip-tests", action="store_true",
+        help="Skip unittest discovery (useful when CI has already run it).",
+    )
+    args = parser.parse_args(argv)
     repo = Path(__file__).resolve().parent.parent
     print("WW Termux / PRoot acceptance")
     print(f"Python: {sys.version.split()[0]} ({sys.executable})")
     print(f"Platform: {sys.platform} / {os.name}")
     print(f"Repository: {repo}")
 
-    run_unit_suite(repo)
+    if not args.skip_tests:
+        run_unit_suite(repo)
     with tempfile.TemporaryDirectory(prefix="ww-workspace-acceptance-") as directory:
         workspace = Path(directory)
         await check_process_backend(workspace)
