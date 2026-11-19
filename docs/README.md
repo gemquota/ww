@@ -2,6 +2,8 @@
 
 ## Current, authoritative documentation
 
+- [Codebase inventory](codebase-inventory.md): repository footprint, active modules, legacy areas and adversarial findings.
+
 - [Architecture review](architecture-review.md): supported runtime, technical findings, adversarial review and verification limits.
 - [Feature-branch integration review](branch-integration-review.md): branch disposition and selective integration decisions.
 - [Dashboard API](api/dashboard.md): current authenticated local API and SSE endpoints.
