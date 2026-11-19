@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 from src.artifacts import list_artifacts, render_model_output, save_research_document
 from src.canvas_browser import launch_canvas_browser
-from src.cookie_loader import extract_gemini_cookies
+from src.cookie_loader import load_cookie_environment
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
 from src.conversation_runtime import ConversationRuntime
