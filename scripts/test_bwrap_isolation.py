@@ -39,7 +39,6 @@ def _base_command(bwrap: str, python: str, code: str) -> list[str]:
         "--unshare-all",
         "--die-with-parent",
         "--new-session",
-        "--tmpfs", "/",
         "--dir", "/usr",
         "--ro-bind", "/usr", "/usr",
         "--symlink", "usr/bin", "/bin",
@@ -63,16 +62,24 @@ def _base_command(bwrap: str, python: str, code: str) -> list[str]:
 def _run(bwrap: str, python: str, code: str, *, timeout: float = 8.0) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["WW_SANDBOX_HOST_SECRET_PROBE"] = "must-not-cross-boundary"
-    return subprocess.run(
-        _base_command(bwrap, python, code),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=timeout,
-        check=False,
-        env=env,
-    )
+    command = _base_command(bwrap, python, code)
+    try:
+        return subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        return subprocess.CompletedProcess(command, 124, stdout, stderr + "\\nprobe timed out")
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, 125, "", f"{type(exc).__name__}: {exc}")
 
 
 def _case(name: str, passed: bool, detail: str) -> dict[str, Any]:
@@ -254,7 +261,11 @@ def run_suite() -> dict[str, Any]:
 def main() -> int:
     report = run_suite()
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["result"] in {"passed_smoke_suite", "not_run"} else 1
+    if report["result"] == "passed_smoke_suite":
+        return 0
+    if report["result"] == "not_run":
+        return 2
+    return 1
 
 
 if __name__ == "__main__":
