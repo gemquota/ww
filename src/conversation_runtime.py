@@ -296,6 +296,17 @@ class ConversationRuntime:
         """Call after the client starts or resumes a different Gemini conversation."""
         self._instructions_sent = False
 
+    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, str]:
+        """Execute one explicit tool request through the same policy and approval path."""
+        async with self._lock:
+            await self.initialize()
+            body = json.dumps(arguments, ensure_ascii=False, allow_nan=False)
+            results, _ = await self._execute_blocks([(tool_name, body)], call_count=0)
+            return results[0] if results else {
+                "tool": canonical_tool_name(tool_name),
+                "output": "ERROR: No tool result was produced.",
+            }
+
     async def _execute_blocks(
         self,
         blocks: list[tuple[str, str]],
