@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 import time
@@ -19,6 +20,8 @@ def run_checks(skip_tests: bool = False) -> int:
     ]
     if not skip_tests:
         commands.append([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"])
+    if shutil.which("node"):
+        commands.append([sys.executable, "-m", "scripts.check_frontend_js"])
     commands.append([sys.executable, "-m", "scripts.termux_acceptance", "--skip-tests"])
 
     for command in commands:
