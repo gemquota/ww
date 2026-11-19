@@ -115,7 +115,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 
 1. **Legacy bridge:** src/gemini_bridge.py still contains its own ToolExecutor, Gemini client path, memory and orchestration stack. Static inspection found unresolved names and stale registry calls in this legacy code. Its direct entry point now exits with a deprecation message; it is not a supported runtime. Treat the remaining modules as retired migration source; any selective feature migration should be scoped separately rather than keeping the old runtime alive.
 2. **Live device verification:** the new runtime and browser path have deterministic fake-client tests, but no actual Gemini → tool → approval → subprocess → Gemini cycle has yet been verified on the user's Android device.
-3. **PR CI:** the integration branch must pass GitHub Actions before merge. The expanded unit and acceptance tests are in CI; the final result must be observed, not assumed.
+3. **PR CI:** both core CI and code-quality workflows passed on integration head 3d46f1b. Live Gemini and Android device verification remain separate.
 4. **Pages deployment:** the frontend artifact and branch fallback have been updated, but the deployed public URL must be checked after the Pages workflow or branch deployment runs.
 5. **Foreground approval:** terminal approval is deliberate, but the browser should clearly explain that the backend needs an interactive terminal. A future browser-mediated approval workflow would need its own explicit trust model.
 6. **SSE keepalives:** a long Gemini thinking interval may exceed some proxy idle timeouts. Add heartbeat comments if live tunnel testing shows this is necessary.
@@ -130,10 +130,10 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 | Level | Evidence | Status |
 |---|---|---|
 | Static source review | Repository files and branch comparisons | Completed for the integration scope |
-| Unit tests | Existing tests plus shared-runtime, prompting and shell-environment tests | Authored; CI result pending |
-| Deterministic integration | Fake Gemini client exercises tool call, approval, output feedback and streaming | Authored; CI result pending |
-| Local API acceptance | Temporary workspace, Uvicorn startup, API key, runtime metadata, CORS, browser page and process cleanup | Authored; CI result pending |
-| Linux process behaviour | Existing process-group cleanup tests | Present; CI result pending |
+| Unit tests | Existing tests plus shared-runtime, prompting, shell-environment and regression tests | Passed on 3d46f1b |
+| Deterministic integration | Fake Gemini client exercises tool call, approval, output feedback and streaming | Passed on 3d46f1b |
+| Local API acceptance | Temporary workspace, Uvicorn startup, API key, runtime metadata, CORS, browser page and process cleanup | Passed on 3d46f1b |
+| Linux process behaviour | Process-group timeout, cancellation and stubborn-child cleanup tests | Passed on 3d46f1b |
 | Real Gemini session | Actual authenticated request and conversation resume | Not verified in this turn |
 | Android Termux / Debian PRoot | Actual browser chat, local approval, shell execution and process cleanup | Not verified in this turn |
 | Public Pages deployment | Live page and API connection from Android browser | Not verified in this turn |
