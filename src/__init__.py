@@ -50,7 +50,7 @@ _EXPORTS = {
 
 def __getattr__(name: str):
     """Load optional legacy exports and subpackages only when requested."""
-    if name in {"tools", "dashboard", "core", "utils"}:
+    if name in {"tools", "dashboard", "core", "utils", "cookie_loader"}:
         value = import_module(f"{__name__}.{name}")
         globals()[name] = value
         return value
