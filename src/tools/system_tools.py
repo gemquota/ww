@@ -157,17 +157,42 @@ def _is_sensitive_workspace_path(path: Path) -> bool:
 
 # Tool Implementations
 def read_file(file_path: str) -> str:
-    """Read a file using surgical truncation if it's too large."""
-    from src.smart_context import read_file_surgical
+    """Read a bounded UTF-8 text preview from a workspace file."""
     try:
         p = _resolve_workspace_path(file_path)
         if _is_sensitive_workspace_path(p):
-            return "ERROR: Access denied. Sensitive files are not available through remote read tools."
+            return "ERROR: Access denied. Sensitive files are not available through read tools."
         if not p.exists():
             return f"ERROR: File '{file_path}' not found."
-        return read_file_surgical(p, max_lines=500)
-    except Exception as e:
-        return f"ERROR: {e}"
+        if not p.is_file():
+            return f"ERROR: '{file_path}' is not a regular file."
+
+        max_bytes = 128 * 1024
+        max_lines = 500
+        with p.open("rb") as handle:
+            raw = handle.read(max_bytes + 1)
+        byte_truncated = len(raw) > max_bytes
+        raw = raw[:max_bytes]
+        if b"\\x00" in raw:
+            return f"ERROR: '{file_path}' appears to be a binary file."
+        text = raw.decode("utf-8", errors="replace")
+        lines = text.splitlines()
+        line_truncated = len(lines) > max_lines
+        shown = lines[:max_lines]
+        if not shown:
+            preview = "(empty file)"
+        else:
+            preview = "\\n".join(
+                f"{index + 1:>5} | {line}" for index, line in enumerate(shown)
+            )
+        if byte_truncated or line_truncated:
+            preview += (
+                f"\\n[TRUNCATED: preview limited to {max_bytes} bytes "
+                f"and {max_lines} lines]"
+            )
+        return f"FILE: {p.relative_to(_get_workspace_root().resolve())}\\n{preview}"
+    except Exception as exc:
+        return f"ERROR: {exc}"
 
 def list_dir(dir_path: str = ".") -> str:
     try:
