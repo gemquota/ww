@@ -91,7 +91,18 @@ async def _stop_process_group(process, streams_task) -> None:
         except ProcessLookupError:
             pass
         await asyncio.gather(streams_task, return_exceptions=True)
-    await process.wait()
+
+    try:
+        await asyncio.wait_for(asyncio.shield(process.wait()), timeout=2)
+    except asyncio.TimeoutError:
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        await process.wait()
 
 async def _run_process(
     *command: str,
