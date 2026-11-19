@@ -499,7 +499,7 @@
   async function connectBackend() {
     clearError();
     try {
-      const base = apiBase(), headers = authHeaders(false);
+      const headers = authHeaders(false);
       sessionStorage.setItem("ww-api-url",base);
       sessionStorage.setItem("ww-api-key",apiKey.value.trim());
       setConnection("busy","Checking local API");
