@@ -8,7 +8,7 @@
 
 The feature branches are not merge candidates merely because they contain useful work. Most have diverged from main by 40–80 commits. Direct merges would reintroduce older transport, dashboard, renderer, settings, or dependency implementations. The review therefore compares the feature intent with the current main implementation and ports only capabilities that are still missing.
 
-The default terminal and dashboard now share ConversationRuntime, WWClient, tool schemas, policy checks, approval, and tool feedback. The separate legacy agent bridge remains a migration target; it is not used by the default terminal or browser UI.
+The default terminal and dashboard now share ConversationRuntime, WWClient, tool schemas, policy checks, approval, and tool feedback. The separate legacy agent bridge is explicitly retired as an entry point; its optional agent/memory subsystems are not part of the supported runtime and are not an active migration target.
 
 ## Branch decisions
 
@@ -39,9 +39,9 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 | phase-1-session-isolation | No action | No commits ahead of main. |
 | phase-2-tool-approval-foundation | Already integrated | Approval policy, one-use grants and local approval are in main through the merged Phase 2 work. |
 | phase-2b-diff-preview | Already integrated | Pre-approval file diff previews are in main. |
-| phase-2c-adversarial-runtime-suite | Already integrated; isolation work inactive | Its diagnostic scripts and host evaluation were merged. The user has since explicitly ended the isolation workstream. |
+| phase-2c-adversarial-runtime-suite | Historical work only | Earlier diagnostics were evaluated; the probe script and tests have since been removed after the user ended the isolation workstream. |
 | phase-2c-isolation-backend-evaluation | Do not merge | It is an isolation evaluation branch, and that objective has been abandoned. |
-| phase-2c-runtime-capability-probe | Already integrated as diagnostics | Capability probe and tests are in main. They are not an active development priority. |
+| phase-2c-runtime-capability-probe | Historical work only | The capability probe was used for the platform assessment, then removed from the active codebase when isolation work was abandoned. |
 | phase-2d-audit-export | Already integrated | Audit export changes are in main. |
 | phase-2d-audit-recovery | Already integrated | Audit failure recovery and subprocess cleanup work are in main. |
 | phase-2d-audit-rotation | Already integrated | Audit rotation work is in main. |
@@ -70,11 +70,16 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 - Replaced the obsolete gh-pages root index with the same frontend.
 - Added persistent prompt-toolkit history and command completion instead of the old readline helper.
 - Added tool schema validation before approval, synchronous tool offloading, atomic workspace writes, and corrected Python syntax validation.
-- Disabled URL fetching in both the new runtime and legacy registry until DNS pinning and redirect validation can be implemented safely.
+- Disabled URL fetching in the supported runtime until DNS pinning and redirect validation can be implemented safely.
+- Added a consolidated Termux/PRoot acceptance harness, local API smoke test, frontend JavaScript syntax check, and browser Local Network Access support.
+- Bounded and debounced browser transcript persistence.
+- Removed conflicting Pages deployment, obsolete progress dashboard, abandoned isolation probe/tests, inert nested CI, broken Terraform deployment and stale dependency constraints.
+- Corrected optional Docker configuration and added a secret-safe build context; Docker remains unverified.
+- Updated AGENTS.md, CONTRIBUTING.md, pytest.ini, mypy.ini, ADRs, API/tool docs and historical-document notices.
 - Removed the duplicate unit-test workflow and expanded the main CI job.
 
 ## Remaining migration work
 
-The older src/gemini_bridge.py agent/memory/orchestration entry point still has its own ToolExecutor and Gemini client path. It is not used by the default terminal or browser app, but it is still a second implementation in the repository. Its optional subsystems need an explicit migrate/retire decision before claiming the entire repository has one runtime.
+The older src/gemini_bridge.py and src/tool_executor.py remain in the repository as retired migration source and contain unresolved references. They are not used by the supported terminal or browser app. Advanced specialist-agent, memory-tier and orchestration features have not been ported; they remain explicitly outside the supported runtime unless separately requested.
 
-No feature branch should be merged wholesale after this review. Remaining useful changes should be ported as isolated, tested commits against the integration branch.
+No feature branch should be merged wholesale after this review. Remaining useful changes should be ported as isolated, tested commits against the shared runtime. PR #44 is the consolidated integration branch; it must pass the final CI and code-quality checks before squash merge.
