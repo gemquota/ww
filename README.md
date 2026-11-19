@@ -4,7 +4,7 @@
 
 WW uses one shared conversation runtime for its terminal and browser clients. It handles Gemini sessions, explicit tool calls, local command execution, approval prompts, output feedback, and bounded execution loops. The browser frontend is static and can be hosted on GitHub Pages; the authenticated API and all workspace operations remain on the user's device.
 
-The older agent hierarchy, specialist-agent memory, plugin scanner, and experimental orchestration modules remain optional legacy extensions. They are not separate execution paths used by the default terminal and browser clients.
+The older agent hierarchy, specialist-agent memory, plugin scanner, and experimental orchestration modules remain legacy source awaiting migration. The old src/gemini_bridge.py entry point is retired; use the root gemini_bridge.py terminal or src.dashboard.app browser backend.
 
 ## Requirements
 
