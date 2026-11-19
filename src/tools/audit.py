@@ -162,7 +162,7 @@ class ToolAuditLog:
                 parent = self._prepare_directory()
                 lock_fd = self._acquire_file_lock()
                 try:
-                    flags = os.O_RDONLY | os.O_NOFOLLOW
+                    flags = os.O_WRONLY | os.O_NOFOLLOW
                     try:
                         fd = os.open(self.path, flags)
                     except FileNotFoundError:
