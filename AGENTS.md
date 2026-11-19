@@ -10,7 +10,7 @@ WW is a Gemini Web Chat client with a local workspace runtime. The supported app
 
 Both clients use `src/ww_client.py` and `src/conversation_runtime.py`. Do not create a second Gemini client, tool registry, or execution loop for a new interface. Browser sessions wrap the same WWClient and ConversationRuntime used by the terminal.
 
-The old `src/gemini_bridge.py` entry point is retired. `src/tool_executor.py`, `src/context.py`, `src/tui.py`, `src/core`, `src/v7`, `src/agents`, and `src/plugins` are legacy/experimental migration source, not supported application entry points. The retired bridge contains unresolved references. Do not build new features on it without first migrating the required behavior into the shared runtime.
+The old `src/gemini_bridge.py` entry point is retired. `src/tool_executor.py`, `src/context.py`, `src/tui.py`, `src/commands.py`, `src/tutorial.py`, `src/ui_adapter.py`, `src/bridge`, `src/core`, `src/v7`, `src/plugins`, top-level `agents/`, `demo/` and `chaos/` are legacy/experimental migration source, not supported application entry points. The retired bridge contains unresolved references. Do not build new features on it without first migrating the required behavior into the shared runtime.
 
 ## Core architecture
 
