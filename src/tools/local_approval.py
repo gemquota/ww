@@ -5,6 +5,7 @@ registered as a model tool and has no HTTP approval endpoint.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import secrets
 from typing import Any, Callable
@@ -47,6 +48,78 @@ class LocalApprovalController:
             self.output("DENIED: The audit log could not record this operation.")
             return False
 
+
+    DIFF_PREVIEW_MAX_BYTES = 256 * 1024
+    DIFF_PREVIEW_MAX_LINES = 80
+    DIFF_PREVIEW_MAX_CHARS = 10000
+
+    def _show_file_diff(self, tool_name: str, arguments: dict[str, Any], permission_mgr: Any) -> bool:
+        """Show a bounded, read-only diff before asking for write approval."""
+        if tool_name not in {"write_file", "file_patch"}:
+            return True
+        try:
+            file_path = arguments["file_path"]
+            target = permission_mgr.sandbox.resolve(file_path)
+            if target.exists() and not target.is_file():
+                self.output("DENIED: The write target is not a regular file.")
+                return False
+
+            old_content = ""
+            if target.exists():
+                if target.stat().st_size > self.DIFF_PREVIEW_MAX_BYTES:
+                    self.output("│ Diff preview omitted: existing file exceeds 256 KiB.")
+                    return True
+                old_content = target.read_text(encoding="utf-8", errors="replace")
+
+            if tool_name == "write_file":
+                new_content = arguments.get("content")
+                if not isinstance(new_content, str):
+                    self.output("DENIED: write_file content must be text.")
+                    return False
+            else:
+                search_text = arguments.get("search_text")
+                replace_text = arguments.get("replace_text")
+                if not isinstance(search_text, str) or not search_text:
+                    self.output("DENIED: file_patch requires non-empty search_text.")
+                    return False
+                if not isinstance(replace_text, str):
+                    self.output("DENIED: file_patch replace_text must be text.")
+                    return False
+                if not target.exists() or search_text not in old_content:
+                    self.output("DENIED: file_patch search_text does not match the target file.")
+                    return False
+                new_content = old_content.replace(search_text, replace_text, 1)
+
+            if len(new_content.encode("utf-8")) > self.DIFF_PREVIEW_MAX_BYTES:
+                self.output("│ Diff preview omitted: replacement content exceeds 256 KiB.")
+                return True
+
+            diff_lines = list(difflib.unified_diff(
+                old_content.splitlines(keepends=True),
+                new_content.splitlines(keepends=True),
+                fromfile=f"a/{file_path}",
+                tofile=f"b/{file_path}",
+            ))
+            self.output("│ Read-only diff preview:")
+            if not diff_lines:
+                self.output("│ (no textual changes)")
+                return True
+
+            shown = 0
+            chars = 0
+            for line in diff_lines:
+                rendered = line.rstrip("\n")
+                if shown >= self.DIFF_PREVIEW_MAX_LINES or chars + len(rendered) > self.DIFF_PREVIEW_MAX_CHARS:
+                    self.output("│ [... diff preview truncated ...]")
+                    break
+                self.output(f"│ {rendered}")
+                shown += 1
+                chars += len(rendered)
+            return True
+        except (KeyError, OSError, UnicodeError, ValueError) as exc:
+            self.output(f"DENIED: Unable to preview the write target ({exc}).")
+            return False
+
     def authorize(
         self,
         tool_name: str,
@@ -84,6 +157,9 @@ class LocalApprovalController:
                         return False
                     if permission_mgr.classify_write(file_path) is PermissionLevel.DENY:
                         self.output(f"DENIED: The target path is protected: {file_path}")
+                        self._record("approval_decision", canonical_name, arguments, decision="denied")
+                        return False
+                    if not self._show_file_diff(canonical_name, arguments, permission_mgr):
                         self._record("approval_decision", canonical_name, arguments, decision="denied")
                         return False
                 elif canonical_name == "shell_exec":
