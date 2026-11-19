@@ -385,15 +385,17 @@ async def url_fetch(url: str, timeout: int = 10) -> str:
     except Exception as e:
         # Fallback: try curl
         try:
-            stdout, stderr, _ = await _run_process(
+            stdout, stderr, returncode = await _run_process(
                 "curl", "-s", "--max-time", str(timeout), "-L", url,
                 timeout=timeout + 2, output_limit=5 * 1024 * 1024,
             )
-            out = stdout.decode().strip()
+            out = stdout.decode(errors="replace").strip()
+            if returncode != 0:
+                err = stderr.decode(errors="replace").strip()
+                return f"URL FETCH ERROR: {err or 'curl exited unsuccessfully'} (exit {returncode})"
             if out:
                 return out[:5000] + ("\n[... truncated ...]" if len(out) > 5000 else "")
-            err = stderr.decode().strip()
-            return f"URL FETCH ERROR: {err or 'Empty response'}"
+            return "URL FETCH ERROR: Empty response"
         except FileNotFoundError:
             return "URL FETCH ERROR: Neither urllib nor curl available for HTTP requests."
         except Exception as e2:
