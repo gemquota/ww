@@ -1,44 +1,35 @@
-"""FastAPI application for WW Bridge — REST API + dashboard.
-
-Provides:
-  - GET  /health          — bridge health check
-  - POST /chat            — single-turn query (script mode via API)
-  - GET  /session/{id}    — session history from telemetry DB
-  - GET  /sessions        — list all sessions
-  - GET  /stats           — telemetry event timeline + tool usage stats
-"""
-import sys, os, json, sqlite3, datetime
+"""WW local API for the shared terminal and browser conversation runtime."""
+import json
+import os
+import sqlite3
+import sys
 from pathlib import Path
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-try:
-    from fastapi import FastAPI, HTTPException, Security
-    from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, StreamingResponse
-    from pydantic import BaseModel, Field
-    from src.ww_client import WWClient
-    from dotenv import load_dotenv
-except ImportError as _e:
-    missing = str(_e).replace("No module named ", "").strip("'").strip('"')
-    raise ImportError(
-        f"Missing optional dependency: {missing}.\n"
-        f"Install with: pip install -r requirements-dashboard.txt\n"
-        f"Or: pip install fastapi uvicorn pydantic python-dotenv"
-    ) from _e
-
-load_dotenv()
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Security
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from src.cookie_loader import extract_gemini_cookies, load_cookie_environment
 from src.conversation_runtime import ConversationRuntime
-from src.dashboard.routes_auth import verify_api_key
+from src.dashboard.db import get_db_path, get_memory_db_path
+from src.dashboard.routes_auth import dispatch_request, verify_api_key
+from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
+from src.tools.workspace import set_workspace_root
+from src.ww_client import WWClient
 
-app = FastAPI(title="WW Local API", version="0.3.0", description="Local WW conversation and tool execution API")
+load_dotenv()
+
+app = FastAPI(
+    title="WW Local API",
+    version="0.3.0",
+    description="Local WW conversation and tool execution API",
+)
 
 # Browser access is limited to explicitly trusted origins. Override with a
-# comma-separated WW_CORS_ORIGINS environment variable when using a custom
-# domain or another frontend. Never use "*" with an authenticated API.
+# comma-separated WW_CORS_ORIGINS environment variable for a custom frontend.
 _default_cors_origins = "https://gemquota.github.io"
 _cors_origins = [
     origin.strip().rstrip("/")
@@ -57,16 +48,14 @@ app.add_middleware(
 )
 
 WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd())).expanduser().resolve()
-from src.tools.workspace import set_workspace_root
-
 set_workspace_root(WORKSPACE_ROOT)
 
 
 class ChatRequest(BaseModel):
-    message: str
-    session_name: str = "api_default"
-    history: Optional[list[dict[str, str]]] = None
-    conversation_id: Optional[str] = None
+    message: str = Field(min_length=1, max_length=20000)
+    session_name: str = Field(default="api_default", max_length=128)
+    history: Optional[list[dict[str, str]]] = Field(default=None, max_length=40)
+    conversation_id: Optional[str] = Field(default=None, max_length=256)
 
 
 class ChatResponse(BaseModel):
@@ -76,14 +65,7 @@ class ChatResponse(BaseModel):
     conversation_id: Optional[str] = None
 
 
-from src.dashboard.db import get_db_path, get_memory_db_path
-
-
-
-
 # API Versioning & Rate Limiting
-from src.dashboard.routes_auth import dispatch_request
-
 @app.middleware("http")
 async def api_versioning_and_rate_limit(request, call_next):
     return await dispatch_request(request, call_next)
@@ -139,8 +121,6 @@ async def health():
         "database": "connected" if db_exists else "no sessions yet"
     }
 
-
-from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
 
 _browser_sessions = BrowserSessionStore(max_sessions=64, idle_ttl=1800)
 
