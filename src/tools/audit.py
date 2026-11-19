@@ -65,15 +65,18 @@ class ToolAuditLog:
         lock_path = self.path.with_name(self.path.name + ".lock")
         flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
         fd = os.open(lock_path, flags, 0o600)
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise AuditLogError("Audit lock must be a single-link regular file")
+            os.fchmod(fd, 0o600)
+            if os.name == "posix":
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            return fd
+        except Exception:
             os.close(fd)
-            raise AuditLogError("Audit lock must be a single-link regular file")
-        os.fchmod(fd, 0o600)
-        if os.name == "posix":
-            import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX)
-        return fd
+            raise
 
     @staticmethod
     def _release_file_lock(fd: int) -> None:
