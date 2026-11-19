@@ -54,7 +54,6 @@ set_workspace_root(WORKSPACE_ROOT)
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20000)
     session_name: str = Field(default="api_default", max_length=128)
-    history: Optional[list[dict[str, str]]] = Field(default=None, max_length=40)
     conversation_id: Optional[str] = Field(default=None, max_length=256)
 
 
@@ -340,7 +339,7 @@ async def stats():
 
 class ToolExecuteRequest(BaseModel):
     tool: str = Field(min_length=1, max_length=64)
-    args: dict = Field(default_factory=dict)
+    args: dict = Field(default_factory=dict, max_length=64)
     session_name: str = Field(default="api_default", max_length=128)
 
 
