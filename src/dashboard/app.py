@@ -19,13 +19,12 @@ try:
     from fastapi.responses import FileResponse, StreamingResponse
     from pydantic import BaseModel, Field
     from src.ww_client import WWClient
-    from src.telemetry import TelemetryManager
     from dotenv import load_dotenv
 except ImportError as _e:
     missing = str(_e).replace("No module named ", "").strip("'").strip('"')
     raise ImportError(
         f"Missing optional dependency: {missing}.\n"
-        f"Install with: pip install 'ww-bridge[dashboard]'\n"
+        f"Install with: pip install -r requirements-dashboard.txt\n"
         f"Or: pip install fastapi uvicorn pydantic python-dotenv"
     ) from _e
 
@@ -34,9 +33,8 @@ load_dotenv()
 from src.cookie_loader import extract_gemini_cookies
 from src.conversation_runtime import ConversationRuntime
 from src.dashboard.routes_auth import verify_api_key
-from src.core.api_keys import APIKeyManager
 
-app = FastAPI(title="WW Bridge API", version="0.2.0", description="Gemini Multi-Agent Bridge REST Interface")
+app = FastAPI(title="WW Local API", version="0.3.0", description="Local WW conversation and tool execution API")
 
 # Browser access is limited to explicitly trusted origins. Override with a
 # comma-separated WW_CORS_ORIGINS environment variable when using a custom
@@ -79,14 +77,12 @@ class ChatResponse(BaseModel):
 
 
 from src.dashboard.db import get_db_path, get_memory_db_path
-from src.core.api_keys import APIKeyManager
 
 
 
 
 # API Versioning & Rate Limiting
 from src.dashboard.routes_auth import dispatch_request
-from src.core.api_keys import APIKeyManager
 
 @app.middleware("http")
 async def api_versioning_and_rate_limit(request, call_next):
@@ -139,7 +135,7 @@ async def health():
     db_exists = get_db_path().exists()
     return {
         "status": "ok",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "database": "connected" if db_exists else "no sessions yet"
     }
 
