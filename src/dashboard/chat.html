@@ -52,7 +52,7 @@
         <div class="field"><label for="apiUrl">LOCAL API URL</label><input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="http://127.0.0.1:8080"></div>
         <div class="field"><label for="apiKey">DASHBOARD API KEY</label><div class="key-row"><input id="apiKey" type="password" autocomplete="off" placeholder="WW API key"><button class="small-button" id="showKey" type="button">Show</button></div></div>
         <button class="connect-button" id="connectButton" type="button">Connect to WW</button>
-        <div id="runtimeInfo" style="font-size:10px;color:var(--muted);line-height:1.5"></div><div style="font-size:9px;color:#71847e;line-height:1.5">The API key stays in this tab. Conversation text is stored locally in this browser until you clear its history.</div>
+        <div id="runtimeInfo" style="font-size:10px;color:var(--muted);line-height:1.5"></div><div style="font-size:9px;color:#71847e;line-height:1.5">The API key stays in this tab. Conversation text is stored locally in this browser until you clear its history. Chrome may ask permission for local network access when connecting to localhost or a LAN address.</div>
       </div>
       <button class="clear-local" id="clearHistory" type="button">Clear local conversation history</button>
     </div>
@@ -466,6 +466,29 @@
     }
     return parsed.href.replace(/\/+$/,"");
   }
+  function fetchApi(path, options = {}) {
+    const url = new URL(path, apiBase());
+    const host = url.hostname.toLowerCase();
+    let targetAddressSpace;
+    if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1" || host === "[::1]") {
+      targetAddressSpace = "loopback";
+    } else if (host.endsWith(".local") || host.startsWith("[fc") || host.startsWith("[fd") || host.startsWith("[fe80")) {
+      targetAddressSpace = "local";
+    } else {
+      const octets = host.split(".").map(Number);
+      if (octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) {
+        const [a, b] = octets;
+        if (a === 127) targetAddressSpace = "loopback";
+        else if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) {
+          targetAddressSpace = "local";
+        }
+      }
+    }
+    return fetch(url.toString(), {
+      ...options,
+      ...(targetAddressSpace ? {targetAddressSpace} : {})
+    });
+  }
   function authHeaders(json) {
     const token = apiKey.value.trim();
     if (!token) throw new Error("Enter your WW dashboard API key in Backend connection.");
@@ -480,9 +503,9 @@
       sessionStorage.setItem("ww-api-url",base);
       sessionStorage.setItem("ww-api-key",apiKey.value.trim());
       setConnection("busy","Checking local API");
-      const health = await fetch(base + "/api/v1/health",{headers});
+      const health = await fetchApi("/api/v1/health",{headers});
       if (!health.ok) throw new Error("Health check returned HTTP " + health.status + ".");
-      const info = await fetch(base + "/api/v1/runtime",{headers});
+      const info = await fetchApi("/api/v1/runtime",{headers});
       if (!info.ok) throw new Error("Runtime check returned HTTP " + info.status + ".");
       const data = await info.json();
       if (!data.gemini_credentials_configured) {
@@ -522,7 +545,7 @@
     setConnection("busy","Generating response");
     try {
       const headers = authHeaders(true);
-      const response = await fetch(apiBase() + "/api/v1/chat/stream",{
+      const response = await fetchApi("/api/v1/chat/stream",{
         method:"POST",headers,signal:controller.signal,
         body:JSON.stringify({
           message:text,
