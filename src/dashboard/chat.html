@@ -450,7 +450,7 @@
     }
     const user = addMessage("user",text);
     input.value = ""; resizeInput();
-    const assistant = addMessage("assistant","");
+    let assistant = addMessage("assistant","");
     busy = true; controller = new AbortController(); toolCards = new Map();
     $("sendButton").disabled = true; $("stopButton").style.display = "grid";
     setConnection("busy","Generating response");
@@ -487,8 +487,19 @@
             renderMarkdown(assistant.view.content,assistant.item.text);
             active.messages[active.messages.length - 1] = assistant.item;
             active.updated = Date.now(); saveConversations(); scrollBottom();
-          } else if (event.type === "tool_start" || event.type === "approval_required" || event.type === "tool_result") {
+          } else if (event.type === "tool_start") {
+            if (!assistant.item.text.trim()) {
+              assistant.view.article.remove();
+              if (active.messages[active.messages.length - 1] === assistant.item) {
+                active.messages.pop();
+                saveConversations();
+              }
+            }
             showToolEvent(event);
+          } else if (event.type === "approval_required" || event.type === "tool_result") {
+            showToolEvent(event);
+          } else if (event.type === "tool_round_complete") {
+            assistant = addMessage("assistant", "");
           } else if (event.type === "error") {
             throw new Error(event.message || "The WW runtime reported an error.");
           } else if (event.type === "execution_limit") {
