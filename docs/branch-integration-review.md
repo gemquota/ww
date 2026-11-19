@@ -2,7 +2,7 @@
 
 **Assessment date:** 2026-11-20  
 **Baseline at review start:** main at 0043cb1516e2d4299e1804e4595e100917ad67d2  
-**Repository inventory:** 33 branches including main; no open pull requests reported.
+**Repository inventory at review start:** 33 branches including main; no open pull requests. The integration/unified-runtime branch and PR #44 were created after that snapshot.
 
 ## Integration policy
 
@@ -15,6 +15,7 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 | Branch | Decision | Evidence / rationale |
 |---|---|---|
 | main | Keep as baseline | Current application and merged Phase 1/2 work. |
+| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Merge only after final CI and code-quality pass. |
 | chore/lint-multimodal-canvas | Do not merge | Main already has a newer code-quality workflow, including project-context coverage. |
 | dependabot/pip/google-genai-gte-2.9.0 | Close/archive | No commits ahead of main; dependency is not part of the current core transport. |
 | dependabot/pip/prompt-toolkit-gte-3.0.52 | Close/archive | No commits ahead; main already requires prompt-toolkit 3.0.53 or newer. |
