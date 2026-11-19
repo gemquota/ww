@@ -10,7 +10,11 @@ from src.tools.registry import ToolRegistry
 
 
 class FakeApproval:
+    def __init__(self):
+        self.calls = []
+
     def authorize(self, tool_name, arguments, permission_mgr=None):
+        self.calls.append((tool_name, arguments))
         return True
 
 
@@ -128,6 +132,28 @@ class ConversationRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "written safely",
             )
             self.assertIn("approval_required", [event["type"] for event in events])
+
+
+    async def test_invalid_privileged_arguments_are_rejected_before_approval(self):
+        fence = chr(96) * 3
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            client = FakeClient([
+                "Instructions acknowledged.",
+                fence + "tool:write_file\\nfile_path: missing-content.txt\\n" + fence,
+                "The tool request was invalid.",
+            ])
+            approval = FakeApproval()
+            events = []
+            runtime = ConversationRuntime(
+                client, workspace_root=root, approval_controller=approval,
+                event_sink=events.append,
+            )
+            output = await runtime.ask_output("Create a file.")
+            self.assertEqual(output.text, "The tool request was invalid.")
+            self.assertEqual(approval.calls, [])
+            result = next(event for event in events if event["type"] == "tool_result")
+            self.assertIn("TOOL ERROR", result["output"])
 
     async def test_stream_emits_text_and_tool_lifecycle_events(self):
         fence = chr(96) * 3
