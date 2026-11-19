@@ -2,6 +2,8 @@
 import os
 import subprocess
 import asyncio
+import shlex
+import os
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -182,15 +184,15 @@ async def write_file(file_path: str, content: str, permission_mgr=None, checkpoi
         if file_path.endswith('.py'):
             try:
                 import py_compile as _py_compile
-                _py_compile.compile(file_path, doraise=True)
-            except py_compile.PyCompileError as _e:
+                _py_compile.compile(str(p), doraise=True)
+            except _py_compile.PyCompileError as _e:
                 syntax_warning = f"\n⚠ WARNING: Python syntax error: {_e}"
             except NameError:
                 pass  # py_compile not available in some contexts
             except Exception:
                 pass
 
-        return f"SUCCESS: File '{file_path}' written ({len(content)} bytes).{syntax_warning}"
+        return f"SUCCESS: File '{file_path}' written ({len(content.encode('utf-8'))} bytes).{syntax_warning}"
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -239,9 +241,13 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
 
 
 async def git_tool(command: str, message: Optional[str] = None) -> str:
+    """Run a Git subcommand and arguments in the configured workspace."""
     try:
-        cmd = ["git", command]
-        if command == "commit" and message:
+        parts = shlex.split(command)
+        if not parts or any("\\x00" in part for part in parts):
+            return "GIT ERROR: A valid Git subcommand is required."
+        cmd = ["git", *parts]
+        if parts[0] == "commit" and message:
             cmd.extend(["-m", message])
         stdout, stderr, returncode = await _run_process(
             *cmd, cwd=_get_workspace_root(), timeout=120
