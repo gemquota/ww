@@ -107,6 +107,7 @@ async def _run_process(
     cwd: str | Path | None = None,
     timeout: float = 60,
     output_limit: int = 5 * 1024 * 1024,
+    env: dict[str, str] | None = None,
 ) -> tuple[bytes, bytes, int | None]:
     """Run a subprocess in its own process group with bounded capture and cleanup."""
     kwargs = {
@@ -114,6 +115,7 @@ async def _run_process(
         "stderr": asyncio.subprocess.PIPE,
         "cwd": str(cwd) if cwd is not None else None,
         "start_new_session": (os.name == "posix"),
+        "env": env,
     }
     if shell:
         process = await asyncio.create_subprocess_shell(command[0], **kwargs)
@@ -249,8 +251,15 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
                     permission_mgr.always_allow.add(command)
 
         try:
+            child_env = os.environ.copy()
+            for secret_name in (
+                "SECURE_1PSID", "SECURE_1PSIDTS", "GEMINI_API_KEY",
+                "GOOGLE_API_KEY", "WW_DASHBOARD_API_KEY", "WW_DASHBOARD_API_KEYS",
+            ):
+                child_env.pop(secret_name, None)
             stdout, stderr, returncode = await _run_process(
-                command, shell=True, cwd=_get_workspace_root(), timeout=60
+                command, shell=True, cwd=_get_workspace_root(), timeout=60,
+                env=child_env,
             )
         except asyncio.TimeoutError:
             return "ERROR: Command timed out after 60 seconds; process group terminated."
