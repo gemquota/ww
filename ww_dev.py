@@ -1,70 +1,85 @@
 #!/usr/bin/env python3
-"""ww dev — Development helper: watch src/, auto-run py_compile + pytest on change."""
+"""WW development runner: compile, test, and exercise the local backend."""
+from __future__ import annotations
+
+import argparse
 import subprocess
 import sys
-import os
 import time
+from pathlib import Path
 
-def main():
-    watch = "--watch" in sys.argv or "-w" in sys.argv
-    
-    print("=== ww dev ===")
-    print("Running py_compile + pytest...")
-    
-    # Run py_compile
-    result = subprocess.run(
-        "python3 -m py_compile src/gemini_bridge.py src/config.py src/context_manager.py "
-        "src/permissions.py src/diff_engine.py src/checkpoint.py src/telemetry.py",
-        shell=True, capture_output=True, text=True
-    )
-    if result.returncode == 0:
-        print("  ✅ py_compile: OK")
-    else:
-        print(f"  ❌ py_compile: FAILED\n{result.stderr[:300]}")
-        if not watch:
-            sys.exit(1)
-    
-    # Run pytest (quick mode)
-    result = subprocess.run(
-        "python3 -m pytest .tests/ -q --tb=short 2>&1",
-        shell=True, capture_output=True, text=True
-    )
-    if result.returncode == 0:
-        last = result.stdout.strip().split("\n")[-1] if result.stdout.strip() else "?"
-        print(f"  ✅ pytest: {last}")
-    else:
-        last = result.stdout.strip().split("\n")[-1] if result.stdout.strip() else "?"
-        print(f"  ❌ pytest: FAILED\n{last}")
-    
-    if watch:
-        print("\nWatching src/ for changes (Ctrl+C to stop)...")
+
+ROOT = Path(__file__).resolve().parent
+IGNORED = {".git", ".venv", "__pycache__", ".old", ".ww", ".tel", "site"}
+
+
+def run_checks(skip_tests: bool = False) -> int:
+    commands = [
+        [sys.executable, "-m", "compileall", "-q", "src", "scripts", "tests", "gemini_bridge.py"],
+    ]
+    if not skip_tests:
+        commands.append([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"])
+    commands.append([sys.executable, "-m", "scripts.termux_acceptance", "--skip-tests"])
+
+    for command in commands:
+        print("\n$", " ".join(command), flush=True)
+        result = subprocess.run(command, cwd=ROOT, check=False)
+        if result.returncode:
+            print(f"FAILED (exit {result.returncode})", file=sys.stderr)
+            return result.returncode
+    print("\nWW development checks passed.", flush=True)
+    return 0
+
+
+def snapshot() -> dict[Path, int]:
+    state: dict[Path, int] = {}
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or any(part in IGNORED for part in path.relative_to(ROOT).parts):
+            continue
+        if path.suffix not in {".py", ".html", ".yml", ".yaml"}:
+            continue
         try:
-            import inotify.adapters
-            i = inotify.adapters.Inotify()
-            i.add_watch(b'src')
-            for event in i.event_gen():
-                if event is not None:
-                    os.system('clear')
-                    print("Change detected! Re-running...\n")
-                    main()
-        except ImportError:
-            # Fallback: poll every 2 seconds
-            last_mtimes = {}
-            while True:
-                changed = False
-                for root, dirs, files in os.walk('src'):
-                    for f in files:
-                        if f.endswith('.py'):
-                            path = os.path.join(root, f)
-                            mtime = os.path.getmtime(path)
-                            if path in last_mtimes and last_mtimes[path] != mtime:
-                                changed = True
-                            last_mtimes[path] = mtime
-                if changed:
-                    os.system('clear')
-                    print("Change detected! Re-running...\n")
-                    main()
-                time.sleep(2)
+            state[path] = path.stat().st_mtime_ns
+        except OSError:
+            continue
+    return state
+
+
+def watch(skip_tests: bool = False) -> int:
+    previous = snapshot()
+    print("Watching WW source, tests, workflows and frontend. Press Ctrl-C to stop.")
+    try:
+        while True:
+            time.sleep(1)
+            current = snapshot()
+            if current != previous:
+                changed = sorted(
+                    str(path.relative_to(ROOT))
+                    for path in set(previous) | set(current)
+                    if previous.get(path) != current.get(path)
+                )
+                print("\nChanged:", ", ".join(changed), flush=True)
+                previous = current
+                result = run_checks(skip_tests=skip_tests)
+                if result:
+                    print("Checks failed; watching for the next edit.", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nStopped watching.")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="WW development checks")
+    parser.add_argument("--watch", "-w", action="store_true", help="rerun checks when source changes")
+    parser.add_argument("--skip-tests", action="store_true", help="skip unittest discovery")
+    args = parser.parse_args()
+    if args.watch:
+        result = run_checks(skip_tests=args.skip_tests)
+        if result:
+            print("Initial checks failed; entering watch mode.", file=sys.stderr)
+        return watch(skip_tests=args.skip_tests)
+    return run_checks(skip_tests=args.skip_tests)
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
