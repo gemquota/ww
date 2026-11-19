@@ -104,7 +104,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 
 ## Remaining risks and work
 
-1. **Legacy bridge:** src/gemini_bridge.py still has its own ToolExecutor, Gemini client path, memory and orchestration stack. It is not the default terminal or browser runtime, but it is still a second implementation in the repository. Decide which advanced subsystems should be migrated into the shared runtime and which should be retired.
+1. **Legacy bridge:** src/gemini_bridge.py still contains its own ToolExecutor, Gemini client path, memory and orchestration stack. Static lint exposed unresolved names in this legacy code. Its direct entry point now exits with a deprecation message; it is not a supported runtime. Decide which advanced subsystems should be migrated into the shared runtime and which should be retired.
 2. **Live device verification:** the new runtime and browser path have deterministic fake-client tests, but no actual Gemini → tool → approval → subprocess → Gemini cycle has yet been verified on the user's Android device.
 3. **PR CI:** the integration branch must pass GitHub Actions before merge. The new tests have been authored but their result must be observed, not assumed.
 4. **Pages deployment:** the frontend artifact and branch fallback have been updated, but the deployed public URL must be checked after the Pages workflow or branch deployment runs.
