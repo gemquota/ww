@@ -155,6 +155,26 @@ class LocalApprovalControllerTests(unittest.TestCase):
             ))
 
 
+
+    def test_audit_failure_denies_operation_before_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "protected"
+            target.write_text("keep", encoding="utf-8")
+            audit_path = Path(directory) / "audit.jsonl"
+            audit_path.symlink_to(target)
+            ledger = ApprovalLedger()
+            controller = LocalApprovalController(
+                ledger=ledger,
+                audit_log=ToolAuditLog(audit_path),
+                prompt=lambda _: self.fail("audit failure must deny before prompting"),
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "url_fetch", {"url": "https://example.com"}
+            ))
+            self.assertEqual(len(ledger._pending), 0)
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+
     def test_mutations_fail_closed_without_permission_manager(self):
         controller = LocalApprovalController(
             prompt=lambda _: self.fail("missing permission manager must deny"),
