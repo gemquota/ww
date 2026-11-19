@@ -90,7 +90,7 @@
           <button class="send-button" id="sendButton" type="submit" title="Send message">↑</button>
         </div>
       </form>
-      <div class="composer-foot"><span>Tool execution runs on your WW backend. Privileged actions wait for approval in its Termux terminal.</span><span id="composerStatus">Not connected</span></div>
+      <div class="composer-foot"><span>Tool execution runs on your WW backend. Privileged actions wait for approval in Termux. Local browser history is bounded.</span><span id="composerStatus">Not connected</span></div>
     </div>
   </main>
 </div>
@@ -109,19 +109,85 @@
   let busy = false;
   let connected = false;
   let toolCards = new Map();
+  let persistenceTimer = null;
+
+  const MAX_STORED_HISTORY_CHARS = 1500000;
+  const MAX_MESSAGES_PER_CONVERSATION = 80;
+  const MAX_MESSAGE_CHARS = 12000;
 
   function loadConversations() {
     try {
       const value = JSON.parse(localStorage.getItem(storageKey) || "[]");
-      return Array.isArray(value) ? value.filter(item => item && typeof item.id === "string" && Array.isArray(item.messages)) : [];
+      return Array.isArray(value)
+        ? value.filter(item => item && typeof item.id === "string" && Array.isArray(item.messages))
+            .map(item => ({
+              ...item,
+              messages: item.messages
+                .filter(message => message && (message.role === "user" || message.role === "assistant"))
+                .slice(-MAX_MESSAGES_PER_CONVERSATION)
+            }))
+        : [];
     } catch (_) { return []; }
   }
-  function saveConversations() {
+  function serializedHistory() {
+    const snapshot = conversations.map(item => ({
+      ...item,
+      messages: (item.messages || []).slice(-MAX_MESSAGES_PER_CONVERSATION).map(message => ({
+        ...message,
+        text: String(message.text || "").slice(0, MAX_MESSAGE_CHARS)
+      }))
+    }));
+    let serialized = JSON.stringify(snapshot);
+    while (serialized.length > MAX_STORED_HISTORY_CHARS && snapshot.length > 1) {
+      let removeIndex = -1;
+      for (let i = snapshot.length - 1; i >= 0; i--) {
+        if (snapshot[i].id !== activeId) { removeIndex = i; break; }
+      }
+      if (removeIndex < 0) break;
+      snapshot.splice(removeIndex, 1);
+      serialized = JSON.stringify(snapshot);
+    }
+    const activeSnapshot = snapshot.find(item => item.id === activeId);
+    while (serialized.length > MAX_STORED_HISTORY_CHARS && activeSnapshot && activeSnapshot.messages.length > 1) {
+      activeSnapshot.messages.shift();
+      serialized = JSON.stringify(snapshot);
+    }
+    if (serialized.length > MAX_STORED_HISTORY_CHARS && activeSnapshot && activeSnapshot.messages.length) {
+      const last = activeSnapshot.messages[activeSnapshot.messages.length - 1];
+      last.text = String(last.text || "").slice(-6000);
+      serialized = JSON.stringify(snapshot);
+    }
+    return serialized;
+  }
+  function flushConversations() {
+    if (persistenceTimer !== null) {
+      clearTimeout(persistenceTimer);
+      persistenceTimer = null;
+    }
+    try { localStorage.setItem(storageKey, serializedHistory()); } catch (_) {}
+  }
+  function saveConversations(renderList = true) {
     conversations.sort((a,b) => (b.updated || 0) - (a.updated || 0));
     conversations = conversations.slice(0, 30);
-    try { localStorage.setItem(storageKey, JSON.stringify(conversations)); } catch (_) {}
-    renderConversationList();
+    const serialized = serializedHistory();
+    if (persistenceTimer !== null) clearTimeout(persistenceTimer);
+    persistenceTimer = setTimeout(() => {
+      persistenceTimer = null;
+      try { localStorage.setItem(storageKey, serialized); } catch (_) {
+        try {
+          const compact = conversations.find(item => item.id === activeId);
+          if (compact) {
+            const fallback = [{...compact, messages: compact.messages.slice(-20).map(message => ({
+              ...message, text: String(message.text || "").slice(-6000)
+            }))}];
+            localStorage.setItem(storageKey, JSON.stringify(fallback));
+          }
+        } catch (_) {}
+      }
+    }, 250);
+    if (renderList) renderConversationList();
   }
+  window.addEventListener("pagehide", flushConversations);
   function newId() {
     return "browser-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2));
   }
@@ -486,13 +552,13 @@
             assistant.item.text += event.text || "";
             renderMarkdown(assistant.view.content,assistant.item.text);
             active.messages[active.messages.length - 1] = assistant.item;
-            active.updated = Date.now(); saveConversations(); scrollBottom();
+            active.updated = Date.now(); saveConversations(false); scrollBottom();
           } else if (event.type === "tool_start") {
             if (!assistant.item.text.trim()) {
               assistant.view.article.remove();
               if (active.messages[active.messages.length - 1] === assistant.item) {
                 active.messages.pop();
-                saveConversations();
+                saveConversations(false);
               }
             }
             showToolEvent(event);
