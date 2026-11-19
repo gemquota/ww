@@ -178,7 +178,7 @@ async def runtime_status():
         "workspace": WORKSPACE_ROOT.name,
         "python": sys.version.split()[0],
         "platform": sys.platform,
-        "execution_backend": os.getenv("WW_EXECUTION_BACKEND", "current-process"),
+        "execution_backend": "current-process",
         "gemini_credentials_configured": credentials_ready,
         "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"],
     }
