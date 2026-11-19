@@ -125,7 +125,10 @@
               messages: item.messages
                 .filter(message => message && (message.role === "user" || message.role === "assistant"))
                 .slice(-MAX_MESSAGES_PER_CONVERSATION)
+                .map(message => ({...message, text: String(message.text || "").slice(0, MAX_MESSAGE_CHARS)}))
             }))
+            .sort((a,b) => (b.updated || 0) - (a.updated || 0))
+            .slice(0, 30)
         : [];
     } catch (_) { return []; }
   }
