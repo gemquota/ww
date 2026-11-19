@@ -56,7 +56,8 @@ The old `src/gemini_bridge.py` entry point is retired. `src/tool_executor.py`, `
 The maintained tests live in `tests/` and use `unittest` (including `IsolatedAsyncioTestCase`). The canonical commands are:
 
 ```bash
-python -m compileall -q src scripts tests gemini_bridge.py
+python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+python -m scripts.check_frontend_js  # requires Node.js
 python -m unittest discover -s tests -v
 python -m scripts.termux_acceptance
 ```
