@@ -1,8 +1,4 @@
-"""WW: a small terminal client for Gemini Web Chat.
-
-The core entry point intentionally does not import the agent orchestrator,
-tool executor, workspace scanner, plugins, memory system, or dashboard.
-"""
+"""WW terminal client using the shared Gemini conversation and tool runtime."""
 from __future__ import annotations
 
 import argparse
@@ -26,6 +22,7 @@ from src.canvas_browser import launch_canvas_browser
 from src.cookie_loader import extract_gemini_cookies
 from src.markdown_renderer import render_response, resolve_elicitation_selection
 from src.ww_client import WWClient
+from src.conversation_runtime import ConversationRuntime
 from src.project_context import export_project, find_project_root
 from src.ww_settings import (
     assign_chat_folder,
@@ -475,9 +472,14 @@ async def run_terminal(
         print(f"Connection error: {exc}", file=sys.stderr)
         return 1
 
+    runtime = ConversationRuntime(
+        client,
+        workspace_root=os.getenv("WW_WORKSPACE", Path.cwd()),
+    )
+
     if prompt is not None:
         try:
-            output = await client.ask_output(prompt)
+            output = await runtime.ask_output(prompt)
             await render_model_output(output, client.active_chat_id)
             return 0
         except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
@@ -668,6 +670,7 @@ async def run_terminal(
                     if selected is not None:
                         chosen = chats[selected]
                         await client.resume_conversation(chosen.cid)
+                        runtime.conversation_changed()
                         print(f"\nResumed: {chosen.title or '(untitled conversation)'}")
                 except Exception as exc:
                     print(f"Could not switch conversation: {exc}")
@@ -678,12 +681,13 @@ async def run_terminal(
                         model=settings.get("default_model"),
                         gem=settings.get("default_gem"),
                     )
+                    runtime.conversation_changed()
                     print("Started a new Gemini conversation.")
                 except Exception as exc:  # noqa: BLE001 - CLI boundary reports errors.
                     print(f"Could not start a new conversation: {exc}")
                 continue
             try:
-                output = await client.ask_output(message)
+                output = await runtime.ask_output(message)
                 pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
                 print(f"\nRequest error: {exc}", file=sys.stderr)
@@ -696,7 +700,7 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     configure_logging()
     parser = argparse.ArgumentParser(
-        prog="ww", description="A simple terminal client for Gemini Web Chat."
+        prog="ww", description="Gemini Web Chat with local project tools."
     )
     parser.add_argument("-p", "--prompt", help="send one prompt and exit")
     parser.add_argument(
