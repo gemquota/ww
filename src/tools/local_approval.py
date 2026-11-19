@@ -65,17 +65,20 @@ class LocalApprovalController:
                 return False
 
             old_content = ""
-            if target.exists():
-                if target.stat().st_size > self.DIFF_PREVIEW_MAX_BYTES:
-                    self.output("│ Diff preview omitted: existing file exceeds 256 KiB.")
-                    return True
-                old_content = target.read_text(encoding="utf-8", errors="replace")
-
             if tool_name == "write_file":
                 new_content = arguments.get("content")
                 if not isinstance(new_content, str):
                     self.output("DENIED: write_file content must be text.")
                     return False
+
+            if target.exists():
+                if target.stat().st_size > self.DIFF_PREVIEW_MAX_BYTES:
+                    if tool_name == "file_patch":
+                        self.output("DENIED: file_patch target exceeds the safe diff-preview limit.")
+                        return False
+                    self.output("│ Diff preview omitted: existing file exceeds 256 KiB.")
+                    return True
+                old_content = target.read_text(encoding="utf-8", errors="replace")
             else:
                 search_text = arguments.get("search_text")
                 replace_text = arguments.get("replace_text")
