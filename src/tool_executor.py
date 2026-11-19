@@ -482,7 +482,7 @@ class ToolExecutor:
                         else:
                             if policy_for_tool(registry_name).requires_approval:
                                 result_text = str(result)
-                                failed = result_text.startswith(("ERROR:", "DENIED:", "TOOL ERROR", "GIT ERROR", "URL FETCH ERROR")) or bool(re.search(r"\\[Exit code: [1-9][0-9]*\\]", result_text))
+                                failed = result_text.startswith(("ERROR:", "DENIED:", "TOOL ERROR", "GIT ERROR", "URL FETCH ERROR")) or bool(re.search(r"\[Exit code: [1-9][0-9]*\]", result_text))
                                 try:
                                     self.audit_log.record(
                                         "execution_finished", tool_name=registry_name,
