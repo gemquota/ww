@@ -113,7 +113,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 
 ## Remaining risks and work
 
-1. **Legacy bridge:** src/gemini_bridge.py still contains its own ToolExecutor, Gemini client path, memory and orchestration stack. Static lint exposed unresolved names in this legacy code. Its direct entry point now exits with a deprecation message; it is not a supported runtime. Decide which advanced subsystems should be migrated into the shared runtime and which should be retired.
+1. **Legacy bridge:** src/gemini_bridge.py still contains its own ToolExecutor, Gemini client path, memory and orchestration stack. Static inspection found unresolved names and stale registry calls in this legacy code. Its direct entry point now exits with a deprecation message; it is not a supported runtime. Treat the remaining modules as retired migration source; any selective feature migration should be scoped separately rather than keeping the old runtime alive.
 2. **Live device verification:** the new runtime and browser path have deterministic fake-client tests, but no actual Gemini → tool → approval → subprocess → Gemini cycle has yet been verified on the user's Android device.
 3. **PR CI:** the integration branch must pass GitHub Actions before merge. The expanded unit and acceptance tests are in CI; the final result must be observed, not assumed.
 4. **Pages deployment:** the frontend artifact and branch fallback have been updated, but the deployed public URL must be checked after the Pages workflow or branch deployment runs.
@@ -143,7 +143,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 After CI passes and the branch is merged, the device acceptance run should cover one sequence rather than many isolated prompts:
 
 1. Start the backend from the intended Debian PRoot workspace.
-2. Open the GitHub Pages frontend and connect using the loopback API URL and dashboard key.
+2. Open the GitHub Pages frontend, grant Chrome's Local Network Access permission if prompted, and connect using the loopback API URL and dashboard key.
 3. Confirm runtime and Gemini credential readiness.
 4. Ask WW to inspect a file in the configured workspace.
 5. Ask WW to create a temporary file; verify that the approval appears in Termux, approve it, and confirm the returned file contents.
