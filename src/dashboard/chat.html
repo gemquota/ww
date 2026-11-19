@@ -419,6 +419,9 @@
       const info = await fetch(base + "/api/v1/runtime",{headers});
       if (!info.ok) throw new Error("Runtime check returned HTTP " + info.status + ".");
       const data = await info.json();
+      if (!data.gemini_credentials_configured) {
+        throw new Error("The local API is reachable, but Gemini credentials were not found. Add cookies.txt or SECURE_1PSID to the backend environment.");
+      }
       connected = true;
       $("runtimeInfo").textContent = "Workspace: " + (data.workspace || "local") + " · Python " + (data.python || "unknown") + " · " + (data.execution_backend || "local");
       $("workspaceTag").textContent = "WORKSPACE · " + (data.workspace || "LOCAL");
