@@ -27,6 +27,11 @@ jobs:
           pip install -r requirements-dashboard.txt
       - name: Compile the core entry points
         run: python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate browser JavaScript
+        run: python -m scripts.check_frontend_js
       - name: Run unit and shared-runtime integration tests
         run: python -m unittest discover -s tests -v
       - name: Exercise local API, workspace tools and process backend
