@@ -167,6 +167,7 @@ The integration work preserves these strengths and gives them one execution path
 - A real authenticated Gemini request and conversation resume.
 - The complete Gemini → tool → local approval → PRoot subprocess → output feedback → Gemini cycle on the user's Android device.
 - Actual Pages deployment and browser connection from Android.
+- Browser parity for terminal-only media/artifact slash commands and multimodal attachments.
 - Docker image build and runtime.
 - Migration or retirement of advanced legacy agent/memory functionality.
 
