@@ -99,7 +99,7 @@ The repository Pages source setting still needs to be checked after integration.
 
 ### Local backend
 
-The backend uses the same WWClient and ConversationRuntime as the terminal. It can load the same cookies.txt file, uses WW_WORKSPACE as its working directory, and executes commands in the environment where the server is running.
+The backend uses the same WWClient and ConversationRuntime as the terminal. It can load the same cookies.txt file, uses WW_WORKSPACE as its working directory, and executes commands in the environment where the server is running. The dashboard database paths now resolve WW_WORKSPACE at call time rather than consulting the legacy YAML settings.
 
 The approval prompt uses the backend terminal's standard input. Therefore the backend must remain attached to a usable foreground Termux terminal when privileged browser tool calls are expected. A detached server with no interactive stdin cannot provide the same approval UX.
 
@@ -115,9 +115,10 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 4. **Pages deployment:** the frontend artifact and branch fallback have been updated, but the deployed public URL must be checked after the Pages workflow or branch deployment runs.
 5. **Foreground approval:** terminal approval is deliberate, but the browser should clearly explain that the backend needs an interactive terminal. A future browser-mediated approval workflow would need its own explicit trust model.
 6. **SSE keepalives:** a long Gemini thinking interval may exceed some proxy idle timeouts. Add heartbeat comments if live tunnel testing shows this is necessary.
-7. **URL fetching:** disabled until redirect and DNS pinning are correct.
-8. **Process cancellation:** cancelling an asyncio task cannot forcibly stop a synchronous function already running in a worker thread. Current synchronous handlers are bounded local operations; long-running work should remain subprocess-based.
-9. **Legacy feature parity:** the old advanced bridge contains memory, specialist agents and orchestration features that have not yet been migrated to the shared runtime.
+7. **Docker:** the old image/compose configuration had a CLI entrypoint that prevented the dashboard command override, duplicate host port mappings, an authenticated healthcheck and no Docker build-context secret exclusions. The Dockerfile, compose service and .dockerignore have been corrected, but the image has not yet been built or run in CI. Set WW_UID/WW_GID to match the host workspace owner when using bind mounts.
+8. **URL fetching:** disabled until redirect and DNS pinning are correct.
+9. **Process cancellation:** cancelling an asyncio task cannot forcibly stop a synchronous function already running in a worker thread. Current synchronous handlers are bounded local operations; long-running work should remain subprocess-based.
+10. **Legacy feature parity:** the old advanced bridge contains memory, specialist agents and orchestration features that have not yet been migrated to the shared runtime.
 
 ## Verification levels
 
