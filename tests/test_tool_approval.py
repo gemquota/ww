@@ -61,6 +61,23 @@ class LocalApprovalControllerTests(unittest.TestCase):
         )
         self.assertTrue(controller.authorize("read_file", {"file_path": "README.md"}))
 
+
+    def test_local_approval_records_request_and_decision_without_arguments(self):
+        controller = LocalApprovalController(
+            prompt=lambda _: "yes",
+            output=lambda _: None,
+            session_id="audit-test-session",
+        )
+        args = {"url": "https://example.com/private?token=do-not-log"}
+        self.assertTrue(controller.authorize("url_fetch", args))
+        audit_path = Path(os.environ["WW_AUDIT_LOG"])
+        records = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([record["event"] for record in records[-2:]], [
+            "approval_requested", "approval_decision"
+        ])
+        self.assertEqual(records[-1]["decision"], "approved")
+        self.assertNotIn("do-not-log", audit_path.read_text(encoding="utf-8"))
+
     def test_git_registry_alias_requires_local_approval(self):
         prompts = []
         controller = LocalApprovalController(
