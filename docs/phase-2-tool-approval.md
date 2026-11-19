@@ -1,60 +1,89 @@
-# Phase 2: approved and isolated tool execution
+# Phase 2: local approval and reliable tool execution
 
-Phase 2 adds a controlled path for privileged tools without weakening the Phase 1 remote API boundary.
+**Current status:** local approval, audit and bounded process execution are implemented in the shared ConversationRuntime. Android Termux/PRoot device verification remains outstanding.
 
-## Current state
+## Current architecture
 
-The first Phase 2 commit introduces two foundations:
+The supported tool path is:
 
-- `src/tools/tool_policy.py` classifies known tools by risk. Unknown tools are denied. Only `read_file` and `list_dir` are marked as remotely exposable.
-- `src/tools/approvals.py` provides short-lived, one-use approval grants bound to the exact session, tool name and canonical argument digest. A grant cannot be replayed with changed arguments or in another session.
-- `src/tools/local_approval.py` provides a terminal-only human approval controller. The interactive tool executor displays the exact arguments and requires an explicit `y`/`yes` decision before mutations, shell execution, Git operations or network fetches. Rejection, EOF and approval errors fail closed and immediately discard the pending request.
-- `src/tools/audit.py` writes structured JSONL audit events for approval requests, decisions and execution outcomes. Records contain a canonical tool name, process-keyed HMAC fingerprints for the session and exact arguments, timestamps, decisions and outcome metadata. Fingerprints correlate events during one WW process lifetime and cannot be used for offline guessing of low-entropy arguments. Raw arguments, credentials and approval tokens are never written.
-- Tool aliases are normalized before policy lookup, including the actual registry name `git`.
+`ConversationRuntime → ToolRegistry → schema validation → tool policy → LocalApprovalController → system_tools → feedback to Gemini`
 
-The approval ledger is in-memory. Pending requests expire after five minutes; approved grants expire after two minutes. Pending requests and grants are each capped at 256 records, with expired entries pruned before capacity checks. Restarting WW invalidates all pending requests and grants. The ledger is not wired to an HTTP endpoint. The local terminal is the only approval surface; browser clients cannot approve requests. The browser API remains limited to read-only tools.
+- `src/tools/tool_policy.py` classifies canonical tool names and aliases. Unknown tools are denied. Only `read_file` and `list_dir` are exposed through the optional direct browser tool endpoint.
+- `src/tools/args.py` defines Pydantic argument schemas. The registry validates arguments before approval or execution.
+- `src/tools/local_approval.py` provides the local terminal approval controller. Privileged writes, patches, Git operations and shell commands require an explicit local decision. Rejection, EOF and approval errors fail closed.
+- `src/tools/audit.py` writes redacted JSONL approval and execution events. Raw arguments, credentials and approval tokens are not written.
+- `src/tools/system_tools.py` implements workspace reads/writes, patches, Git and subprocess execution.
+- `src/conversation_runtime.py` owns the execution loop, tool feedback, streaming events, round limits and timeouts. The terminal and browser use the same runtime.
 
-The audit log defaults to `~/.ww/audit/audit.jsonl` (overridable with `WW_AUDIT_LOG`). The containing directory must be private (mode 0700), the file and lock file are forced to mode 0600, symlink and hard-link targets are rejected, and the append-only log is capped at 1 MiB. When an approval event cannot be durably recorded or the log is full, the privileged operation is denied. Archive the log before it reaches the cap with `python -m src.tools.audit archive`; archival takes the same cross-process lock as writes and starts a fresh log, leaving a timestamped private archive beside it. Export a redacted copy to a new file in a private directory with `python -m src.tools.audit export /path/to/private/audit-copy.jsonl`; exports never overwrite existing files and use mode 0600. Execution-result audit failures are reported but cannot undo an operation that has already completed.
+The browser displays pending approval state but does not approve privileged operations. The backend terminal must retain interactive stdin when privileged browser tool calls are expected.
 
-## Required execution flow
+## Execution environment decision
 
-1. The model proposes a tool call. It does not approve its own request.
-2. The policy layer classifies the tool. Unknown tools fail closed.
-3. Read-only tools may proceed only if they are explicitly allowed by the caller's surface.
-4. A privileged tool creates a pending approval request bound to the exact arguments and session.
-5. The device-local operator reviews the tool, arguments, target paths and expected effects, then approves or rejects it.
-6. The runner consumes the one-use grant immediately before execution. Any argument, tool or session change invalidates the grant.
-7. The runner records a redacted audit event and enforces the execution boundary.
-8. Cancellation, timeout or output overflow terminates the complete process group and reaps the child.
+The user explicitly abandoned hardened isolation work. Debian PRoot-Distro is used as a compatibility and execution environment, **not as a security sandbox**.
 
-## Isolation requirements before enabling privileged remote execution
+Commands run with the permissions of the backend process. The project does not claim independent kernel identities, namespace isolation, cgroup limits, filesystem confinement or network isolation. Do not resume Bubblewrap, namespace, cgroup or capability-probe work unless explicitly requested.
 
-A workspace working directory is not a sandbox. A subprocess must not be considered isolated merely because its current directory is the WW repository.
+Local approval remains valuable even without a sandbox: it gives the user a chance to inspect the exact operation before it runs. It is a consent control, not hostile-code containment.
 
-The runner must fail closed unless the host provides a verified isolation backend with:
+## Tool policy
 
-- filesystem access limited to explicitly mounted workspace paths and temporary scratch space;
-- no access to browser cookies, environment secrets, SSH material, host home directories or device control sockets;
-- network disabled by default, with explicit per-tool exceptions;
-- CPU, memory, process-count, file-size, descriptor and wall-clock limits applied to the child rather than the WW server;
-- a fixed executable/argument policy instead of arbitrary shell interpolation wherever possible;
-- bounded stdout/stderr capture, process-group termination and child reaping;
-- an audit trail that records the decision and result without recording credentials or approval tokens.
+| Tool category | Behaviour |
+|---|---|
+| Read-only workspace inspection | Runs without an approval prompt |
+| File writes and patches | Local approval; bounded diff preview; atomic replacement |
+| Git mutations | Local approval |
+| Shell commands | Local approval; bounded timeout/output; process-group cleanup |
+| Unknown tools | Denied |
+| URL fetching | Disabled until DNS pinning and redirect validation are implemented |
+| Direct browser tool API | Disabled by default; when enabled, only read_file and list_dir |
 
-The backend must be capability-detected on the actual deployment platform. Termux/proot, ordinary Linux, containers and desktop systems do not provide identical isolation primitives. If a strong backend is unavailable, privileged remote execution stays disabled.
+Python writes and patches compile candidate source before replacement. Invalid syntax leaves the original file unchanged. File patch targets are size-bounded. Shell child environments exclude Gemini cookies and dashboard API keys.
 
-## Delivery sequence
+## Audit behaviour
 
-- **2A, policy and grants:** risk classification, one-use approval primitives and tests. Started.
-- **2B, local approval UX:** terminal-only exact argument previews, explicit local decisions, bounded unified diffs for file writes/patches, and tests for invalid patch rejection. The approval controller still uses synchronous terminal input; terminal UX and Termux interaction testing remain outstanding.
-- **2C, isolated runner:** select and verify a platform-specific sandbox; enforce resource, filesystem and network boundaries.
-- **2D, audit and recovery:** first audit slice implemented: durable redacted JSONL records for approval and execution lifecycle, bounded storage, restrictive file permissions, symlink/hard-link rejection and fail-closed approval when the audit sink is unavailable. Subprocess execution now shares a bounded runner for shell, Git, grep-based searches and curl fallback; timeout and cancellation terminate the process group, drain output and reap the parent. Tests exercise stubborn parent/child processes that ignore SIGTERM. Remaining work: device-side Termux verification and end-to-end failure recovery.
-- **2E, remote integration:** only after 2B–2D pass, expose a narrow approval-request/status API. Approval itself remains a local device action. Shell access is not automatically granted by approving an individual operation.
+The audit log defaults to `~/.ww/audit/audit.jsonl` (overridable with `WW_AUDIT_LOG`). It records canonical tool names, keyed fingerprints, timestamps, decisions and outcomes without raw arguments or credentials. The log is bounded and uses restrictive file permissions. If an approval audit event cannot be durably recorded, the privileged operation is denied.
+
+Archive the log before it reaches its cap with:
+
+```bash
+python -m src.tools.audit archive
+```
+
+Export a redacted copy to a new file in a private directory with:
+
+```bash
+python -m src.tools.audit export /path/to/private/audit-copy.jsonl
+```
+
+Execution-result audit failures are reported but cannot undo an operation that has already completed.
+
+## Process lifecycle
+
+The shared process runner:
+
+- Starts POSIX subprocesses in their own process group.
+- Bounds stdout/stderr capture and total execution time.
+- Escalates from SIGTERM to SIGKILL when the process or descendants do not stop.
+- Handles the edge case where a process closes stdout/stderr but continues running.
+- Terminates descendants and reaps the parent on timeout or cancellation.
+
+These are reliability controls. They do not make an approved command safe or isolated.
+
+## Delivery status
+
+- **2A, policy and approval primitives:** implemented; approval ledger primitives remain available but are not a remote approval API.
+- **2B, local approval UX:** implemented in the shared runtime, including exact argument previews and bounded file diffs. Termux terminal interaction still needs device verification.
+- **2C, isolation backend:** abandoned by explicit user decision. Historical evaluation notes are marked as such.
+- **2D, audit and process recovery:** implemented and covered by unit tests; device-side verification remains outstanding.
+- **2E, remote approval API:** not planned. The approval surface remains local terminal input unless the user requests a different trust model.
 
 ## Acceptance criteria
 
-- No privileged model-issued tool call can run without a valid one-use grant consumed immediately before execution.
-- Grants are bound to the exact tool, argument digest and session, expire quickly and cannot be replayed.
-- A model or remote browser client cannot approve its own request.
-- No sandbox means no privileged execution.
-- Read-only remote tools remain the only browser-exposed tools until the complete approval and isolation path is verified.
+- Unknown tools fail closed.
+- Invalid arguments are rejected before approval.
+- Privileged model-generated tools require an explicit local decision.
+- Direct browser tool execution remains read-only.
+- File writes are atomic and invalid Python is rejected before replacement.
+- Subprocess output and duration are bounded, and timed-out process groups are cleaned up.
+- No claim is made that PRoot is a security sandbox.
+- The complete Gemini → tool → approval → PRoot subprocess → feedback → Gemini cycle is verified on the actual Android device before declaring device readiness.
