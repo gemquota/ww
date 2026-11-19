@@ -11,6 +11,7 @@ import inspect
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, AsyncIterator, Callable
 
 from src.permissions import PermissionManager
@@ -476,3 +477,19 @@ class ConversationRuntime:
                         "message": f"Stopped after {self.max_tool_calls} tool calls.",
                     }
                     return
+
+
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, str]:
+        """Execute one explicitly requested tool through the same policy and dispatcher."""
+        if not isinstance(arguments, dict):
+            raise TypeError("Tool arguments must be an object.")
+        await self.initialize()
+        block = SimpleNamespace(
+            name=name,
+            arguments=json.dumps(arguments, ensure_ascii=False, allow_nan=False),
+        )
+        results, _call_count = await self._execute_blocks([block], call_count=0)
+        if not results:
+            return {"tool": canonical_tool_name(name), "output": "TOOL ERROR: no result returned"}
+        tool_name, output = results[0]
+        return {"tool": tool_name, "output": output}
