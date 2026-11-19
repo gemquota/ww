@@ -327,6 +327,7 @@ class ConversationRuntime:
             else:
                 try:
                     arguments = parse_tool_arguments(canonical, body)
+                    arguments = self.registry.validate_arguments(canonical, arguments)
                     if policy.requires_approval:
                         await self._emit({
                             "type": "approval_required",
