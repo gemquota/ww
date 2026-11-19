@@ -1,11 +1,14 @@
 import time
 import unittest
 import tempfile
+import json
+import os
 from pathlib import Path
 
 from src.tools.approvals import ApprovalLedger
 from src.tools.tool_policy import ToolRisk, canonical_tool_name, policy_for_tool, remote_tool_allowed
 from src.tools.local_approval import LocalApprovalController
+from src.tools.audit import AuditLogError, ToolAuditLog
 from src.permissions import PermissionManager
 
 
@@ -37,12 +40,43 @@ class ToolPolicyTests(unittest.TestCase):
 
 
 class LocalApprovalControllerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._previous_audit_path = os.environ.get("WW_AUDIT_LOG")
+        cls._audit_directory = tempfile.TemporaryDirectory()
+        os.environ["WW_AUDIT_LOG"] = str(Path(cls._audit_directory.name) / "approval.jsonl")
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._previous_audit_path is None:
+            os.environ.pop("WW_AUDIT_LOG", None)
+        else:
+            os.environ["WW_AUDIT_LOG"] = cls._previous_audit_path
+        cls._audit_directory.cleanup()
+
     def test_read_only_tool_does_not_prompt(self):
         controller = LocalApprovalController(
             prompt=lambda _: self.fail("read-only tools must not prompt"),
             output=lambda _: None,
         )
         self.assertTrue(controller.authorize("read_file", {"file_path": "README.md"}))
+
+
+    def test_local_approval_records_request_and_decision_without_arguments(self):
+        controller = LocalApprovalController(
+            prompt=lambda _: "yes",
+            output=lambda _: None,
+            session_id="audit-test-session",
+        )
+        args = {"url": "https://example.com/private?token=do-not-log"}
+        self.assertTrue(controller.authorize("url_fetch", args))
+        audit_path = Path(os.environ["WW_AUDIT_LOG"])
+        records = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([record["event"] for record in records[-2:]], [
+            "approval_requested", "approval_decision"
+        ])
+        self.assertEqual(records[-1]["decision"], "approved")
+        self.assertNotIn("do-not-log", audit_path.read_text(encoding="utf-8"))
 
     def test_git_registry_alias_requires_local_approval(self):
         prompts = []
@@ -138,6 +172,26 @@ class LocalApprovalControllerTests(unittest.TestCase):
             ))
 
 
+
+    def test_audit_failure_denies_operation_before_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "protected"
+            target.write_text("keep", encoding="utf-8")
+            audit_path = Path(directory) / "audit.jsonl"
+            audit_path.symlink_to(target)
+            ledger = ApprovalLedger()
+            controller = LocalApprovalController(
+                ledger=ledger,
+                audit_log=ToolAuditLog(audit_path),
+                prompt=lambda _: self.fail("audit failure must deny before prompting"),
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "url_fetch", {"url": "https://example.com"}
+            ))
+            self.assertEqual(len(ledger._pending), 0)
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+
     def test_mutations_fail_closed_without_permission_manager(self):
         controller = LocalApprovalController(
             prompt=lambda _: self.fail("missing permission manager must deny"),
@@ -149,6 +203,56 @@ class LocalApprovalControllerTests(unittest.TestCase):
         self.assertFalse(controller.authorize(
             "shell_exec", {"command": "echo hello"}
         ))
+
+
+class ToolAuditLogTests(unittest.TestCase):
+    def test_records_are_redacted_and_append_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.jsonl"
+            audit = ToolAuditLog(path)
+            args = {"command": "echo private-token", "message": "secret"}
+            audit.record(
+                "approval_requested", tool_name="git", session_id="local-session",
+                arguments=args,
+            )
+            audit.record(
+                "approval_decision", tool_name="git", session_id="local-session",
+                arguments=args, decision="approved",
+            )
+            lines = path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 2)
+            first, second = (json.loads(line) for line in lines)
+            self.assertEqual(first["tool"], "git_tool")
+            self.assertEqual(second["decision"], "approved")
+            self.assertEqual(first["arguments_fingerprint"], second["arguments_fingerprint"])
+            self.assertNotIn("private-token", path.read_text(encoding="utf-8"))
+            self.assertNotIn("secret", path.read_text(encoding="utf-8"))
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_symlink_audit_target_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "important.txt"
+            target.write_text("untouched", encoding="utf-8")
+            link = Path(directory) / "audit.jsonl"
+            link.symlink_to(target)
+            audit = ToolAuditLog(link)
+            with self.assertRaises(AuditLogError):
+                audit.record(
+                    "approval_requested", tool_name="shell_exec",
+                    session_id="s", arguments={"command": "true"},
+                )
+            self.assertEqual(target.read_text(encoding="utf-8"), "untouched")
+
+    def test_full_audit_log_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.jsonl"
+            path.write_bytes(b"x" * ToolAuditLog.MAX_BYTES)
+            audit = ToolAuditLog(path)
+            with self.assertRaises(AuditLogError):
+                audit.record(
+                    "approval_requested", tool_name="shell_exec",
+                    session_id="s", arguments={"command": "true"},
+                )
 
 
 class ApprovalLedgerTests(unittest.TestCase):

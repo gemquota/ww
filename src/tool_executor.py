@@ -10,6 +10,7 @@ import itertools
 import os
 import re
 import traceback
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +24,8 @@ from src.core.backpressure import BackpressureManager
 from typing import TYPE_CHECKING
 from src.tools.registry import ToolRegistry
 from src.tools.local_approval import LocalApprovalController
+from src.tools.audit import ToolAuditLog, AuditLogError
+from src.tools.tool_policy import policy_for_tool
 from src.bridge.decision_tracer import DecisionTracer
 from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
@@ -146,7 +149,8 @@ class ToolExecutor:
         self.checkpoint_mgr = checkpoint_mgr
         self.diff_engine = diff_engine
         self.tool_registry = tool_registry
-        self.approval_controller = LocalApprovalController()
+        self.audit_log = ToolAuditLog()
+        self.approval_controller = LocalApprovalController(audit_log=self.audit_log)
         self.verbose_mode = verbose_mode
         self.ctx = ctx
         self.agent_sessions: Dict[str, Any] = {}
@@ -418,14 +422,37 @@ class ToolExecutor:
                                 data={"args": {k: str(v)[:100] for k, v in final_args.items() if k != 'permission_mgr'}},
                             )
                             causal_parent = ev.event_id
+                        execution_started = time.monotonic()
                         try:
                             async with self._semaphore:
                                 result = await asyncio.wait_for(
                                     self.tool_registry.execute(registry_name, final_args),
                                     timeout=timeout
                                 )
+                        except asyncio.CancelledError:
+                            if policy_for_tool(registry_name).requires_approval:
+                                try:
+                                    self.audit_log.record(
+                                        "execution_interrupted", tool_name=registry_name,
+                                        session_id=self.approval_controller.session_id,
+                                        arguments=approval_args, outcome="cancelled",
+                                        duration_ms=int((time.monotonic() - execution_started) * 1000),
+                                    )
+                                except (AuditLogError, TypeError, ValueError):
+                                    logger.exception("Unable to record cancelled tool execution")
+                            raise
                         except asyncio.TimeoutError:
                             result = f"TOOL TIMEOUT ({registry_name}): exceeded {timeout}s limit"
+                            if policy_for_tool(registry_name).requires_approval:
+                                try:
+                                    self.audit_log.record(
+                                        "execution_finished", tool_name=registry_name,
+                                        session_id=self.approval_controller.session_id,
+                                        arguments=approval_args, outcome="timeout",
+                                        duration_ms=int((time.monotonic() - execution_started) * 1000),
+                                    )
+                                except (AuditLogError, TypeError, ValueError):
+                                    logger.exception("Unable to record timed-out tool execution")
                             causal.create_event(
                                 event_type="tool_timeout",
                                 parent_ids=[causal_parent] if causal_parent else None,
@@ -434,6 +461,16 @@ class ToolExecutor:
                             ) if causal else None
                             logger.warning(f"Tool {registry_name} timed out after {timeout}s")
                         except Exception as e:
+                            if policy_for_tool(registry_name).requires_approval:
+                                try:
+                                    self.audit_log.record(
+                                        "execution_finished", tool_name=registry_name,
+                                        session_id=self.approval_controller.session_id,
+                                        arguments=approval_args, outcome="error",
+                                        duration_ms=int((time.monotonic() - execution_started) * 1000),
+                                    )
+                                except (AuditLogError, TypeError, ValueError):
+                                    logger.exception("Unable to record failed tool execution")
                             if causal:
                                 causal.create_event(
                                     event_type="tool_error",
@@ -443,6 +480,19 @@ class ToolExecutor:
                                 )
                             raise
                         else:
+                            if policy_for_tool(registry_name).requires_approval:
+                                result_text = str(result)
+                                failed = result_text.startswith(("ERROR:", "DENIED:", "TOOL ERROR", "GIT ERROR", "URL FETCH ERROR", "SSRF ERROR:", "FILE PATCH ERROR:")) or bool(re.search(r"\[Exit code: [1-9][0-9]*\]", result_text))
+                                try:
+                                    self.audit_log.record(
+                                        "execution_finished", tool_name=registry_name,
+                                        session_id=self.approval_controller.session_id,
+                                        arguments=approval_args,
+                                        outcome="error" if failed else "success",
+                                        duration_ms=int((time.monotonic() - execution_started) * 1000),
+                                    )
+                                except (AuditLogError, TypeError, ValueError):
+                                    logger.exception("Unable to record completed tool execution")
                             if causal:
                                 causal.create_event(
                                     event_type="tool_result",
