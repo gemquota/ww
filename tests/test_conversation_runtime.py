@@ -134,6 +134,27 @@ class ConversationRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("approval_required", [event["type"] for event in events])
 
 
+
+    async def test_direct_tool_dispatch_uses_shared_approval_and_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            client = FakeClient(["Instructions acknowledged."])
+            approval = FakeApproval()
+            runtime = ConversationRuntime(
+                client, workspace_root=root, approval_controller=approval,
+            )
+            result = await runtime.execute_tool(
+                "write_file",
+                {"file_path": "direct.txt", "content": "created through shared dispatch"},
+            )
+            self.assertEqual(result["tool"], "write_file")
+            self.assertIn("written", result["output"].lower())
+            self.assertEqual(
+                (root / "direct.txt").read_text(encoding="utf-8"),
+                "created through shared dispatch",
+            )
+            self.assertEqual(approval.calls[0][0], "write_file")
+
     async def test_invalid_privileged_arguments_are_rejected_before_approval(self):
         fence = chr(96) * 3
         with tempfile.TemporaryDirectory() as directory:
