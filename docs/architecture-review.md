@@ -4,7 +4,7 @@
 **Implementation branch:** integration/unified-runtime  
 **Main baseline at review start:** 0043cb1516e2d4299e1804e4595e100917ad67d2
 
-This review covers the terminal client, Gemini transport, tool execution, local approval, subprocess lifecycle, browser API, GitHub Pages frontend, branch history, dependencies, CI and the Android PRoot deployment model.
+This review covers the terminal client, Gemini transport, tool execution, local approval, subprocess lifecycle, browser API, GitHub Pages frontend, branch history, dependencies, CI and the Android PRoot deployment model. The broader repository inventory, including historical and experimental modules, is recorded in [codebase-inventory.md](codebase-inventory.md).
 
 ## Executive assessment
 
