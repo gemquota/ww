@@ -258,13 +258,11 @@ async def doc_search(query: str) -> str:
     if not search_paths:
         return "ERROR: No documentation directories (docs/ or meta/) found."
 
-    import shlex
-    safe_query = shlex.quote(query)
     results = []
     for sp in search_paths:
         try:
             stdout, stderr, _ = await _run_process(
-                "grep", "-rnEi", query, str(sp), "--include=*.md",
+                "grep", "-rnEi", "--", query, str(sp), "--include=*.md",
                 cwd=_get_workspace_root(), timeout=15, output_limit=1024 * 1024,
             )
             out = stdout.decode(errors="replace").strip()
@@ -287,7 +285,7 @@ async def code_search(pattern: str, path: str = ".") -> str:
     try:
         search_path = _resolve_workspace_path(path)
         stdout, stderr, _ = await _run_process(
-            "grep", "-rn", pattern, str(search_path),
+            "grep", "-rn", "--", pattern, str(search_path),
             "--include=*.py", "--include=*.js", "--include=*.ts",
             "--include=*.md", "--include=*.json", "--include=*.yaml",
             "--include=*.yml", cwd=_get_workspace_root(), timeout=30,
