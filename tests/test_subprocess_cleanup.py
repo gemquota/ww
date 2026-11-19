@@ -5,12 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.tools.system_tools import _read_capped_stream, _stop_process_group
+from src.tools.system_tools import _run_process
 
 
 @unittest.skipUnless(os.name == "posix" and Path("/proc").exists(), "requires POSIX process groups and /proc")
 class ProcessGroupCleanupTests(unittest.IsolatedAsyncioTestCase):
-    async def test_timeout_cleanup_kills_parent_and_descendant(self):
+    async def test_timeout_kills_parent_and_descendant(self):
         with tempfile.TemporaryDirectory() as directory:
             pid_file = Path(directory) / "pids"
             child_code = (
@@ -25,16 +25,9 @@ class ProcessGroupCleanupTests(unittest.IsolatedAsyncioTestCase):
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
                 "time.sleep(60)"
             )
-            process = await asyncio.create_subprocess_exec(
-                sys.executable, "-c", parent_code,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
+            runner = asyncio.create_task(
+                _run_process(sys.executable, "-c", parent_code, timeout=0.5)
             )
-            stdout_task = asyncio.create_task(_read_capped_stream(process.stdout, 1024))
-            stderr_task = asyncio.create_task(_read_capped_stream(process.stderr, 1024))
-            streams_task = asyncio.gather(stdout_task, stderr_task)
-
             try:
                 deadline = asyncio.get_running_loop().time() + 5
                 while not pid_file.exists():
@@ -43,11 +36,8 @@ class ProcessGroupCleanupTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.02)
                 parent_pid, child_pid = map(int, pid_file.read_text().split())
 
-                await asyncio.wait_for(
-                    _stop_process_group(process, streams_task),
-                    timeout=6,
-                )
-                self.assertIsNotNone(process.returncode)
+                with self.assertRaises(asyncio.TimeoutError):
+                    await runner
 
                 def stopped(pid: int) -> bool:
                     try:
@@ -63,8 +53,9 @@ class ProcessGroupCleanupTests(unittest.IsolatedAsyncioTestCase):
                         self.fail("a process in the child process group remained running")
                     await asyncio.sleep(0.05)
             finally:
-                if process.returncode is None:
-                    await _stop_process_group(process, streams_task)
+                if not runner.done():
+                    runner.cancel()
+                    await asyncio.gather(runner, return_exceptions=True)
 
 
 if __name__ == "__main__":
