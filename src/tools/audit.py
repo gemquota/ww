@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -40,14 +41,14 @@ class ToolAuditLog:
         configured = os.environ.get("WW_AUDIT_LOG")
         self.path = Path(path or configured or "~/.ww/audit/audit.jsonl").expanduser().absolute()
         self._lock = threading.Lock()
+        self._fingerprint_key = secrets.token_bytes(32)
 
-    @staticmethod
-    def _digest(value: Any) -> str:
+    def _fingerprint(self, value: Any) -> str:
         encoded = json.dumps(
             value, sort_keys=True, separators=(",", ":"),
             ensure_ascii=True, allow_nan=False,
         ).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
+        return hmac.new(self._fingerprint_key, encoded, hashlib.sha256).hexdigest()
 
     def record(
         self,
@@ -78,8 +79,8 @@ class ToolAuditLog:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event": event,
             "tool": canonical_tool_name(tool_name),
-            "session": self._digest(session_id)[:16],
-            "arguments_sha256": self._digest(arguments),
+            "session": self._fingerprint(session_id)[:16],
+            "arguments_fingerprint": self._fingerprint(arguments),
             "decision": decision,
             "outcome": outcome,
             "duration_ms": duration_ms,
@@ -90,15 +91,19 @@ class ToolAuditLog:
             try:
                 parent = self.path.parent
                 parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                if parent.is_symlink():
-                    raise AuditLogError("Audit directory must not be a symlink")
+                if parent.is_symlink() or parent.resolve() != parent:
+                    raise AuditLogError("Audit directory path must not traverse symlinks")
                 if parent.stat().st_mode & 0o077:
                     raise AuditLogError("Audit directory permissions must be 0700")
 
-                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
-                flags |= getattr(os, "O_NOFOLLOW", 0)
+                if not hasattr(os, "O_NOFOLLOW"):
+                    raise AuditLogError("This platform cannot safely open the audit file")
+                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
                 fd = os.open(self.path, flags, 0o600)
                 try:
+                    if os.name == "posix":
+                        import fcntl
+                        fcntl.flock(fd, fcntl.LOCK_EX)
                     info = os.fstat(fd)
                     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                         raise AuditLogError("Audit target must be a single-link regular file")
@@ -107,7 +112,10 @@ class ToolAuditLog:
                         raise AuditLogError("Audit log reached its 1 MiB limit")
                     written = 0
                     while written < len(line):
-                        written += os.write(fd, line[written:])
+                        count = os.write(fd, line[written:])
+                        if count <= 0:
+                            raise AuditLogError("Audit write made no progress")
+                        written += count
                     os.fsync(fd)
                 finally:
                     os.close(fd)
