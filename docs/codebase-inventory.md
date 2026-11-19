@@ -10,27 +10,27 @@ This inventory classifies the repository rather than pretending every historical
 
 | Measure | Count |
 |---|---:|
-| Git tree entries | 439 |
-| Files | 396 |
-| Python files | 153 |
-| Markdown files | 151 |
+| Git tree entries | 441 |
+| Files | 398 |
+| Python files | 154 |
+| Markdown files | 152 |
 | HTML files | 8 |
 | Test files | 21 |
-| Documentation files under docs/ | 119 |
+| Documentation files under docs/ | 120 |
 
 Top-level distribution:
 
 | Area | Files | Assessment |
 |---|---:|---|
 | `src/` | 106 | Mixed: supported runtime plus legacy and experimental packages |
-| `docs/` | 119 | Current docs plus historical V6/V7 proposals |
+| `docs/` | 120 | Current docs plus historical V6/V7 proposals |
 | `.old/` | 91 | Archived code snapshot; not active |
 | `tests/` | 21 | Maintained unittest suite |
 | `.github/` | 13 | Three active workflows plus repository metadata |
 | `agents/` | 8 | Legacy agent prompts/definitions |
 | `demo/` | 6 | Demonstrations and experiments |
 | `deploy/` | 3 | Optional Dockerfile, compose file and instructions |
-| `scripts/` | 2 | Current acceptance harness and package initializer |
+| `scripts/` | 3 | Current acceptance harness and package initializer |
 | `chaos/`, `config/`, `mascot/` | 7 combined | Experimental/configuration/assets |
 
 The repository is larger than the supported runtime. File counts include archived, historical and experimental material.
