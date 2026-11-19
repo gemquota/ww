@@ -1,27 +1,18 @@
-"""Database path resolution for dashboard."""
+"""Workspace-local database path resolution for the dashboard."""
 import os
 from pathlib import Path
 
-WORKSPACE_ROOT = Path(os.getenv("WW_WORKSPACE", os.getcwd()))
+
+def workspace_root() -> Path:
+    """Resolve the workspace at call time so .env and process overrides are honored."""
+    return Path(os.getenv("WW_WORKSPACE", os.getcwd())).expanduser().resolve()
 
 
 def get_db_path() -> Path:
-    """Get telemetry database path."""
-    try:
-        from src.config import get_settings
-        settings = get_settings()
-        workspace = settings.resolve_workspace()
-        return workspace / ".tel" / "telemetry.db"
-    except Exception:
-        return WORKSPACE_ROOT / ".tel" / "telemetry.db"
+    """Return the telemetry database path inside the configured workspace."""
+    return workspace_root() / ".tel" / "telemetry.db"
 
 
 def get_memory_db_path() -> Path:
-    """Get sessions/memory database path."""
-    try:
-        from src.config import get_settings
-        settings = get_settings()
-        workspace = settings.resolve_workspace()
-        return workspace / ".tel" / "sessions" / "sessions.db"
-    except Exception:
-        return WORKSPACE_ROOT / ".tel" / "sessions" / "sessions.db"
+    """Return the session/memory database path inside the configured workspace."""
+    return workspace_root() / ".tel" / "sessions" / "sessions.db"
