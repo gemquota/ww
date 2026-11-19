@@ -317,7 +317,8 @@ class ConversationRuntime:
         remaining = max(0, self.max_tool_calls - call_count)
         for tool_name, body in blocks[:remaining]:
             canonical = canonical_tool_name(tool_name)
-            await self._emit({"type": "tool_start", "tool": canonical})
+            call_id = str(call_count + len(results) + 1)
+            await self._emit({"type": "tool_start", "tool": canonical, "call_id": call_id})
             policy = policy_for_tool(canonical)
             if policy.risk is ToolRisk.DENY:
                 output = f"DENIED: No execution policy exists for tool '{tool_name}'."
@@ -330,6 +331,7 @@ class ConversationRuntime:
                         await self._emit({
                             "type": "approval_required",
                             "tool": canonical,
+                            "call_id": call_id,
                             "arguments": arguments,
                             "location": "WW backend terminal",
                         })
@@ -356,7 +358,7 @@ class ConversationRuntime:
             if len(output) > self.feedback_limit:
                 output = output[: self.feedback_limit] + "\n[TOOL OUTPUT TRUNCATED]"
             results.append({"tool": canonical, "output": output})
-            await self._emit({"type": "tool_result", "tool": canonical, "output": output})
+            await self._emit({"type": "tool_result", "tool": canonical, "call_id": call_id, "output": output})
         if len(blocks) > remaining:
             results.append({
                 "tool": "runtime",
