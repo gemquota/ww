@@ -15,7 +15,7 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 | Branch | Decision | Evidence / rationale |
 |---|---|---|
 | main | Keep as baseline | Current application and merged Phase 1/2 work. |
-| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Merge only after final CI and code-quality pass. |
+| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Core CI and code-quality both passed on head 3d46f1b; ready for squash merge, with device verification outstanding. |
 | chore/lint-multimodal-canvas | Do not merge | Main already has a newer code-quality workflow, including project-context coverage. |
 | dependabot/pip/google-genai-gte-2.9.0 | Close/archive | No commits ahead of main; dependency is not part of the current core transport. |
 | dependabot/pip/prompt-toolkit-gte-3.0.52 | Close/archive | No commits ahead; main already requires prompt-toolkit 3.0.53 or newer. |
