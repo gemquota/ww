@@ -228,12 +228,22 @@ def write_file(file_path: str, content: str, permission_mgr=None, checkpoint_mgr
                 if resp != "y":
                     return "DENIED: User rejected file write."
 
+        if file_path.endswith(".py"):
+            try:
+                compile(content, str(p), "exec")
+            except SyntaxError as exc:
+                return f"ERROR: Python syntax error; file was not changed: {exc}"
+
         if checkpoint_mgr:
             cp_id = checkpoint_mgr.create_checkpoint(f"write:{file_path}")
             if p.exists():
                 checkpoint_mgr.save_file_state(p, cp_id)
 
-        old_content = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+        old_content = ""
+        if diff_engine and p.exists():
+            if p.stat().st_size > 1024 * 1024:
+                return "ERROR: Diff preview is limited to existing files no larger than 1 MiB."
+            old_content = p.read_text(encoding="utf-8", errors="replace")
         p.parent.mkdir(parents=True, exist_ok=True)
         _atomic_write_text(p, content)
 
@@ -241,20 +251,7 @@ def write_file(file_path: str, content: str, permission_mgr=None, checkpoint_mgr
             diff = diff_engine.colorize_diff(old_content, content, str(file_path))
             print(diff)
 
-        # Syntax validation for Python files
-        syntax_warning = ""
-        if file_path.endswith('.py'):
-            try:
-                import py_compile as _py_compile
-                _py_compile.compile(str(p), doraise=True)
-            except _py_compile.PyCompileError as _e:
-                syntax_warning = f"\n⚠ WARNING: Python syntax error: {_e}"
-            except NameError:
-                pass  # py_compile not available in some contexts
-            except Exception:
-                pass
-
-        return f"SUCCESS: File '{file_path}' written ({len(content.encode('utf-8'))} bytes).{syntax_warning}"
+        return f"SUCCESS: File '{file_path}' written ({len(content.encode('utf-8'))} bytes)."
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -381,33 +378,31 @@ def file_patch(file_path: str, search_text: str, replace_text: str, checkpoint_m
         if not p.exists():
             return f"ERROR: File '{file_path}' not found."
 
-        if checkpoint_mgr:
-            cp_id = checkpoint_mgr.create_checkpoint(f"patch:{file_path}")
-            checkpoint_mgr.save_file_state(p, cp_id)
-
+        if p.stat().st_size > 5 * 1024 * 1024:
+            return "ERROR: Patch targets are limited to 5 MiB."
         content = p.read_text(encoding="utf-8", errors="replace")
         if search_text not in content:
             return f"ERROR: Search text not found in '{file_path}'."
+
+        new_content = content.replace(search_text, replace_text, 1)
+        if file_path.endswith(".py"):
+            try:
+                compile(new_content, str(p), "exec")
+            except SyntaxError as exc:
+                return f"ERROR: Python syntax error; file was not changed: {exc}"
+
+        if checkpoint_mgr:
+            cp_id = checkpoint_mgr.create_checkpoint(f"patch:{file_path}")
+            checkpoint_mgr.save_file_state(p, cp_id)
 
         if diff_engine:
             success, message, diff_output = diff_engine.apply_edit(p, search_text, replace_text)
             if success and diff_output:
                 print(diff_output)
             return message
-        else:
-            new_content = content.replace(search_text, replace_text, 1)
-            _atomic_write_text(p, new_content)
-            # Syntax validation for Python files
-            syntax_warning = ""
-            if file_path.endswith('.py'):
-                try:
-                    import py_compile as _py_compile
-                    _py_compile.compile(str(p), doraise=True)
-                except _py_compile.PyCompileError as _e:
-                    syntax_warning = f"\n⚠ WARNING: Python syntax error: {_e}"
-                except Exception:
-                    pass
-            return f"SUCCESS: Patched '{file_path}' (1 replacement).{syntax_warning}"
+
+        _atomic_write_text(p, new_content)
+        return f"SUCCESS: Patched '{file_path}' (1 replacement)."
     except Exception as e:
         return f"FILE PATCH ERROR: {e}"
 
