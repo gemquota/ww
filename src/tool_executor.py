@@ -22,6 +22,7 @@ from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
 from typing import TYPE_CHECKING
 from src.tools.registry import ToolRegistry
+from src.tools.local_approval import LocalApprovalController
 from src.bridge.decision_tracer import DecisionTracer
 from src.bridge.fault_injector import FaultInjector, should_fail
 from src.core.backpressure import BackpressureManager
@@ -81,8 +82,11 @@ class ToolExecutor:
     """Parses and dispatches tool blocks from LLM responses."""
 
     KNOWN_KEYS = {
-        "agent", "task", "filepath", "content",
-        "find", "replace", "pattern", "path", "depth",
+        "agent", "task", "filepath", "file_path", "content",
+        "find", "replace", "search_text", "replace_text",
+        "pattern", "path", "depth", "command", "message",
+        "query", "url", "timeout", "question", "dir_path",
+        "read", "list",
     }
 
     # Default per-tool execution timeout in seconds
@@ -142,6 +146,7 @@ class ToolExecutor:
         self.checkpoint_mgr = checkpoint_mgr
         self.diff_engine = diff_engine
         self.tool_registry = tool_registry
+        self.approval_controller = LocalApprovalController()
         self.verbose_mode = verbose_mode
         self.ctx = ctx
         self.agent_sessions: Dict[str, Any] = {}
@@ -241,10 +246,16 @@ class ToolExecutor:
                     if registry_name not in self.tool_registry.tools:
                         return ""
                     fields = self._parse_fields(content)
-                    if registry_name == "read_file" and "read" not in fields:
-                        fields = {"file_path": content.strip()}
-                    elif registry_name == "list_dir" and "list" not in fields:
-                        fields = {"dir_path": content.strip() or "."}
+                    if registry_name == "read_file":
+                        if "read" in fields:
+                            fields["file_path"] = fields.pop("read")
+                        elif "file_path" not in fields:
+                            fields = {"file_path": content.strip()}
+                    elif registry_name == "list_dir":
+                        if "list" in fields:
+                            fields["dir_path"] = fields.pop("list")
+                        elif "dir_path" not in fields:
+                            fields = {"dir_path": content.strip() or "."}
                     fields["permission_mgr"] = self.permission_mgr
                     node = self.tool_registry.tools[registry_name]
                     import inspect
@@ -274,10 +285,16 @@ class ToolExecutor:
                     registry_name = self.TOOL_NAME_MAP.get(tool, tool)
                     if registry_name in self.tool_registry.tools:
                         fields = self._parse_fields(content)
-                        if registry_name == "read_file" and "read" not in fields:
-                            fields = {"file_path": content.strip()}
-                        elif registry_name == "list_dir" and "list" not in fields:
-                            fields = {"dir_path": content.strip() or "."}
+                        if registry_name == "read_file":
+                            if "read" in fields:
+                                fields["file_path"] = fields.pop("read")
+                            elif "file_path" not in fields:
+                                fields = {"file_path": content.strip()}
+                        elif registry_name == "list_dir":
+                            if "list" in fields:
+                                fields["dir_path"] = fields.pop("list")
+                            elif "dir_path" not in fields:
+                                fields = {"dir_path": content.strip() or "."}
                         fields["permission_mgr"] = self.permission_mgr
                         node = self.tool_registry.tools[registry_name]
                         import inspect
@@ -317,20 +334,36 @@ class ToolExecutor:
                         fields = self._parse_fields(content)
                         
                         # Inconsistent field naming fix for registry compatibility
-                        if registry_name == "read_file" and "read" not in fields:
-                            fields = {"file_path": content.strip()}
-                        elif registry_name == "list_dir" and "list" not in fields:
-                            fields = {"dir_path": content.strip() or "."}
-                        elif registry_name == "write_file":
-                            if "filepath" in fields: fields["file_path"] = fields.pop("filepath")
-                        elif registry_name == "file_patch":
-                            if "filepath" in fields: fields["file_path"] = fields.pop("filepath")
-                            if "find" in fields: fields["search_text"] = fields.pop("find")
-                            if "replace" in fields: fields["replace_text"] = fields.pop("replace")
-                        elif registry_name == "shell_exec":
-                            if "command" not in fields: fields = {"command": content.strip()}
-                        elif registry_name == "code_search":
-                            if "pattern" not in fields: fields = {"pattern": content.strip()}
+                        if registry_name == "read_file":
+                            if "read" in fields:
+                                fields["file_path"] = fields.pop("read")
+                            elif "file_path" not in fields:
+                                fields = {"file_path": content.strip()}
+                        elif registry_name == "list_dir":
+                            if "list" in fields:
+                                fields["dir_path"] = fields.pop("list")
+                            elif "dir_path" not in fields:
+                                fields = {"dir_path": content.strip() or "."}
+                        elif registry_name in {"write_file", "file_patch"}:
+                            if "filepath" in fields:
+                                fields["file_path"] = fields.pop("filepath")
+                        if registry_name == "file_patch":
+                            if "find" in fields:
+                                fields["search_text"] = fields.pop("find")
+                            if "replace" in fields:
+                                fields["replace_text"] = fields.pop("replace")
+                        elif registry_name == "shell_exec" and "command" not in fields:
+                            fields = {"command": content.strip()}
+                        elif registry_name == "git" and "command" not in fields:
+                            fields = {"command": content.strip()}
+                        elif registry_name == "code_search" and "pattern" not in fields:
+                            fields = {"pattern": content.strip()}
+                        elif registry_name == "url_fetch" and "url" not in fields:
+                            fields = {"url": content.strip()}
+                        elif registry_name == "doc_search" and "query" not in fields:
+                            fields = {"query": content.strip()}
+                        elif registry_name == "request_clarification" and "question" not in fields:
+                            fields = {"question": content.strip()}
 
                         # Inject managers for tools that need them
                         fields["permission_mgr"] = self.permission_mgr
@@ -342,6 +375,26 @@ class ToolExecutor:
                         import inspect
                         sig = inspect.signature(node.func)
                         final_args = {k: v for k, v in fields.items() if k in sig.parameters}
+
+                        # Privileged tools require an explicit decision at the local
+                        # terminal. Injected managers are not part of the approved
+                        # operation digest or the human-readable argument preview.
+                        approval_args = {
+                            k: v for k, v in final_args.items()
+                            if k not in {"permission_mgr", "checkpoint_mgr", "diff_engine"}
+                        }
+                        if not self.approval_controller.authorize(
+                            registry_name, approval_args, self.permission_mgr
+                        ):
+                            tool_output = f"DENIED: Local approval was not granted for '{registry_name}'."
+                            await self._process_tool_output(
+                                tool_output, tool, chat_context, safe_send_message
+                            )
+                            continue
+                        # Avoid asking twice: the controller has already checked
+                        # hard-deny rules and obtained the one-use approval grant.
+                        if "permission_mgr" in final_args:
+                            final_args["permission_mgr"] = None
 
                         # PCG: Add node for tool call
                         tool_node_id = -1

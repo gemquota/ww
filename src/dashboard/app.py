@@ -303,7 +303,9 @@ async def execute_tool(request: ToolExecuteRequest):
             status_code=403,
             detail="Remote tools are disabled. Set WW_REMOTE_TOOLS_ENABLED=1 to enable the restricted read-only tool API.",
         )
-    if request.tool not in {"read_file", "list_dir"}:
+    from src.tools.tool_policy import remote_tool_allowed
+
+    if not remote_tool_allowed(request.tool):
         raise HTTPException(
             status_code=403,
             detail=f"Remote tool '{request.tool}' is not exposed by the restricted browser API.",
