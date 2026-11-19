@@ -50,7 +50,7 @@ class MemoryConfig(BaseSettings):
 
 
 class DashboardConfig(BaseSettings):
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8080
     log_level: str = "info"
 
