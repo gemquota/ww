@@ -83,10 +83,10 @@ from src.tools.registry import ToolRegistry
 from src.tools.system_tools import (
     read_file, list_dir, write_file, shell_exec, git_tool,
     doc_search, request_clarification,
-    code_search, file_patch, url_fetch,
+    code_search, file_patch,
     ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
     UpdateScratchpadArgs, GitArgs, DocSearchArgs, ClarificationArgs,
-    CodeSearchArgs, FilePatchArgs, UrlFetchArgs
+    CodeSearchArgs, FilePatchArgs
 )
 # WebGeminiClient loaded via _lazy_import()
 from src.utils.validation import extract_tool_call
@@ -142,7 +142,6 @@ tool_registry.register("doc_search", doc_search, "Search project documentation."
 tool_registry.register("request_clarification", request_clarification, "Ask the user for more information.", ClarificationArgs, tags=["comm", "interrupt"])
 tool_registry.register("code_search", code_search, "Search for a regex pattern across project files.", CodeSearchArgs, tags=["read", "research", "search"])
 tool_registry.register("file_patch", file_patch, "Apply a surgical text replacement in a file.", FilePatchArgs, tags=["write", "edit", "patch"])
-tool_registry.register("url_fetch", url_fetch, "Fetch a URL via HTTP GET with configurable timeout.", UrlFetchArgs, tags=["read", "network"])
 
 # Set workspace root for sandboxed tool operations
 from src.tools.system_tools import set_workspace_root as _set_tools_root
