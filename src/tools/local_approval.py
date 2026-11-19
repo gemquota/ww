@@ -58,6 +58,8 @@ class LocalApprovalController:
         policy = policy_for_tool(canonical_name)
         if policy.risk is ToolRisk.DENY:
             self.output(f"DENIED: No execution policy exists for tool '{tool_name}'.")
+            if isinstance(arguments, dict):
+                self._record("approval_decision", canonical_name, arguments, decision="denied")
             return False
         if not policy.requires_approval:
             return True
@@ -68,6 +70,7 @@ class LocalApprovalController:
 
         if canonical_name in {"write_file", "file_patch", "shell_exec"} and permission_mgr is None:
             self.output("DENIED: The local permission manager is unavailable.")
+            self._record("approval_decision", canonical_name, arguments, decision="denied")
             return False
 
         request_id = None
