@@ -106,5 +106,13 @@ class ProcessGroupCleanupTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.gather(runner, return_exceptions=True)
 
 
+    async def test_timeout_applies_after_process_closes_output_streams(self):
+        command = (
+            "import os,time; os.close(1); os.close(2); time.sleep(60)"
+        )
+        with self.assertRaises(asyncio.TimeoutError):
+            await _run_process(sys.executable, "-c", command, timeout=0.25)
+
+
 if __name__ == "__main__":
     unittest.main()
