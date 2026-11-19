@@ -42,13 +42,17 @@ These are worth preserving. The problem was integration and inconsistent ownersh
 | src package exposed stale smart_context lazy exports | Public imports could fail even though the replacement project-context module existed | Removed stale exports and added lazy subpackage resolution for tools, dashboard and cookie_loader. |
 | Python write/patch validation happened after modifying the file | A syntax error could leave a broken file in the workspace | Compile candidate source before atomic replacement; reject invalid edits without changing the original. |
 | Process cleanup could wait indefinitely after a process closed pipes but ignored SIGTERM | Timeout cleanup could hang even though output capture had finished | Add a bounded process.wait phase and escalate to SIGKILL; add a regression test. |
+| SilentUIAdapter approved every privileged action without a user | A legacy non-interactive path could silently approve operations | SilentUIAdapter now denies by default and has a regression test. |
+| Dashboard database paths consulted legacy YAML settings | WW_WORKSPACE could be ignored when config.yaml supplied a workspace | Database paths now resolve WW_WORKSPACE at call time. |
+| Project instructions, pytest config and contributor guide pointed at retired paths | Contributors and coding agents could follow nonexistent modules and test directories | AGENTS.md, CONTRIBUTING.md, pytest.ini, mypy.ini and the docs index now describe the maintained runtime. |
+| Docker command, port and healthcheck configuration were inconsistent | Dashboard container could not start correctly and healthchecks required an API key | Dockerfile and compose were consolidated; healthcheck uses the public metadata route, host port binds loopback, and .dockerignore excludes secrets. |
 | Synchronous tool handlers ran on the event loop | File operations could stall streaming and concurrent requests | Synchronous handlers now run in worker threads. |
 | Workspace writes replaced files directly | Interrupted writes could leave partial files | write_file and file_patch use same-directory atomic replacement. |
-| Python syntax validation referenced the wrong module name | Syntax errors could be silently missed | Both write and patch paths now catch py_compile.PyCompileError from the imported module. |
+| Python syntax validation ran after the write | A malformed edit could already have replaced the valid file | Candidate Python source is compiled before atomic replacement; invalid edits leave the original unchanged. |
 | Git command parsing treated a whole command string as one argument | Commands such as git status --short could fail | Git subcommands and arguments are parsed with shlex and executed without a shell. |
 | Shell children inherited Gemini and dashboard credentials | An approved shell command could inspect application credentials through its environment | Known Gemini and WW dashboard credential variables are removed from shell child environments. |
 | URL fetching had incomplete SSRF checks | IPv6, DNS failures, rebinding and redirects were not robustly constrained | URL fetching is disabled until DNS pinning and redirect validation can be implemented. |
-| Two CI workflows ran overlapping unit suites | Duplicate CI work obscured the canonical test path | The duplicate workflow was removed; the main CI workflow now compiles the project and runs the expanded suite. |
+| Two CI workflows ran overlapping unit suites | Duplicate CI work obscured the canonical test path | The duplicate workflow was removed; core CI now compiles, runs the full unittest suite and starts the local API/process acceptance harness. |
 
 ## Adversarial review
 
@@ -93,7 +97,7 @@ These are worth preserving. The problem was integration and inconsistent ownersh
 
 ### GitHub Pages
 
-The previous gh-pages index was an obsolete progress dashboard. It has been replaced with the current browser workspace. A second deploy-progress workflow used peaceiris/actions-gh-pages with force_orphan and could overwrite the Pages branch, so it has been removed. The main branch now has one authoritative GitHub Actions Pages workflow that copies src/dashboard/chat.html to the deployment artifact.
+The previous gh-pages index was an obsolete progress dashboard. It has been replaced with the current browser workspace. A second deploy-progress workflow used peaceiris/actions-gh-pages with force_orphan and could overwrite the Pages branch, so it has been removed. The main branch root index.html and gh-pages root index.html now match src/dashboard/chat.html. The old progress-dashboard.html and its competing deployment workflow have been removed. The remaining Pages workflow copies the browser workspace to the deployment artifact.
 
 The repository Pages source setting still needs to be checked after integration. For Actions deployment, Settings → Pages → Build and deployment must use GitHub Actions. The gh-pages branch now also has a root index.html fallback for branch-based Pages configuration.
 
@@ -111,7 +115,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 
 1. **Legacy bridge:** src/gemini_bridge.py still contains its own ToolExecutor, Gemini client path, memory and orchestration stack. Static lint exposed unresolved names in this legacy code. Its direct entry point now exits with a deprecation message; it is not a supported runtime. Decide which advanced subsystems should be migrated into the shared runtime and which should be retired.
 2. **Live device verification:** the new runtime and browser path have deterministic fake-client tests, but no actual Gemini → tool → approval → subprocess → Gemini cycle has yet been verified on the user's Android device.
-3. **PR CI:** the integration branch must pass GitHub Actions before merge. The new tests have been authored but their result must be observed, not assumed.
+3. **PR CI:** the integration branch must pass GitHub Actions before merge. The expanded unit and acceptance tests are in CI; the final result must be observed, not assumed.
 4. **Pages deployment:** the frontend artifact and branch fallback have been updated, but the deployed public URL must be checked after the Pages workflow or branch deployment runs.
 5. **Foreground approval:** terminal approval is deliberate, but the browser should clearly explain that the backend needs an interactive terminal. A future browser-mediated approval workflow would need its own explicit trust model.
 6. **SSE keepalives:** a long Gemini thinking interval may exceed some proxy idle timeouts. Add heartbeat comments if live tunnel testing shows this is necessary.
