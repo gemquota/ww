@@ -712,9 +712,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        for key, value in extract_gemini_cookies(args.cookies).items():
-            os.environ.setdefault(key, value)
-    except ValueError as exc:
+        load_cookie_environment(args.cookies)
+    except (OSError, ValueError) as exc:
         print(f"Cookie file error: {exc}", file=sys.stderr)
         return 2
 
