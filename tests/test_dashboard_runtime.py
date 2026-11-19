@@ -34,7 +34,7 @@ class DashboardRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "SECURE_1PSID": "",
                 "WW_COOKIE_FILE": str(cookie_path),
             }):
-                with patch.object(dashboard, "extract_gemini_cookies", return_value={
+                with patch("src.cookie_loader.extract_gemini_cookies", return_value={
                     "SECURE_1PSID": "primary-cookie",
                 }):
                     with patch.object(dashboard, "WWClient", FakeWWClient):
