@@ -712,7 +712,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        load_cookie_environment(args.cookies)
+        if not os.getenv("SECURE_1PSID"):
+            load_cookie_environment(args.cookies)
     except (OSError, ValueError) as exc:
         print(f"Cookie file error: {exc}", file=sys.stderr)
         return 2
