@@ -140,7 +140,7 @@ class ConversationRuntimeTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             client = FakeClient([
                 "Instructions acknowledged.",
-                fence + "tool:write_file\\nfile_path: missing-content.txt\\n" + fence,
+                fence + "tool:write_file" + chr(10) + "file_path: missing-content.txt" + chr(10) + fence,
                 "The tool request was invalid.",
             ])
             approval = FakeApproval()
