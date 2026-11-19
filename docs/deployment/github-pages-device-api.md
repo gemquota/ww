@@ -28,7 +28,6 @@ Configure the API key and workspace:
 ```bash
 export WW_DASHBOARD_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export WW_WORKSPACE="$HOME/path/to/your/project"
-export WW_EXECUTION_BACKEND=proot-distro
 export WW_CORS_ORIGINS="https://gemquota.github.io"
 ```
 
@@ -42,7 +41,7 @@ uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
 
 The server binds to loopback by default. Keep it running in the foreground when using model-generated privileged tools: write, patch, Git mutation and shell requests display an approval prompt in the backend Termux terminal. A detached process without interactive stdin cannot provide this approval experience.
 
-Commands execute in the environment where the backend process runs. Starting the backend inside Debian PRoot makes tool commands run inside that Debian environment. PRoot is a compatibility/execution environment, not a hardened security sandbox; commands have the permissions of the backend process.
+Commands execute in the environment where the backend process runs. WW does not launch or switch into PRoot itself. Start the backend inside Debian PRoot to make tool commands run inside that Debian environment. The runtime status reports `current-process`; it does not trust an environment variable to claim a PRoot backend. PRoot is a compatibility/execution environment, not a hardened security sandbox; commands have the permissions of the backend process.
 
 ## 4. Connect the browser
 
