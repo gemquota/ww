@@ -14,6 +14,7 @@ class FakeWWClient:
         self.connected = False
         self.closed = False
         self.active_chat_id = "fake-chat"
+        self.primary_cookie = os.getenv("SECURE_1PSID", "")
         self.__class__.instances.append(self)
 
     async def connect(self):
@@ -40,6 +41,7 @@ class DashboardRuntimeTests(unittest.IsolatedAsyncioTestCase):
                         session = await dashboard._create_browser_client("test-session")
 
             self.assertTrue(session.client.connected)
+            self.assertEqual(session.client.primary_cookie, "primary-cookie")
             self.assertIs(session.runtime.client, session.client)
             self.assertEqual(session.runtime.workspace_root, dashboard.WORKSPACE_ROOT)
             await session.close()
