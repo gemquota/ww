@@ -1,15 +1,15 @@
 import inspect
 import asyncio
 from typing import Dict, Callable, Any, List, Optional, Type, Set
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ToolNode(BaseModel):
     name: str
     func: Callable
     description: str
     schema_type: Optional[Type[BaseModel]]
-    dependencies: Set[str] = set()
-    tags: List[str] = []
+    dependencies: Set[str] = Field(default_factory=set)
+    tags: List[str] = Field(default_factory=list)
 
 class CircularDependencyError(ValueError):
     """Raised when tool dependencies form a cycle."""
@@ -62,15 +62,30 @@ class ToolRegistry:
         return f"- {name}: {node.description}{schema_info}"
 
     async def execute(self, name: str, args: Dict[str, Any]) -> str:
+        """Validate arguments and execute sync or async tools without blocking the event loop."""
         if name not in self.tools:
             return f"ERROR: Tool '{name}' not found."
         try:
-            func = self.tools[name].func
+            if not isinstance(args, dict):
+                raise TypeError("Tool arguments must be an object.")
+            node = self.tools[name]
+            validated_args = args
+            if node.schema_type is not None:
+                validator = getattr(node.schema_type, "model_validate", None)
+                model = validator(args) if validator else node.schema_type.parse_obj(args)
+                dump = getattr(model, "model_dump", None)
+                validated_args = dump() if dump else model.dict()
+
+            func = node.func
             if inspect.iscoroutinefunction(func):
-                return await func(**args)
-            return func(**args)
+                result = await func(**validated_args)
+            else:
+                result = await asyncio.to_thread(func, **validated_args)
+                if inspect.isawaitable(result):
+                    result = await result
+            return result if isinstance(result, str) else str(result)
         except Exception as e:
-            return f"TOOL ERROR ({name}): {e}"
+            return f"TOOL ERROR ({name}): {type(e).__name__}: {e}"
 
     def resolve_dag(self, target_tool: str) -> List[str]:
         """Resolve the dependency chain for a tool via DFS.
