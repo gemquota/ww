@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi import FastAPI, HTTPException, Security
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, StreamingResponse
     from pydantic import BaseModel, Field
-    from src.utils.web_client import WebGeminiClient
+    from src.ww_client import WWClient
     from src.telemetry import TelemetryManager
     from dotenv import load_dotenv
 except ImportError as _e:
@@ -31,6 +31,8 @@ except ImportError as _e:
 
 load_dotenv()
 
+from src.cookie_loader import extract_gemini_cookies
+from src.conversation_runtime import ConversationRuntime
 from src.dashboard.routes_auth import verify_api_key
 from src.core.api_keys import APIKeyManager
 
@@ -66,12 +68,14 @@ class ChatRequest(BaseModel):
     message: str
     session_name: str = "api_default"
     history: Optional[list[dict[str, str]]] = None
+    conversation_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
     status: str
     response: str
     session_name: str
+    conversation_id: Optional[str] = None
 
 
 from src.dashboard.db import get_db_path, get_memory_db_path
@@ -145,15 +149,39 @@ from src.dashboard.session_store import BrowserSessionStore, SessionCapacityErro
 _browser_sessions = BrowserSessionStore(max_sessions=64, idle_ttl=1800)
 
 
-async def _create_browser_client() -> WebGeminiClient:
-    client = WebGeminiClient(
-        secure_1psid=os.getenv("SECURE_1PSID", ""),
-        secure_1psidts=os.getenv("SECURE_1PSIDTS", ""),
-        api_key=os.getenv("GEMINI_API_KEY", ""),
-    )
-    if not await client.init():
-        raise HTTPException(status_code=503, detail="Gemini Web API not available (check credentials)")
-    return client
+class BrowserConversation:
+    """One browser session backed by the same client and runtime as the terminal."""
+
+    def __init__(self, client: WWClient, runtime: ConversationRuntime):
+        self.client = client
+        self.runtime = runtime
+
+    async def close(self) -> None:
+        await self.client.close()
+
+
+async def _create_browser_client(session_id: str) -> BrowserConversation:
+    # Match the terminal's authentication path, including the optional
+    # SECURE_1PSIDTS cookie and Netscape cookies.txt fallback.
+    if not os.getenv("SECURE_1PSID"):
+        cookie_file = Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser()
+        if cookie_file.is_file():
+            try:
+                for key, value in extract_gemini_cookies(cookie_file).items():
+                    os.environ.setdefault(key, value)
+            except ValueError as exc:
+                raise HTTPException(status_code=503, detail=f"Invalid Gemini cookie file: {exc}") from exc
+
+    client = WWClient()
+    try:
+        await client.connect()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini Web Chat is unavailable. Check SECURE_1PSID and WW_COOKIE_FILE.",
+        ) from exc
+    runtime = ConversationRuntime(client, workspace_root=WORKSPACE_ROOT, session_id=session_id)
+    return BrowserConversation(client, runtime)
 
 
 @app.on_event("shutdown")
@@ -161,31 +189,83 @@ async def close_browser_sessions() -> None:
     await _browser_sessions.close_all()
 
 
+@app.get("/api/v1/runtime", dependencies=[Security(verify_api_key)])
+async def runtime_status():
+    """Describe the active local backend without exposing credentials or full paths."""
+    return {
+        "status": "ok",
+        "workspace": WORKSPACE_ROOT.name,
+        "python": sys.version.split()[0],
+        "platform": sys.platform,
+        "execution_backend": os.getenv("WW_EXECUTION_BACKEND", "current-process"),
+        "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"],
+    }
+
+
 @app.post("/chat", response_model=ChatResponse, dependencies=[Security(verify_api_key)])
 async def chat(request: ChatRequest):
-    """Stateful browser chat with bounded, serialized per-tab sessions."""
+    """Stateful browser chat through the shared terminal/browser conversation runtime."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Empty message")
     session_name = request.session_name.strip()[:128] or "api_default"
     try:
-        async with _browser_sessions.acquire(session_name, _create_browser_client) as client:
-            prompt = request.message
-            if getattr(client, "_use_api_key", False) and request.history:
-                turns = request.history[-40:]
-                prompt = "\n\n".join(
-                    f"{'User' if item.get('role') == 'user' else 'Assistant'}: {item.get('content', '')[:12000]}"
-                    for item in turns if item.get("role") in ("user", "assistant")
-                )
-            resp = await client.ask(prompt)
-            if resp is None:
-                raise HTTPException(status_code=502, detail="No response from Gemini")
-            return ChatResponse(status="ok", response=resp, session_name=session_name)
+        async with _browser_sessions.acquire(
+            session_name, lambda: _create_browser_client(session_name)
+        ) as conversation:
+            if request.conversation_id and request.conversation_id != conversation.client.active_chat_id:
+                await conversation.client.resume_conversation(request.conversation_id)
+                conversation.runtime.conversation_changed()
+            output = await conversation.runtime.ask_output(request.message)
+            response_text = getattr(output, "text", None) or str(output)
+            return ChatResponse(
+                status="ok",
+                response=response_text,
+                session_name=session_name,
+                conversation_id=conversation.client.active_chat_id,
+            )
     except SessionCapacityError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail=f"WW conversation failed: {type(exc).__name__}") from exc
+
+
+@app.post("/api/v1/chat/stream", dependencies=[Security(verify_api_key)])
+async def chat_stream(request: ChatRequest):
+    """Stream visible model text and tool lifecycle events as server-sent events."""
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="Empty message")
+    session_name = request.session_name.strip()[:128] or "api_default"
+
+    async def events():
+        try:
+            async with _browser_sessions.acquire(
+                session_name, lambda: _create_browser_client(session_name)
+            ) as conversation:
+                if request.conversation_id and request.conversation_id != conversation.client.active_chat_id:
+                    await conversation.client.resume_conversation(request.conversation_id)
+                    conversation.runtime.conversation_changed()
+                yield "data: " + json.dumps({
+                    "type": "connected",
+                    "conversation_id": conversation.client.active_chat_id,
+                    "session_name": session_name,
+                }) + "\n\n"
+                async for event in conversation.runtime.stream(request.message):
+                    if event.get("type") == "done":
+                        event["conversation_id"] = conversation.client.active_chat_id
+                    yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+        except Exception as exc:
+            yield "data: " + json.dumps({
+                "type": "error",
+                "message": f"WW conversation failed: {type(exc).__name__}",
+            }) + "\n\n"
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/sessions", dependencies=[Security(verify_api_key)])
@@ -278,6 +358,7 @@ async def stats():
 class ToolExecuteRequest(BaseModel):
     tool: str
     args: dict = Field(default_factory=dict)
+    session_name: str = "api_default"
 
 
 @app.post("/tools/execute", dependencies=[Security(verify_api_key)])
@@ -291,35 +372,35 @@ async def execute_tool(request: ToolExecuteRequest):
     Returns:
         Tool output as JSON.
     """
-    from src.tools.registry import ToolRegistry
-    from src.tools.system_tools import read_file, list_dir
-    from src.tools.args import ReadFileArgs, ListDirArgs
-    
-    # Remote tool execution is deliberately opt-in. The initial browser API
-    # surface is read-only; shell, git, writes and other powerful tools remain
-    # unavailable until a separate approval and isolation design is deployed.
+    # Direct browser tool requests remain read-only and opt-in. Model-generated
+    # privileged operations use the shared runtime and require terminal approval.
     if os.getenv("WW_REMOTE_TOOLS_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
         raise HTTPException(
             status_code=403,
-            detail="Remote tools are disabled. Set WW_REMOTE_TOOLS_ENABLED=1 to enable the restricted read-only tool API.",
+            detail="Remote tools are disabled. Set WW_REMOTE_TOOLS_ENABLED=1 to enable read-only tools.",
         )
     from src.tools.tool_policy import remote_tool_allowed
 
     if not remote_tool_allowed(request.tool):
         raise HTTPException(
             status_code=403,
-            detail=f"Remote tool '{request.tool}' is not exposed by the restricted browser API.",
+            detail=f"Remote tool '{request.tool}' is not exposed by the read-only browser API.",
         )
 
-    registry = ToolRegistry()
-    registry.register("read_file", read_file, "Read contents of a workspace file.", ReadFileArgs)
-    registry.register("list_dir", list_dir, "List workspace directory contents.", ListDirArgs)
-    
+    session_name = request.session_name.strip()[:128] or "api_default"
     try:
-        result = await registry.execute(request.tool, request.args)
-        return {"status": "ok", "tool": request.tool, "output": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
+        async with _browser_sessions.acquire(
+            session_name, lambda: _create_browser_client(session_name)
+        ) as conversation:
+            result = await conversation.runtime.execute_tool(request.tool, request.args)
+            return {"status": "ok", **result}
+    except SessionCapacityError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Tool execution failed: {type(exc).__name__}") from exc
+
 
 @app.get("/api/v1/stats/metering", dependencies=[Security(verify_api_key)])
 async def usage_metering():
@@ -394,4 +475,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8080, log_level="info")
