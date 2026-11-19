@@ -78,6 +78,67 @@ class LocalApprovalControllerTests(unittest.TestCase):
         self.assertEqual(records[-1]["decision"], "approved")
         self.assertNotIn("do-not-log", audit_path.read_text(encoding="utf-8"))
 
+
+    def test_write_approval_shows_a_bounded_unified_diff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "notes.txt").write_text("before\n", encoding="utf-8")
+            output = []
+            controller = LocalApprovalController(
+                prompt=lambda _: "yes", output=output.append,
+            )
+            approved = controller.authorize(
+                "write_file",
+                {"file_path": "notes.txt", "content": "after\n"},
+                PermissionManager(root),
+            )
+            self.assertTrue(approved)
+            rendered = "\n".join(output)
+            self.assertIn("Read-only diff preview", rendered)
+            self.assertIn("-before", rendered)
+            self.assertIn("+after", rendered)
+            self.assertIn("Exact arguments", rendered)
+
+    def test_patch_approval_shows_the_exact_replacement_diff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "notes.txt").write_text("alpha beta\n", encoding="utf-8")
+            output = []
+            controller = LocalApprovalController(
+                prompt=lambda _: "yes", output=output.append,
+            )
+            approved = controller.authorize(
+                "file_patch",
+                {
+                    "file_path": "notes.txt",
+                    "search_text": "alpha",
+                    "replace_text": "omega",
+                },
+                PermissionManager(root),
+            )
+            self.assertTrue(approved)
+            rendered = "\n".join(output)
+            self.assertIn("-alpha beta", rendered)
+            self.assertIn("+omega beta", rendered)
+
+    def test_patch_without_a_matching_target_is_denied_before_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "notes.txt").write_text("alpha beta\n", encoding="utf-8")
+            controller = LocalApprovalController(
+                prompt=lambda _: self.fail("invalid patch must not prompt"),
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "file_patch",
+                {
+                    "file_path": "notes.txt",
+                    "search_text": "missing",
+                    "replace_text": "omega",
+                },
+                PermissionManager(root),
+            ))
+
     def test_git_registry_alias_requires_local_approval(self):
         prompts = []
         controller = LocalApprovalController(
