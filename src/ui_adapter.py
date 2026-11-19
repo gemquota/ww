@@ -51,7 +51,6 @@ class TerminalUIAdapter(UIAdapter):
         """Async approval prompt — does NOT block the event loop."""
         from colorama import Fore, Style
         from prompt_toolkit import PromptSession
-        from prompt_toolkit.formatted_text import HTML
 
         print(f"\n  {Fore.YELLOW}⚠ {prompt}{Style.RESET_ALL}")
         print(f"  {Fore.WHITE}Options: {Fore.GREEN}y{Fore.WHITE}/{Fore.RED}n{Fore.WHITE}, "
