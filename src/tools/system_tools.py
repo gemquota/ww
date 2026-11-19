@@ -262,7 +262,7 @@ async def doc_search(query: str) -> str:
     for sp in search_paths:
         try:
             stdout, stderr, _ = await _run_process(
-                "grep", "-rnEi", "--", query, str(sp), "--include=*.md",
+                "grep", "-rnEi", "--include=*.md", "--", query, str(sp),
                 cwd=_get_workspace_root(), timeout=15, output_limit=1024 * 1024,
             )
             out = stdout.decode(errors="replace").strip()
@@ -285,10 +285,9 @@ async def code_search(pattern: str, path: str = ".") -> str:
     try:
         search_path = _resolve_workspace_path(path)
         stdout, stderr, _ = await _run_process(
-            "grep", "-rn", "--", pattern, str(search_path),
-            "--include=*.py", "--include=*.js", "--include=*.ts",
+            "grep", "-rn", "--include=*.py", "--include=*.js", "--include=*.ts",
             "--include=*.md", "--include=*.json", "--include=*.yaml",
-            "--include=*.yml", cwd=_get_workspace_root(), timeout=30,
+            "--include=*.yml", "--", pattern, str(search_path), cwd=_get_workspace_root(), timeout=30,
             output_limit=1024 * 1024,
         )
         out = stdout.decode(errors="replace").strip()
