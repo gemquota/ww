@@ -194,6 +194,10 @@ async def runtime_status():
         "python": sys.version.split()[0],
         "platform": sys.platform,
         "execution_backend": os.getenv("WW_EXECUTION_BACKEND", "current-process"),
+        "gemini_credentials_configured": bool(
+            os.getenv("SECURE_1PSID")
+            or Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser().is_file()
+        ),
         "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"],
     }
 
@@ -359,15 +363,7 @@ class ToolExecuteRequest(BaseModel):
 
 @app.post("/tools/execute", dependencies=[Security(verify_api_key)])
 async def execute_tool(request: ToolExecuteRequest):
-    """Execute a registered tool via the ToolRegistry.
-    
-    Args:
-        tool: Name of the registered tool (e.g., read_file, write_file).
-        args: Dictionary of arguments for the tool.
-    
-    Returns:
-        Tool output as JSON.
-    """
+    """Execute an opt-in read-only tool through the shared conversation runtime."""
     # Direct browser tool requests remain read-only and opt-in. Model-generated
     # privileged operations use the shared runtime and require terminal approval.
     if os.getenv("WW_REMOTE_TOOLS_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
