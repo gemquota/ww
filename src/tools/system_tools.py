@@ -245,7 +245,7 @@ async def git_tool(command: str, message: Optional[str] = None) -> str:
             *cmd, cwd=_get_workspace_root(), timeout=120
         )
         combined = (stdout.decode(errors="replace") + stderr.decode(errors="replace")).strip()
-        return f"{combined}\n[Exit code: {returncode}]" if combined else f"Success (exit code {returncode})"
+        return f"{combined}\n[Exit code: {returncode}]" if combined else f"[Exit code: {returncode}]"
     except Exception as e:
         return f"GIT ERROR: {e}"
 
