@@ -89,15 +89,17 @@ async def _run_process(
     stdout_task = asyncio.create_task(_read_capped_stream(process.stdout, output_limit))
     stderr_task = asyncio.create_task(_read_capped_stream(process.stderr, output_limit))
     streams_task = asyncio.gather(stdout_task, stderr_task)
+    process_wait_task = asyncio.create_task(process.wait())
+    completion = asyncio.gather(streams_task, process_wait_task)
     try:
-        stdout, stderr = await asyncio.wait_for(
-            asyncio.shield(streams_task), timeout=timeout
+        (stdout, stderr), returncode = await asyncio.wait_for(
+            asyncio.shield(completion), timeout=timeout
         )
-        await process.wait()
     except (asyncio.TimeoutError, asyncio.CancelledError):
         await _stop_process_group(process, streams_task)
+        await asyncio.gather(completion, return_exceptions=True)
         raise
-    return stdout, stderr, process.returncode
+    return stdout, stderr, returncode
 
 
 def _is_sensitive_workspace_path(path: Path) -> bool:
