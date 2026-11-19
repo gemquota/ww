@@ -374,72 +374,12 @@ def file_patch(file_path: str, search_text: str, replace_text: str, checkpoint_m
     except Exception as e:
         return f"FILE PATCH ERROR: {e}"
 
-def _is_safe_url(url: str) -> str:
-    """Validate URL for SSRF safety. Returns error message or empty string."""
-    from urllib.parse import urlparse
-    import ipaddress
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return "SSRF ERROR: Invalid URL format"
-    if parsed.scheme not in ("http", "https"):
-        return f"SSRF ERROR: Scheme '{parsed.scheme}' not allowed (only http/https)"
-    if parsed.port is not None and parsed.port not in (80, 443):
-        return f"SSRF ERROR: Port {parsed.port} not allowed (only 80/443)"
-    host = parsed.hostname
-    if not host:
-        return "SSRF ERROR: No hostname in URL"
-    try:
-        import socket
-        addr = socket.getaddrinfo(host, parsed.port or 443, socket.AF_INET)[0][4][0]
-        ip = ipaddress.ip_address(addr)
-        if ip.is_private:
-            return f"SSRF ERROR: Private IP range not allowed ({addr})"
-        if ip.is_loopback:
-            return f"SSRF ERROR: Loopback address not allowed ({addr})"
-        if ip.is_link_local:
-            return f"SSRF ERROR: Link-local address not allowed ({addr})"
-        if ip.is_multicast:
-            return f"SSRF ERROR: Multicast address not allowed ({addr})"
-        if ip.is_reserved:
-            return f"SSRF ERROR: Reserved address not allowed ({addr})"
-    except socket.gaierror:
-        return ""  # DNS resolution failed — let fetch attempt handle it
-    except Exception as e:
-        return f"SSRF ERROR: Address validation failed ({e})"
-    return ""  # URL is safe
-
-
 async def url_fetch(url: str, timeout: int = 10) -> str:
-    """Fetch a URL via HTTP GET with timeout. Uses urllib with curl fallback."""
-    # SSRF protection — validate URL before fetching
-    ssrf_error = _is_safe_url(url)
-    if ssrf_error:
-        return ssrf_error
-    try:
-        import urllib.request
-        req = urllib.request.Request(url, headers={"User-Agent": "WW-Bridge/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = resp.read().decode(errors="replace")
-            return data[:5000] + ("\n[... truncated ...]" if len(data) > 5000 else "")
-    except Exception as e:
-        # Fallback: try curl
-        try:
-            stdout, stderr, returncode = await _run_process(
-                "curl", "-s", "--max-time", str(timeout), "-L", url,
-                timeout=timeout + 2, output_limit=5 * 1024 * 1024,
-            )
-            out = stdout.decode(errors="replace").strip()
-            if returncode != 0:
-                err = stderr.decode(errors="replace").strip()
-                return f"URL FETCH ERROR: {err or 'curl exited unsuccessfully'} (exit {returncode})"
-            if out:
-                return out[:5000] + ("\n[... truncated ...]" if len(out) > 5000 else "")
-            return "URL FETCH ERROR: Empty response"
-        except FileNotFoundError:
-            return "URL FETCH ERROR: Neither urllib nor curl available for HTTP requests."
-        except Exception as e2:
-            return f"URL FETCH ERROR: {e2}"
+    """Disabled until DNS pinning and redirect validation are implemented."""
+    return (
+        "URL FETCH DISABLED: network fetching is not exposed because the current "
+        "urllib/curl implementation cannot reliably pin DNS results across redirects."
+    )
 
 
 if __name__ == "__main__":
