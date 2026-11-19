@@ -57,6 +57,8 @@ on:
       - 'src/tools/registry.py'
       - 'src/tools/system_tools.py'
       - 'src/tools/args.py'
+      - 'src/__init__.py'
+      - 'src/tools/__init__.py'
       - 'src/dashboard/app.py'
       - 'src/gemini_bridge.py'
       - 'src/tool_executor.py'
@@ -66,6 +68,7 @@ on:
       - 'tests/test_prompting.py'
       - 'tests/test_tool_environment.py'
       - 'tests/test_subprocess_cleanup.py'
+      - 'tests/test_python_edit_validation.py'
       - 'requirements-dashboard.txt'
       - '.github/workflows/ci.yml'
 
