@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 BridgeContext — centralized state container for the WW Bridge.
 
 Replaces module-level mutable singletons with a single dataclass
