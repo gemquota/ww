@@ -192,6 +192,33 @@ class LocalApprovalControllerTests(unittest.TestCase):
             self.assertEqual(len(ledger._pending), 0)
             self.assertEqual(target.read_text(encoding="utf-8"), "keep")
 
+
+    def test_audit_failure_after_yes_still_denies_the_operation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            class FailOnDecisionAudit:
+                def __init__(self):
+                    self.inner = ToolAuditLog(Path(directory) / "audit.jsonl")
+                    self.calls = 0
+
+                def record(self, *args, **kwargs):
+                    self.calls += 1
+                    if self.calls == 2:
+                        raise AuditLogError("simulated disk failure")
+                    return self.inner.record(*args, **kwargs)
+
+            ledger = ApprovalLedger()
+            controller = LocalApprovalController(
+                ledger=ledger,
+                audit_log=FailOnDecisionAudit(),
+                prompt=lambda _: "yes",
+                output=lambda _: None,
+            )
+            self.assertFalse(controller.authorize(
+                "url_fetch", {"url": "https://example.com"}
+            ))
+            self.assertEqual(len(ledger._pending), 0)
+            self.assertEqual(len(ledger._grants), 0)
+
     def test_mutations_fail_closed_without_permission_manager(self):
         controller = LocalApprovalController(
             prompt=lambda _: self.fail("missing permission manager must deny"),
@@ -243,6 +270,40 @@ class ToolAuditLogTests(unittest.TestCase):
                 )
             self.assertEqual(target.read_text(encoding="utf-8"), "untouched")
 
+
+
+    def test_export_copies_only_to_a_new_private_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "audit.jsonl"
+            audit = ToolAuditLog(source)
+            audit.record(
+                "approval_requested", tool_name="shell_exec", session_id="s",
+                arguments={"command": "echo export"},
+            )
+            export_dir = root / "private-export"
+            export_dir.mkdir(mode=0o700)
+            destination = export_dir / "audit-copy.jsonl"
+            self.assertEqual(audit.export(destination), destination)
+            self.assertEqual(destination.read_bytes(), source.read_bytes())
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+            with self.assertRaises(AuditLogError):
+                audit.export(destination)
+
+    def test_export_rejects_a_public_destination_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "audit.jsonl"
+            audit = ToolAuditLog(source)
+            audit.record(
+                "approval_requested", tool_name="shell_exec", session_id="s",
+                arguments={"command": "true"},
+            )
+            public_dir = root / "public"
+            public_dir.mkdir(mode=0o755)
+            public_dir.chmod(0o755)
+            with self.assertRaises(AuditLogError):
+                audit.export(public_dir / "audit.jsonl")
 
     def test_archive_preserves_history_and_starts_a_new_log(self):
         with tempfile.TemporaryDirectory() as directory:
