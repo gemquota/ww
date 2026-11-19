@@ -61,21 +61,27 @@ class ToolRegistry:
         schema_info = f" Args: {node.schema_type.model_json_schema()}" if node.schema_type else ""
         return f"- {name}: {node.description}{schema_info}"
 
+    def validate_arguments(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and normalize arguments using the registered Pydantic schema."""
+        if name not in self.tools:
+            raise KeyError(f"Tool '{name}' not found.")
+        if not isinstance(args, dict):
+            raise TypeError("Tool arguments must be an object.")
+        schema = self.tools[name].schema_type
+        if schema is None:
+            return dict(args)
+        validator = getattr(schema, "model_validate", None)
+        model = validator(args) if validator else schema.parse_obj(args)
+        dump = getattr(model, "model_dump", None)
+        return dump() if dump else model.dict()
+
     async def execute(self, name: str, args: Dict[str, Any]) -> str:
         """Validate arguments and execute sync or async tools without blocking the event loop."""
         if name not in self.tools:
             return f"ERROR: Tool '{name}' not found."
         try:
-            if not isinstance(args, dict):
-                raise TypeError("Tool arguments must be an object.")
             node = self.tools[name]
-            validated_args = args
-            if node.schema_type is not None:
-                validator = getattr(node.schema_type, "model_validate", None)
-                model = validator(args) if validator else node.schema_type.parse_obj(args)
-                dump = getattr(model, "model_dump", None)
-                validated_args = dump() if dump else model.dict()
-
+            validated_args = self.validate_arguments(name, args)
             func = node.func
             if inspect.iscoroutinefunction(func):
                 result = await func(**validated_args)
@@ -174,7 +180,7 @@ class ToolRegistry:
                 # Gather args from dependency results
                 args = {}
                 if name == target_tool:
-                    args = root_args
+                    args = dict(root_args)
                 node = self.tools[name]
                 for dep in node.dependencies:
                     if dep in results:
