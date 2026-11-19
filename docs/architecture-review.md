@@ -23,7 +23,7 @@ The integration branch now connects the default terminal and browser paths throu
 - **Rendering and media:** Markdown/elicitation rendering and generated artifact handling preserve structured Gemini output.
 - **Android integration:** canvas_browser.py uses a native Activity/WebView rather than pretending that a browser launch is an embedded workspace.
 - **Approval and audit:** the Phase 2 work added central tool policy, local approval, bounded grants, diff previews, audit records and recovery tests.
-- **Process lifecycle:** subprocess execution uses process groups, bounded pipe capture, timeout handling and descendant cleanup.
+- **Process lifecycle:** subprocess execution uses process groups, bounded pipe capture, timeout handling and descendant cleanup, including stubborn processes that close their pipes.
 - **Dashboard foundations:** API-key validation, CORS restrictions, rate limiting, bounded sessions and per-session serialization are already present.
 
 These are worth preserving. The problem was integration and inconsistent ownership, not a lack of useful engineering.
@@ -37,6 +37,11 @@ These are worth preserving. The problem was integration and inconsistent ownersh
 | Browser ignored the shared cookie-file loader | A documented cookies.txt setup could work in the terminal but fail in the browser | Browser client loads WW_COOKIE_FILE and accepts optional SECURE_1PSIDTS. |
 | Browser tool endpoint created a throwaway read-only registry | Chat and direct tools did not share dispatch or policy | Direct read-only calls now route through the shared runtime; privileged model tools use local approval. |
 | ToolRegistry did not validate registered schemas | Malformed arguments could reach handlers | Central Pydantic validation now occurs before approval and execution. |
+| read_file imported a missing src.smart_context module | The default read tool failed at runtime despite the registry and tests existing | Replaced it with a bounded UTF-8 workspace reader with byte, line and binary limits. |
+| Tool package exports still imported schemas from system_tools | Importing src.tools failed after schemas were separated | Tool package now imports schemas from args.py and functions from system_tools.py. |
+| src package exposed stale smart_context lazy exports | Public imports could fail even though the replacement project-context module existed | Removed stale exports and added lazy subpackage resolution for tools, dashboard and cookie_loader. |
+| Python write/patch validation happened after modifying the file | A syntax error could leave a broken file in the workspace | Compile candidate source before atomic replacement; reject invalid edits without changing the original. |
+| Process cleanup could wait indefinitely after a process closed pipes but ignored SIGTERM | Timeout cleanup could hang even though output capture had finished | Add a bounded process.wait phase and escalate to SIGKILL; add a regression test. |
 | Synchronous tool handlers ran on the event loop | File operations could stall streaming and concurrent requests | Synchronous handlers now run in worker threads. |
 | Workspace writes replaced files directly | Interrupted writes could leave partial files | write_file and file_patch use same-directory atomic replacement. |
 | Python syntax validation referenced the wrong module name | Syntax errors could be silently missed | Both write and patch paths now catch py_compile.PyCompileError from the imported module. |
