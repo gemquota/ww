@@ -98,7 +98,6 @@ class ToolExecutor:
     # Tool-specific timeout overrides (tool_name: seconds)
     TOOL_TIMEOUTS = {
         "shell_exec": 300,
-        "url_fetch": 60,
         "git_tool": 120,
         "read_file": 30,
         "write_file": 30,
@@ -113,7 +112,7 @@ class ToolExecutor:
         "read": "read_file", "write": "write_file",
         "shell": "shell_exec", "list": "list_dir",
         "search": "code_search", "replace": "file_patch",
-        "fetch": "url_fetch", "doc": "doc_search",
+        "doc": "doc_search",
         "clarify": "request_clarification",
     }
 
