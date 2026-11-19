@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 UIAdapter Protocol — Decouples UI from business logic.
 
 Allows the bridge to run in multiple modes:
