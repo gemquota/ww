@@ -243,6 +243,33 @@ class ToolAuditLogTests(unittest.TestCase):
                 )
             self.assertEqual(target.read_text(encoding="utf-8"), "untouched")
 
+
+    def test_archive_preserves_history_and_starts_a_new_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.jsonl"
+            audit = ToolAuditLog(path)
+            audit.record(
+                "approval_requested", tool_name="shell_exec", session_id="s",
+                arguments={"command": "echo one"},
+            )
+            archived = audit.archive()
+            self.assertIsNotNone(archived)
+            self.assertTrue(archived.exists())
+            self.assertEqual(len(archived.read_text(encoding="utf-8").splitlines()), 1)
+            self.assertTrue(path.exists())
+            self.assertEqual(path.read_text(encoding="utf-8"), "")
+            self.assertEqual(archived.stat().st_mode & 0o777, 0o600)
+            audit.record(
+                "approval_decision", tool_name="shell_exec", session_id="s",
+                arguments={"command": "echo two"}, decision="approved",
+            )
+            self.assertEqual(len(path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_archive_of_missing_log_is_a_noop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            audit = ToolAuditLog(Path(directory) / "missing.jsonl")
+            self.assertIsNone(audit.archive())
+
     def test_full_audit_log_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "audit.jsonl"

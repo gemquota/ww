@@ -50,6 +50,43 @@ class ToolAuditLog:
         ).encode("utf-8")
         return hmac.new(self._fingerprint_key, encoded, hashlib.sha256).hexdigest()
 
+    def _prepare_directory(self) -> Path:
+        parent = self.path.parent
+        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if parent.is_symlink() or parent.resolve() != parent:
+            raise AuditLogError("Audit directory path must not traverse symlinks")
+        if parent.stat().st_mode & 0o077:
+            raise AuditLogError("Audit directory permissions must be 0700")
+        if not hasattr(os, "O_NOFOLLOW"):
+            raise AuditLogError("This platform cannot safely open audit files")
+        return parent
+
+    def _acquire_file_lock(self) -> int:
+        lock_path = self.path.with_name(self.path.name + ".lock")
+        flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+        fd = os.open(lock_path, flags, 0o600)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise AuditLogError("Audit lock must be a single-link regular file")
+            os.fchmod(fd, 0o600)
+            if os.name == "posix":
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            return fd
+        except Exception:
+            os.close(fd)
+            raise
+
+    @staticmethod
+    def _release_file_lock(fd: int) -> None:
+        try:
+            if os.name == "posix":
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
     def record(
         self,
         event: str,
@@ -89,38 +126,92 @@ class ToolAuditLog:
 
         with self._lock:
             try:
-                parent = self.path.parent
-                parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                if parent.is_symlink() or parent.resolve() != parent:
-                    raise AuditLogError("Audit directory path must not traverse symlinks")
-                if parent.stat().st_mode & 0o077:
-                    raise AuditLogError("Audit directory permissions must be 0700")
-
-                if not hasattr(os, "O_NOFOLLOW"):
-                    raise AuditLogError("This platform cannot safely open the audit file")
-                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
-                fd = os.open(self.path, flags, 0o600)
+                self._prepare_directory()
+                lock_fd = self._acquire_file_lock()
                 try:
-                    if os.name == "posix":
-                        import fcntl
-                        fcntl.flock(fd, fcntl.LOCK_EX)
-                    info = os.fstat(fd)
-                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                        raise AuditLogError("Audit target must be a single-link regular file")
-                    os.fchmod(fd, 0o600)
-                    if info.st_size + len(line) > self.MAX_BYTES:
-                        raise AuditLogError("Audit log reached its 1 MiB limit")
-                    written = 0
-                    while written < len(line):
-                        count = os.write(fd, line[written:])
-                        if count <= 0:
-                            raise AuditLogError("Audit write made no progress")
-                        written += count
-                    os.fsync(fd)
+                    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
+                    fd = os.open(self.path, flags, 0o600)
+                    try:
+                        info = os.fstat(fd)
+                        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                            raise AuditLogError("Audit target must be a single-link regular file")
+                        os.fchmod(fd, 0o600)
+                        if info.st_size + len(line) > self.MAX_BYTES:
+                            raise AuditLogError("Audit log reached its 1 MiB limit")
+                        written = 0
+                        while written < len(line):
+                            count = os.write(fd, line[written:])
+                            if count <= 0:
+                                raise AuditLogError("Audit write made no progress")
+                            written += count
+                        os.fsync(fd)
+                    finally:
+                        os.close(fd)
                 finally:
-                    os.close(fd)
+                    self._release_file_lock(lock_fd)
             except AuditLogError:
                 raise
             except OSError as exc:
                 raise AuditLogError(f"Unable to write audit record: {exc}") from exc
         return event_record
+
+    def archive(self) -> Path | None:
+        """Atomically archive the current log and start a fresh private log."""
+        with self._lock:
+            try:
+                parent = self._prepare_directory()
+                lock_fd = self._acquire_file_lock()
+                try:
+                    flags = os.O_WRONLY | os.O_NOFOLLOW
+                    try:
+                        fd = os.open(self.path, flags)
+                    except FileNotFoundError:
+                        return None
+                    try:
+                        info = os.fstat(fd)
+                        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                            raise AuditLogError("Audit target must be a single-link regular file")
+                        os.fsync(fd)
+                    finally:
+                        os.close(fd)
+
+                    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                    archive_path = self.path.with_name(
+                        f"{self.path.stem}.{stamp}.{secrets.token_hex(6)}{self.path.suffix}"
+                    )
+                    os.rename(self.path, archive_path)
+
+                    create_flags = (
+                        os.O_WRONLY | os.O_APPEND | os.O_CREAT
+                        | os.O_EXCL | os.O_NOFOLLOW
+                    )
+                    new_fd = os.open(self.path, create_flags, 0o600)
+                    try:
+                        os.fchmod(new_fd, 0o600)
+                        os.fsync(new_fd)
+                    finally:
+                        os.close(new_fd)
+
+                    dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                    dir_fd = os.open(parent, dir_flags)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
+                    return archive_path
+                finally:
+                    self._release_file_lock(lock_fd)
+            except AuditLogError:
+                raise
+            except OSError as exc:
+                raise AuditLogError(f"Unable to archive audit log: {exc}") from exc
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Manage the local WW tool audit log.")
+    parser.add_argument("action", choices=("archive",))
+    args = parser.parse_args()
+    archived = ToolAuditLog().archive()
+    print(archived if archived is not None else "No audit log to archive.")
