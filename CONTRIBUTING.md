@@ -53,7 +53,8 @@ python -m scripts.termux_acceptance
 Compile all maintained Python source:
 
 ```bash
-python -m compileall -q src scripts tests gemini_bridge.py
+python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+python -m scripts.check_frontend_js  # requires Node.js
 ```
 
 Ruff is used in CI for the maintained runtime modules. The CI workflow is authoritative; do not report a test as passing unless the command or CI result was observed.
