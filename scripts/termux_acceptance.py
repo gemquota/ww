@@ -109,7 +109,6 @@ def check_local_api(repo: Path) -> None:
         environment.update({
             "WW_DASHBOARD_API_KEY": api_key,
             "WW_WORKSPACE": str(workspace),
-            "WW_EXECUTION_BACKEND": "proot-distro",
             "SECURE_1PSID": "acceptance-placeholder-not-a-real-cookie",
             "WW_CORS_ORIGINS": "https://gemquota.github.io",
         })
@@ -151,7 +150,7 @@ def check_local_api(repo: Path) -> None:
             with urlopen(request, timeout=3) as result:
                 runtime = json.loads(result.read().decode("utf-8"))
             check("runtime workspace", runtime.get("workspace") == workspace.name)
-            check("runtime backend", runtime.get("execution_backend") == "proot-distro")
+            check("runtime backend", runtime.get("execution_backend") == "current-process")
             check("credential readiness reporting", runtime.get("gemini_credentials_configured") is True)
 
             with urlopen(base + "/chat-ui", timeout=3) as result:
