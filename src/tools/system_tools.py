@@ -67,6 +67,38 @@ async def _stop_process_group(process, streams_task) -> None:
         await asyncio.gather(streams_task, return_exceptions=True)
     await process.wait()
 
+async def _run_process(
+    *command: str,
+    shell: bool = False,
+    cwd: str | Path | None = None,
+    timeout: float = 60,
+    output_limit: int = 5 * 1024 * 1024,
+) -> tuple[bytes, bytes, int | None]:
+    """Run a subprocess in its own process group with bounded capture and cleanup."""
+    kwargs = {
+        "stdout": asyncio.subprocess.PIPE,
+        "stderr": asyncio.subprocess.PIPE,
+        "cwd": str(cwd) if cwd is not None else None,
+        "start_new_session": (os.name == "posix"),
+    }
+    if shell:
+        process = await asyncio.create_subprocess_shell(command[0], **kwargs)
+    else:
+        process = await asyncio.create_subprocess_exec(*command, **kwargs)
+
+    stdout_task = asyncio.create_task(_read_capped_stream(process.stdout, output_limit))
+    stderr_task = asyncio.create_task(_read_capped_stream(process.stderr, output_limit))
+    streams_task = asyncio.gather(stdout_task, stderr_task)
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            asyncio.shield(streams_task), timeout=timeout
+        )
+        await process.wait()
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        await _stop_process_group(process, streams_task)
+        raise
+    return stdout, stderr, process.returncode
+
 
 def _is_sensitive_workspace_path(path: Path) -> bool:
     """Avoid exposing common credential files through remote read tools."""
@@ -180,34 +212,17 @@ async def shell_exec(command: str, permission_mgr=None) -> str:
                 if resp == "always":
                     permission_mgr.always_allow.add(command)
 
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(_get_workspace_root()),
-            start_new_session=(os.name == "posix"),
-        )
-        stdout_task = asyncio.create_task(_read_capped_stream(process.stdout))
-        stderr_task = asyncio.create_task(_read_capped_stream(process.stderr))
-        streams_task = asyncio.gather(stdout_task, stderr_task)
-
         try:
-            stdout, stderr = await asyncio.wait_for(
-                asyncio.shield(streams_task),
-                timeout=60,
+            stdout, stderr, returncode = await _run_process(
+                command, shell=True, cwd=_get_workspace_root(), timeout=60
             )
-            await process.wait()
         except asyncio.TimeoutError:
-            await _stop_process_group(process, streams_task)
             return "ERROR: Command timed out after 60 seconds; process group terminated."
-        except asyncio.CancelledError:
-            await _stop_process_group(process, streams_task)
-            raise
 
         output = stdout.decode(errors="replace")
         if stderr:
             output += f"\nSTDERR: {stderr.decode(errors='replace')}"
-        output += f"\n[Exit code: {process.returncode}]"
+        output += f"\n[Exit code: {returncode}]"
         if len(output) > 10000:
             output = (
                 output[:4000]
@@ -226,13 +241,11 @@ async def git_tool(command: str, message: Optional[str] = None) -> str:
         cmd = ["git", command]
         if command == "commit" and message:
             cmd.extend(["-m", message])
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+        stdout, stderr, returncode = await _run_process(
+            *cmd, cwd=_get_workspace_root(), timeout=120
         )
-        stdout, stderr = await process.communicate()
-        return (stdout.decode() + stderr.decode()).strip() or "Success"
+        combined = (stdout.decode(errors="replace") + stderr.decode(errors="replace")).strip()
+        return combined or f"Success (exit code {returncode})"
     except Exception as e:
         return f"GIT ERROR: {e}"
 
@@ -250,13 +263,11 @@ async def doc_search(query: str) -> str:
     results = []
     for sp in search_paths:
         try:
-            proc = await asyncio.create_subprocess_shell(
-                f"grep -rnEi {safe_query} {sp}/ --include='*.md' 2>/dev/null | head -40",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            stdout, stderr, _ = await _run_process(
+                "grep", "-rnEi", query, str(sp), "--include=*.md",
+                cwd=_get_workspace_root(), timeout=15, output_limit=1024 * 1024,
             )
-            stdout, stderr = await proc.communicate()
-            out = stdout.decode().strip()
+            out = stdout.decode(errors="replace").strip()
             if out:
                 results.append(f"[{sp}/]\n{out}")
         except Exception:
@@ -274,13 +285,15 @@ def request_clarification(question: str) -> str:
 async def code_search(pattern: str, path: str = ".") -> str:
     """Search for a pattern across project files using grep."""
     try:
-        proc = await asyncio.create_subprocess_shell(
-            f"grep -rn '{pattern}' {path} --include='*.py' --include='*.js' --include='*.ts' --include='*.md' --include='*.json' --include='*.yaml' --include='*.yml' 2>/dev/null | head -40",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+        search_path = _resolve_workspace_path(path)
+        stdout, stderr, _ = await _run_process(
+            "grep", "-rn", pattern, str(search_path),
+            "--include=*.py", "--include=*.js", "--include=*.ts",
+            "--include=*.md", "--include=*.json", "--include=*.yaml",
+            "--include=*.yml", cwd=_get_workspace_root(), timeout=30,
+            output_limit=1024 * 1024,
         )
-        stdout, stderr = await proc.communicate()
-        out = stdout.decode().strip()
+        out = stdout.decode(errors="replace").strip()
         if out:
             return f"CODE SEARCH RESULTS for '{pattern}':\n{out}"
         return f"No results found for '{pattern}'."
@@ -375,12 +388,10 @@ async def url_fetch(url: str, timeout: int = 10) -> str:
     except Exception as e:
         # Fallback: try curl
         try:
-            proc = await asyncio.create_subprocess_exec(
+            stdout, stderr, _ = await _run_process(
                 "curl", "-s", "--max-time", str(timeout), "-L", url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                timeout=timeout + 2, output_limit=5 * 1024 * 1024,
             )
-            stdout, stderr = await proc.communicate()
             out = stdout.decode().strip()
             if out:
                 return out[:5000] + ("\n[... truncated ...]" if len(out) > 5000 else "")
