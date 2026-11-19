@@ -173,7 +173,7 @@ def read_file(file_path: str) -> str:
             raw = handle.read(max_bytes + 1)
         byte_truncated = len(raw) > max_bytes
         raw = raw[:max_bytes]
-        if b"\\x00" in raw:
+        if b"\x00" in raw:
             return f"ERROR: '{file_path}' appears to be a binary file."
         text = raw.decode("utf-8", errors="replace")
         lines = text.splitlines()
@@ -182,15 +182,15 @@ def read_file(file_path: str) -> str:
         if not shown:
             preview = "(empty file)"
         else:
-            preview = "\\n".join(
+            preview = "\n".join(
                 f"{index + 1:>5} | {line}" for index, line in enumerate(shown)
             )
         if byte_truncated or line_truncated:
             preview += (
-                f"\\n[TRUNCATED: preview limited to {max_bytes} bytes "
+                f"\n[TRUNCATED: preview limited to {max_bytes} bytes "
                 f"and {max_lines} lines]"
             )
-        return f"FILE: {p.relative_to(_get_workspace_root().resolve())}\\n{preview}"
+        return f"FILE: {p.relative_to(_get_workspace_root().resolve())}\n{preview}"
     except Exception as exc:
         return f"ERROR: {exc}"
 
