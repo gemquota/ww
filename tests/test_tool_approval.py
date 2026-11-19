@@ -244,6 +244,40 @@ class ToolAuditLogTests(unittest.TestCase):
             self.assertEqual(target.read_text(encoding="utf-8"), "untouched")
 
 
+
+    def test_export_copies_only_to_a_new_private_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "audit.jsonl"
+            audit = ToolAuditLog(source)
+            audit.record(
+                "approval_requested", tool_name="shell_exec", session_id="s",
+                arguments={"command": "echo export"},
+            )
+            export_dir = root / "private-export"
+            export_dir.mkdir(mode=0o700)
+            destination = export_dir / "audit-copy.jsonl"
+            self.assertEqual(audit.export(destination), destination)
+            self.assertEqual(destination.read_bytes(), source.read_bytes())
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+            with self.assertRaises(AuditLogError):
+                audit.export(destination)
+
+    def test_export_rejects_a_public_destination_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "audit.jsonl"
+            audit = ToolAuditLog(source)
+            audit.record(
+                "approval_requested", tool_name="shell_exec", session_id="s",
+                arguments={"command": "true"},
+            )
+            public_dir = root / "public"
+            public_dir.mkdir(mode=0o755)
+            public_dir.chmod(0o755)
+            with self.assertRaises(AuditLogError):
+                audit.export(public_dir / "audit.jsonl")
+
     def test_archive_preserves_history_and_starts_a_new_log(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "audit.jsonl"
