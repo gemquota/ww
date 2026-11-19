@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from src.permissions import PermissionLevel
 from src.tools.approvals import ApprovalLedger
+from src.tools.audit import AuditLogError, ToolAuditLog
 from src.tools.tool_policy import ToolRisk, canonical_tool_name, policy_for_tool
 
 
@@ -21,14 +22,30 @@ class LocalApprovalController:
         self,
         *,
         ledger: ApprovalLedger | None = None,
+        audit_log: ToolAuditLog | None = None,
         prompt: Callable[[str], str] | None = None,
         output: Callable[[str], None] | None = None,
         session_id: str | None = None,
     ):
         self.ledger = ledger or ApprovalLedger()
+        self.audit_log = audit_log or ToolAuditLog()
         self.prompt = prompt or input
         self.output = output or print
         self.session_id = session_id or secrets.token_urlsafe(18)
+
+    def _record(self, event: str, tool_name: str, arguments: dict[str, Any], **fields: Any) -> bool:
+        try:
+            self.audit_log.record(
+                event,
+                tool_name=tool_name,
+                session_id=self.session_id,
+                arguments=arguments,
+                **fields,
+            )
+            return True
+        except (AuditLogError, TypeError, ValueError):
+            self.output("DENIED: The audit log could not record this operation.")
+            return False
 
     def authorize(
         self,
@@ -49,8 +66,6 @@ class LocalApprovalController:
             self.output("DENIED: Tool arguments must be a JSON object.")
             return False
 
-        # Retain the existing hard-deny path checks, but do not rely on its
-        # softer on-request/always prompt policy as the approval mechanism.
         if canonical_name in {"write_file", "file_patch", "shell_exec"} and permission_mgr is None:
             self.output("DENIED: The local permission manager is unavailable.")
             return False
@@ -62,17 +77,21 @@ class LocalApprovalController:
                     file_path = arguments.get("file_path")
                     if not isinstance(file_path, str) or not file_path:
                         self.output("DENIED: A valid file_path is required for this operation.")
+                        self._record("approval_decision", canonical_name, arguments, decision="denied")
                         return False
                     if permission_mgr.classify_write(file_path) is PermissionLevel.DENY:
                         self.output(f"DENIED: The target path is protected: {file_path}")
+                        self._record("approval_decision", canonical_name, arguments, decision="denied")
                         return False
                 elif canonical_name == "shell_exec":
                     command = arguments.get("command")
                     if not isinstance(command, str) or not command:
                         self.output("DENIED: A non-empty command is required.")
+                        self._record("approval_decision", canonical_name, arguments, decision="denied")
                         return False
                     if permission_mgr.classify_command(command) is PermissionLevel.DENY:
                         self.output("DENIED: The command matches a hard-deny rule.")
+                        self._record("approval_decision", canonical_name, arguments, decision="denied")
                         return False
 
             request = self.ledger.request(
@@ -81,6 +100,10 @@ class LocalApprovalController:
                 arguments=arguments,
             )
             request_id = request.request_id
+            if not self._record("approval_requested", canonical_name, arguments):
+                self.ledger.reject(request_id)
+                return False
+
             preview = json.dumps(
                 arguments,
                 sort_keys=True,
@@ -99,22 +122,31 @@ class LocalApprovalController:
             decision = self.prompt("Approve this exact operation? [y/N] ").strip().lower()
             if decision not in {"y", "yes"}:
                 self.ledger.reject(request_id)
+                self._record("approval_decision", canonical_name, arguments, decision="rejected")
                 return False
 
             grant = self.ledger.approve(request.request_id)
-            return self.ledger.consume(
+            consumed = self.ledger.consume(
                 grant,
                 session_id=self.session_id,
                 tool_name=canonical_name,
                 arguments=arguments,
             )
+            if not consumed:
+                self._record("approval_decision", canonical_name, arguments, decision="denied")
+                return False
+            return self._record(
+                "approval_decision", canonical_name, arguments, decision="approved"
+            )
         except (EOFError, KeyboardInterrupt):
             if request_id:
                 self.ledger.reject(request_id)
+            self._record("approval_decision", canonical_name, arguments, decision="rejected")
             self.output("DENIED: No local approval decision was received.")
             return False
         except Exception as exc:
             if request_id:
                 self.ledger.reject(request_id)
+            self._record("approval_decision", canonical_name, arguments, decision="denied")
             self.output(f"DENIED: Approval could not be completed ({exc}).")
             return False
