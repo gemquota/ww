@@ -38,7 +38,7 @@ class ToolAuditLog:
 
     def __init__(self, path: str | Path | None = None):
         configured = os.environ.get("WW_AUDIT_LOG")
-        self.path = Path(path or configured or "~/.ww/audit.jsonl").expanduser()
+        self.path = Path(path or configured or "~/.ww/audit/audit.jsonl").expanduser().absolute()
         self._lock = threading.Lock()
 
     @staticmethod
@@ -92,7 +92,8 @@ class ToolAuditLog:
                 parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 if parent.is_symlink():
                     raise AuditLogError("Audit directory must not be a symlink")
-                os.chmod(parent, 0o700)
+                if parent.stat().st_mode & 0o077:
+                    raise AuditLogError("Audit directory permissions must be 0700")
 
                 flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
                 flags |= getattr(os, "O_NOFOLLOW", 0)
