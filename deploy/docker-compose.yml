@@ -16,6 +16,7 @@ services:
       - ../.env
     environment:
       WW_WORKSPACE: /workspace
+      WW_EXECUTION_BACKEND: docker
       WW_COOKIE_FILE: /run/secrets/cookies.txt
       WW_AUDIT_LOG: /workspace/.ww/audit.jsonl
       WW_CORS_ORIGINS: "${WW_CORS_ORIGINS:-https://gemquota.github.io}"
