@@ -10,7 +10,6 @@ import asyncio
 import inspect
 import json
 import re
-import shlex
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
@@ -289,7 +288,7 @@ class ConversationRuntime:
         await self.client.connect()
         if self._instructions_sent:
             return
-        instructions = SYSTEM_PROMPT.format(tools=self.registry.get_definitions())
+        instructions = SYSTEM_PROMPT.replace("{tools}", self.registry.get_definitions())
         await self.client.ask_output(instructions)
         self._instructions_sent = True
 
@@ -432,9 +431,29 @@ class ConversationRuntime:
                         "message": "The autonomous tool loop reached its configured limit.",
                     }
                     return
-                results, call_count = await self._execute_blocks(
-                    blocks, call_count=call_count
+                queued_events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+                previous_sink = self.event_sink
+
+                async def queue_event(event: dict[str, Any]) -> None:
+                    await queued_events.put(event)
+
+                self.event_sink = queue_event
+                task = asyncio.create_task(
+                    self._execute_blocks(blocks, call_count=call_count)
                 )
+                try:
+                    while not task.done() or not queued_events.empty():
+                        try:
+                            event = await asyncio.wait_for(queued_events.get(), timeout=0.1)
+                            yield event
+                        except asyncio.TimeoutError:
+                            continue
+                    results, call_count = await task
+                finally:
+                    self.event_sink = previous_sink
+                    if not task.done():
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
                 current_prompt = self._feedback_prompt(results)
                 yield {"type": "tool_round_complete", "count": call_count}
                 if call_count >= self.max_tool_calls:
