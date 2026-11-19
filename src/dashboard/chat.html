@@ -423,7 +423,7 @@
         throw new Error("The local API is reachable, but Gemini credentials were not found. Add cookies.txt or SECURE_1PSID to the backend environment.");
       }
       connected = true;
-      $("runtimeInfo").textContent = "Workspace: " + (data.workspace || "local") + " · Python " + (data.python || "unknown") + " · " + (data.execution_backend || "local");
+      $("runtimeInfo").textContent = "Workspace: " + (data.workspace || "local") + " · Python " + (data.python || "unknown") + " · " + (data.execution_backend || "local") + " · Gemini credentials found";
       $("workspaceTag").textContent = "WORKSPACE · " + (data.workspace || "LOCAL");
       setConnection("online","Workspace " + (data.workspace || "ready"));
       $("settings").classList.remove("open");
