@@ -1,88 +1,51 @@
-# Tool System
+# Shared tool system
 
-## Overview
+The supported terminal and browser chat clients use the same tool registry and execution path:
 
-The ToolRegistry manages all available tools with Pydantic-schematized arguments and DAG dependency resolution.
+`ConversationRuntime → ToolRegistry → local approval policy → system_tools → feedback to Gemini`
 
-## Available Tools
+The registry validates Pydantic argument schemas before an approval prompt or execution. Synchronous handlers run in worker threads; subprocess tools use bounded output, timeouts and process-group cleanup.
 
-| Tool | Description | Args Schema |
-|------|-------------|-------------|
-| `read_file` | Read file contents | `ReadFileArgs(path)` |
-| `list_dir` | List directory contents | `ListDirArgs(path)` |
-| `write_file` | Write content to file | `WriteFileArgs(path, content)` |
-| `shell_exec` | Execute shell command | `ShellExecArgs(command, cwd, timeout)` |
-| `git_tool` | Git operations | `GitArgs(action, args)` |
-| `doc_search` | Search documentation | `DocSearchArgs(query)` |
-| `code_search` | Search code across project | `CodeSearchArgs(pattern, path)` |
-| `file_patch` | Surgical line edits | `FilePatchArgs(path, operations)` |
-| `url_fetch` | HTTP GET request | `UrlFetchArgs(url, timeout)` |
-| `update_scratchpad` | Update memory scratchpad | `UpdateScratchpadArgs(key, value)` |
-| `request_clarification` | Ask user for clarification | `ClarificationArgs(question)` |
+## Registered tools
 
-## Usage Examples
+| Tool | Arguments | Risk / behaviour |
+|---|---|---|
+| `read_file` | `file_path` | Read-only; UTF-8 preview bounded by bytes and lines; binary files rejected |
+| `list_dir` | `dir_path` | Read-only workspace listing |
+| `write_file` | `file_path`, `content` | Local approval; atomic replacement; candidate Python syntax checked before write |
+| `file_patch` | `file_path`, `search_text`, `replace_text` | Local approval; exact single replacement; target size bounded; Python syntax checked before write |
+| `shell_exec` | `command` | Local approval; bounded execution/output; child environment excludes Gemini and dashboard credentials |
+| `git_tool` | `command`, optional `message` | Local approval; argument parsing uses argv rather than shell interpolation |
+| `code_search` | `pattern`, optional `path` | Workspace-scoped search |
+| `doc_search` | `query` | Workspace documentation search |
+| `request_clarification` | `question` | Ask the user for clarification |
 
-### Read a file
-```tool:read
-path: src/config.py
+`url_fetch` is intentionally disabled and is not registered. `update_scratchpad` is legacy schema source, not an active tool.
+
+## Tool protocol
+
+The model emits explicit tool fences. Simple arguments can use key-value lines:
+
+```tool:read_file
+file_path: README.md
 ```
 
-### Write a file
-```tool:write
-path: output.txt
-content: Hello, World!
+Use JSON for multiline values, strings containing code fences, or unambiguous structured arguments:
+
+```tool:write_file
+{"file_path":"notes.txt","content":"first line\nsecond line"}
 ```
 
-### SEARCH/REPLACE edit
-```tool:replace
-path: src/config.py
-find: timeout: 45
-replace: timeout: 60
-```
+Ordinary Markdown code fences are not executable. Unknown tools fail closed. Tool output is bounded and returned to the same Gemini conversation for the next reasoning turn.
 
-### Execute shell command
-```tool:shell
-command: pytest .tests/ -q
-timeout: 30
-```
+## Approval and trust boundaries
 
-### Search codebase
-```tool:search
-pattern: def get_settings
-path: src/
-```
+- Read-only tools do not prompt.
+- File writes and patches display the target and a bounded diff before approval.
+- Shell and Git operations require local terminal approval.
+- Approval decisions and execution outcomes are written to the local audit log.
+- The browser does not approve privileged operations itself; the backend terminal prompts the user.
+- PRoot is not a security sandbox. An approved command has the permissions of the backend process.
+- The direct browser tool endpoint is disabled by default and, when enabled, allows only `read_file` and `list_dir`.
 
-### Fetch URL
-```tool:fetch
-url: https://api.example.com/data
-timeout: 10
-```
-
----
-
-## DAG Execution
-
-Tools can declare dependencies. The ToolRegistry resolves the execution order and can execute
-independent branches in parallel.
-
-```python
-registry = ToolRegistry()
-registry.register(read_file, deps=[])
-registry.register(code_search, deps=[])
-registry.register(file_patch, deps=["read_file"])  # depends on read_file
-
-# Resolve execution order
-order = registry.resolve_dag(["file_patch", "code_search"])
-# Result: [code_search, read_file, file_patch]
-```
-
-## Tool Tags
-
-Each tool can be tagged for intent-based subsetting:
-
-- `file_operation` — read_file, write_file, list_dir, file_patch
-- `search` — doc_search, code_search
-- `communication` — request_clarification
-- `execution` — shell_exec
-- `network` — url_fetch
-- `memory` — update_scratchpad
+The legacy DAG executor and agent orchestration are not part of the supported tool path. Do not add new tools to the retired executor; register them in the shared runtime with a schema and tests.
