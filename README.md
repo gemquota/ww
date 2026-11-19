@@ -102,7 +102,7 @@ python gemini_bridge.py --prompt "Explain TCP versus UDP"
 
 ## Browser workspace and local backend
 
-The browser frontend is a static page published at [https://gemquota.github.io/ww/](https://gemquota.github.io/ww/). It contains no Gemini credentials or backend secrets. It connects to the local WW API, which runs on the device and uses the same ConversationRuntime as the terminal.
+The browser frontend is a static page deployed from src/dashboard/chat.html to [https://gemquota.github.io/ww/](https://gemquota.github.io/ww/) by the Pages workflow. The gh-pages root index is also kept in sync for branch-based Pages setups. It contains no Gemini credentials or backend secrets. It connects to the local WW API, which runs on the device and uses the same ConversationRuntime as the terminal.
 
 ### Install the backend dependencies
 
@@ -136,10 +136,11 @@ The server binds to loopback by default. Keep it running in the foreground when 
 
 ### Connect the Pages frontend
 
-1. Open [WW on GitHub Pages](https://gemquota.github.io/ww/).
-2. Expand **Backend connection** in the left sidebar.
-3. Set the API URL to http://127.0.0.1:8080 when the browser and backend are on the same Android device.
-4. Enter WW_DASHBOARD_API_KEY and connect.
+1. In repository Settings → Pages, select **GitHub Actions** as the deployment source when using the workflow. For branch-based deployment, select gh-pages and the root folder.
+2. Open [WW on GitHub Pages](https://gemquota.github.io/ww/).
+3. Expand **Backend connection** in the left sidebar.
+4. Set the API URL to http://127.0.0.1:8080 when the browser and backend are on the same Android device.
+5. Enter WW_DASHBOARD_API_KEY and connect.
 
 For a browser on another device or network, use an HTTPS tunnel or private VPN endpoint that forwards to the local loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API addresses.
 
