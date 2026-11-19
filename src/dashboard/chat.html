@@ -385,9 +385,9 @@
   function setConnection(state,detail) {
     const dot = $("connectionDot");
     dot.className = "dot" + (state === "online" ? " online" : state === "busy" ? " busy" : "");
-    $("connectionTitle").textContent = state === "online" ? "Backend connected" : state === "busy" ? "WW is working" : "Backend not connected";
+    $("connectionTitle").textContent = state === "online" ? "Backend ready" : state === "busy" ? "WW is working" : "Backend not connected";
     $("connectionSub").textContent = detail || "Configure your local WW API";
-    $("composerStatus").textContent = state === "online" ? "Connected" : state === "busy" ? "Working…" : "Not connected";
+    $("composerStatus").textContent = state === "online" ? "Ready" : state === "busy" ? "Working…" : "Not connected";
   }
   function apiBase() {
     const raw = apiUrl.value.trim();
