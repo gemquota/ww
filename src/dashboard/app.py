@@ -164,7 +164,8 @@ async def _create_browser_client(session_id: str) -> BrowserConversation:
         if cookie_file.is_file():
             try:
                 for key, value in extract_gemini_cookies(cookie_file).items():
-                    os.environ.setdefault(key, value)
+                    if not os.getenv(key):
+                        os.environ[key] = value
             except ValueError as exc:
                 raise HTTPException(status_code=503, detail=f"Invalid Gemini cookie file: {exc}") from exc
 
