@@ -93,7 +93,7 @@ These are worth preserving. The problem was integration and inconsistent ownersh
 
 ### GitHub Pages
 
-The previous gh-pages index was an obsolete progress dashboard. It has been replaced with the current browser workspace. The main branch also contains a GitHub Actions Pages workflow that copies src/dashboard/chat.html to the deployment artifact.
+The previous gh-pages index was an obsolete progress dashboard. It has been replaced with the current browser workspace. A second deploy-progress workflow used peaceiris/actions-gh-pages with force_orphan and could overwrite the Pages branch, so it has been removed. The main branch now has one authoritative GitHub Actions Pages workflow that copies src/dashboard/chat.html to the deployment artifact.
 
 The repository Pages source setting still needs to be checked after integration. For Actions deployment, Settings → Pages → Build and deployment must use GitHub Actions. The gh-pages branch now also has a root index.html fallback for branch-based Pages configuration.
 
