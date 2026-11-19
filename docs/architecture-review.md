@@ -126,6 +126,7 @@ The browser keeps a local conversation list and stores Gemini conversation IDs. 
 | Static source review | Repository files and branch comparisons | Completed for the integration scope |
 | Unit tests | Existing tests plus shared-runtime, prompting and shell-environment tests | Authored; CI result pending |
 | Deterministic integration | Fake Gemini client exercises tool call, approval, output feedback and streaming | Authored; CI result pending |
+| Local API acceptance | Temporary workspace, Uvicorn startup, API key, runtime metadata, CORS, browser page and process cleanup | Authored; CI result pending |
 | Linux process behaviour | Existing process-group cleanup tests | Present; CI result pending |
 | Real Gemini session | Actual authenticated request and conversation resume | Not verified in this turn |
 | Android Termux / Debian PRoot | Actual browser chat, local approval, shell execution and process cleanup | Not verified in this turn |
