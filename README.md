@@ -283,6 +283,7 @@ The Termux acceptance harness runs the unit suite, exercises workspace reads/wri
 
 ```bash
 python -m pip install -r requirements-dashboard.txt
-python -m compileall -q src scripts tests gemini_bridge.py
+python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+python -m scripts.check_frontend_js  # requires Node.js
 python -m scripts.termux_acceptance
 ```
