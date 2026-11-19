@@ -276,10 +276,14 @@ The terminal and browser use the same stateful Gemini transport, tool registry, 
 
 WW uses the unofficial `gemini-webapi` integration. Google can change its web interface or invalidate session cookies, so the integration may need maintenance. This is a web-session client, not an official Google API.
 
+
+The Termux acceptance harness runs the unit suite, exercises workspace reads/writes, tests process-group timeout cleanup, starts the local API against a temporary workspace, and verifies authentication, runtime readiness, Pages CORS and browser-page serving. It uses placeholder credentials and does not make a live Gemini request.
+
 ## Development
 
 ```bash
 python -m pip install -r requirements-dashboard.txt
 python -m compileall -q src scripts tests gemini_bridge.py
 python -m unittest discover -s tests -v
+python -m scripts.termux_acceptance
 ```
