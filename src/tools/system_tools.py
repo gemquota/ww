@@ -182,7 +182,7 @@ def list_dir(dir_path: str = ".") -> str:
     except Exception as e:
         return f"ERROR: {e}"
 
-async def write_file(file_path: str, content: str, permission_mgr=None, checkpoint_mgr=None, diff_engine=None) -> str:
+def write_file(file_path: str, content: str, permission_mgr=None, checkpoint_mgr=None, diff_engine=None) -> str:
     """Write content to a file with permission checks, checkpoints, and diffs."""
     from src.permissions import PermissionLevel
     try:
@@ -337,7 +337,7 @@ async def code_search(pattern: str, path: str = ".") -> str:
     except Exception as e:
         return f"CODE SEARCH ERROR: {e}"
 
-async def file_patch(file_path: str, search_text: str, replace_text: str, checkpoint_mgr=None, diff_engine=None) -> str:
+def file_patch(file_path: str, search_text: str, replace_text: str, checkpoint_mgr=None, diff_engine=None) -> str:
     """Apply a surgical text replacement in a file with checkpoints and diffs."""
     try:
         p = _resolve_workspace_path(file_path)
