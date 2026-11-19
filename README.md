@@ -119,7 +119,6 @@ Put your Gemini cookies.txt in the WW repository root, or set SECURE_1PSID (and 
 ```bash
 export WW_DASHBOARD_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export WW_WORKSPACE="$HOME/path/to/your/project"
-export WW_EXECUTION_BACKEND=proot-distro
 ```
 
 Keep the API key in your local environment or gitignored .env; never commit it. The default CORS allowlist already includes https://gemquota.github.io. Set WW_CORS_ORIGINS only if you use another frontend origin.
@@ -132,7 +131,7 @@ Run this in the Debian PRoot environment, from the WW repository:
 uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
 ```
 
-The server binds to loopback by default. Chrome may ask for Local Network Access permission when the Pages site connects to localhost; allow it for the trusted Pages origin. PRoot is an execution environment, not a security sandbox. Keep the server running in the foreground when using model-generated tools: write, patch, Git mutation, and shell operations display their approval request in this Termux terminal. Read-only inspection tools do not require approval. Tool commands execute in the same environment as the backend process, so starting WW inside Debian PRoot makes them execute inside that Debian environment.
+The server binds to loopback by default. Chrome may ask for Local Network Access permission when the Pages site connects to localhost; allow it for the trusted Pages origin. PRoot is an execution environment, not a security sandbox. Keep the server running in the foreground when using model-generated tools: write, patch, Git mutation, and shell operations display their approval request in this Termux terminal. Read-only inspection tools do not require approval. Tool commands execute in the same environment as the backend process. Start the API from inside Debian PRoot when you want workspace commands to run there; WW does not launch or switch into PRoot itself.
 
 ### Connect the Pages frontend
 
