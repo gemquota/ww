@@ -1,90 +1,85 @@
-# Contributing to WW Bridge
+# Contributing to WW
 
-Addresses NEW-V6-C1 through NEW-V6-C4 (Community & Open Source).
+Thanks for helping improve WW. The supported product is the Gemini Web Chat terminal client plus its local browser backend. Keep both clients on the shared ConversationRuntime.
 
-## Welcome!
+## Development environment
 
-Thank you for considering contributing to WW Bridge. This document outlines
-the contribution pathways, expectations, and processes.
-
-## Contributor Levels
-
-| Level | Description | Requirements |
-|-------|-------------|--------------|
-| **First-time** | First contribution | Submit a PR |
-| **Repeat** | Multiple contributions | 2+ merged PRs |
-| **Regular** | Consistent contributor | 10+ merged PRs |
-| **Maintainer** | Core team member | Invitation after sustained contribution |
-
-## Getting Started
-
-1. Read the [README.md](README.md) for project overview
-2. Set up your development environment (see below)
-3. Look for issues tagged `good-first-issue` 
-4. Join our community discussions
-
-## Development Environment
+Requirements: Python 3.11 or newer.
 
 ```bash
-# One-command bootstrap
-make setup
+git clone https://github.com/gemquota/ww.git
+cd ww
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dashboard.txt
 ```
 
-Or manually:
+For terminal-only work, `requirements.txt` is sufficient. Do not install `requirements-optional.txt` unless working specifically on a legacy/experimental subsystem.
+
+Authentication is local. Use a Netscape-format `cookies.txt` containing the Google `__Secure-1PSID` cookie, or set `SECURE_1PSID` in your environment or gitignored `.env`. Never commit cookies, API keys, tokens, or generated workspace state.
+
+## Supported entry points
+
+Terminal:
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env  # Add your credentials
-python gemini_bridge.py --health  # Verify setup
+python gemini_bridge.py
 ```
 
-## Pull Request Process
+Local browser backend:
 
-1. Create a feature branch from `main`
-2. Make your changes with clear commit messages
-3. Run the test suite: `python -m pytest .tests/ -q`
-4. Ensure all source files compile: `python -m py_compile src/*.py`
-5. Submit a PR with a description of changes
-
-## Code Standards
-
-- Python 3.10+ with type hints
-- Follow existing code style (ruff config)
-- Include tests for new functionality
-- Update documentation for API changes
-
-## PR Review SLAs
-
-| Review Type | Target |
-|-------------|--------|
-| Initial review | Within 48 hours |
-| Follow-up review | Within 24 hours |
-| Merged PR (if approved) | Within 1 week |
-
-## Developer Certificate of Origin
-
-All commits must include a DCO sign-off:
-
-```
-git commit -s -m "feat: add new feature"
+```bash
+export WW_DASHBOARD_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export WW_WORKSPACE="$HOME/path/to/workspace"
+uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
 ```
 
-This certifies that you have the right to submit the contribution
-under the project's license. The CI enforces DCO check.
+The static frontend is `src/dashboard/chat.html` and is deployed through the Pages workflow. Keep API credentials out of the frontend.
 
-## Issue Triage
+## Tests and quality checks
 
-- Bug reports are triaged daily
-- Priority = Impact × Frequency
-- Issues tagged `good-first-issue` are beginner-friendly with mentor support
+Run the maintained test suite:
 
-## Community
+```bash
+python -m unittest discover -s tests -v
+```
 
-- **Discussions**: GitHub Discussions
-- **Chat**: Discord (link in README)
-- **Office hours**: Monthly maintainer Q&A
+Run the consolidated acceptance harness (unit suite plus local API, CORS, workspace and subprocess checks):
 
-## License
+```bash
+python -m scripts.termux_acceptance
+```
 
-By contributing, you agree that your contributions will be licensed
-under the project's MIT License.
+Compile all maintained Python source:
+
+```bash
+python -m compileall -q src scripts tests gemini_bridge.py
+```
+
+Ruff is used in CI for the maintained runtime modules. The CI workflow is authoritative; do not report a test as passing unless the command or CI result was observed.
+
+The acceptance harness uses placeholder credentials and does not make a live Gemini request. Android Termux/PRoot device verification is a separate acceptance step documented in `docs/architecture-review.md`.
+
+## Architecture expectations
+
+- Use `src/ww_client.py` for Gemini Web Chat transport.
+- Use `src/conversation_runtime.py` for chat, tool dispatch, approval, feedback and streaming.
+- Register tools through `src/tools/registry.py` with schemas from `src/tools/args.py`.
+- Use the same runtime from terminal and browser clients. Do not create a second executor or Gemini client for a new interface.
+- Keep local approval for privileged writes, patches, Git mutations and shell commands.
+- PRoot is an execution environment, not a hardened security sandbox. Do not add isolation machinery unless specifically requested.
+- URL fetching remains disabled until its DNS/redirect protections are implemented.
+- Keep local APIs loopback-bound by default and configure explicit CORS origins.
+
+The old `src/gemini_bridge.py` entry point and the `src/tool_executor.py` stack are retired legacy migration source. Do not add new features there. If a legacy capability is valuable, migrate it into the shared runtime with tests.
+
+## Pull requests
+
+1. Branch from the latest `main`.
+2. Check whether the feature already exists in main or another branch.
+3. Make focused changes and add regression tests.
+4. Run the tests and acceptance harness relevant to the change.
+5. Update README or architecture documentation when behavior or setup changes.
+6. Open a PR with a clear summary, test evidence, and any device-verification limits.
+
+Prefer squash merges for feature PRs. Do not merge while required checks are failing or pending. Report genuine blockers rather than marking incomplete work as finished.
