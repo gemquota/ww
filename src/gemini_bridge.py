@@ -1,4 +1,6 @@
 """
+DEPRECATED legacy agent bridge. The supported terminal entry point is the root gemini_bridge.py; the browser backend is src.dashboard.app. This module is retained only as migration source and is not a supported runtime.
+
 WW Neural Bridge - Frontier-Grade CLI Harness for Gemini Multi-Agent System.
 
 A production-quality agentic coding loop featuring:
@@ -993,4 +995,4 @@ async def main():
             telemetry.log_interaction("system", f"Runtime Error: {e}", "error")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit("This legacy bridge is retired. Run `python gemini_bridge.py` from the repository root.")
