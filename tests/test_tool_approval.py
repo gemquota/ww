@@ -224,7 +224,7 @@ class ToolAuditLogTests(unittest.TestCase):
             first, second = (json.loads(line) for line in lines)
             self.assertEqual(first["tool"], "git_tool")
             self.assertEqual(second["decision"], "approved")
-            self.assertEqual(first["arguments_fingerprint"], second["arguments_sha256"])
+            self.assertEqual(first["arguments_fingerprint"], second["arguments_fingerprint"])
             self.assertNotIn("private-token", path.read_text(encoding="utf-8"))
             self.assertNotIn("secret", path.read_text(encoding="utf-8"))
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
