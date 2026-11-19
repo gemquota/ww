@@ -50,7 +50,7 @@ Open `https://gemquota.github.io/ww/`, expand **Backend connection**, set the AP
 
 The frontend checks the authenticated health and runtime endpoints. A successful backend-ready state confirms the API is reachable and credentials are configured; Gemini authentication itself is exercised on the first chat request.
 
-For another device or network, use an HTTPS tunnel or private VPN endpoint forwarding to the loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API URLs.
+For another device or network, use an HTTPS tunnel or private VPN endpoint forwarding to the loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API URLs. For localhost and private-network URLs, the frontend sets the browser `targetAddressSpace` hint. Current Chrome versions may also display a Local Network Access permission prompt because the Pages origin is public and the backend is local; grant that permission for the site. This browser permission is separate from the WW API key and CORS checks.
 
 ## API and trust boundaries
 
