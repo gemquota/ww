@@ -205,3 +205,13 @@ class ToolAuditLog:
                 raise
             except OSError as exc:
                 raise AuditLogError(f"Unable to archive audit log: {exc}") from exc
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Manage the local WW tool audit log.")
+    parser.add_argument("action", choices=("archive",))
+    args = parser.parse_args()
+    archived = ToolAuditLog().archive()
+    print(archived if archived is not None else "No audit log to archive.")
