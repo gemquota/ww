@@ -77,7 +77,7 @@ def _run(bwrap: str, python: str, code: str, *, timeout: float = 8.0) -> subproc
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        return subprocess.CompletedProcess(command, 124, stdout, stderr + "\\nprobe timed out")
+        return subprocess.CompletedProcess(command, 124, stdout, stderr + "\nprobe timed out")
     except OSError as exc:
         return subprocess.CompletedProcess(command, 125, "", f"{type(exc).__name__}: {exc}")
 
