@@ -16,6 +16,7 @@
 
 - `adr/001`–`adr/005` describe an earlier agent-hierarchy and DAG-executor design.
 - `v6/` and `v7/` contain historical quality, operations and refactoring proposals. They are not current implementation specifications.
+- Phase 2C isolation/capability-probe documents are historical only. The user explicitly stopped isolation work; PRoot is the execution environment, not a sandbox.
 - `.old/2b/` is an archived code snapshot, not an active package.
 
 When a historical document conflicts with the root README, current source, current ADRs or the architecture review, treat the current source and current ADRs as authoritative.
