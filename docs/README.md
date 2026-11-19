@@ -7,6 +7,7 @@
 - [Dashboard API](api/dashboard.md): current authenticated local API and SSE endpoints.
 - [Tool system](api/tools.md): registered tools, argument schemas, protocol and approval boundaries.
 - [Pages and device API deployment](deployment/github-pages-device-api.md): GitHub Pages frontend with Termux/PRoot backend.
+- [Optional Docker deployment](../deploy/README.md): local container setup, not yet device-verified.
 - [Architecture decisions](adr/INDEX.md): current ADRs 006–010 and historical ADR status.
 
 ## Historical material
