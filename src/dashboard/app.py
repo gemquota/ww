@@ -356,9 +356,9 @@ async def stats():
 
 
 class ToolExecuteRequest(BaseModel):
-    tool: str
+    tool: str = Field(min_length=1, max_length=64)
     args: dict = Field(default_factory=dict)
-    session_name: str = "api_default"
+    session_name: str = Field(default="api_default", max_length=128)
 
 
 @app.post("/tools/execute", dependencies=[Security(verify_api_key)])
