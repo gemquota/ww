@@ -30,7 +30,7 @@ except ImportError as _e:
 
 load_dotenv()
 
-from src.cookie_loader import extract_gemini_cookies
+from src.cookie_loader import extract_gemini_cookies, load_cookie_environment
 from src.conversation_runtime import ConversationRuntime
 from src.dashboard.routes_auth import verify_api_key
 
@@ -163,9 +163,7 @@ async def _create_browser_client(session_id: str) -> BrowserConversation:
         cookie_file = Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser()
         if cookie_file.is_file():
             try:
-                for key, value in extract_gemini_cookies(cookie_file).items():
-                    if not os.getenv(key):
-                        os.environ[key] = value
+                load_cookie_environment(cookie_file)
             except ValueError as exc:
                 raise HTTPException(status_code=503, detail=f"Invalid Gemini cookie file: {exc}") from exc
 
