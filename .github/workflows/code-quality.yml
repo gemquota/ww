@@ -32,8 +32,9 @@ on:
       - 'tests/test_prompting.py'
       - 'tests/test_tool_environment.py'
       - 'tests/test_subprocess_cleanup.py'
-      - 'tests/test_python_edit_validation.py'
+      - 'tests/test_python_edit_validation.py scripts/termux_acceptance.py'
       - 'requirements-dashboard.txt'
+      - 'scripts/termux_acceptance.py'
       - '.github/workflows/ci.yml'
   pull_request:
     paths:
