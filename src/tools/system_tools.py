@@ -276,7 +276,7 @@ async def git_tool(command: str, message: Optional[str] = None) -> str:
     """Run a Git subcommand and arguments in the configured workspace."""
     try:
         parts = shlex.split(command)
-        if not parts or any("\\x00" in part for part in parts):
+        if not parts or any("\x00" in part for part in parts):
             return "GIT ERROR: A valid Git subcommand is required."
         cmd = ["git", *parts]
         if parts[0] == "commit" and message:
