@@ -188,16 +188,20 @@ async def close_browser_sessions() -> None:
 @app.get("/api/v1/runtime", dependencies=[Security(verify_api_key)])
 async def runtime_status():
     """Describe the active local backend without exposing credentials or full paths."""
+    credentials_ready = bool(os.getenv("SECURE_1PSID"))
+    if not credentials_ready:
+        try:
+            cookie_path = Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser()
+            credentials_ready = bool(extract_gemini_cookies(cookie_path).get("SECURE_1PSID"))
+        except (OSError, ValueError):
+            credentials_ready = False
     return {
         "status": "ok",
         "workspace": WORKSPACE_ROOT.name,
         "python": sys.version.split()[0],
         "platform": sys.platform,
         "execution_backend": os.getenv("WW_EXECUTION_BACKEND", "current-process"),
-        "gemini_credentials_configured": bool(
-            os.getenv("SECURE_1PSID")
-            or Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser().is_file()
-        ),
+        "gemini_credentials_configured": credentials_ready,
         "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"],
     }
 
