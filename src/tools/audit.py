@@ -155,6 +155,71 @@ class ToolAuditLog:
                 raise AuditLogError(f"Unable to write audit record: {exc}") from exc
         return event_record
 
+
+    def export(self, destination: str | Path) -> Path:
+        """Copy the redacted log to a new private file without overwriting."""
+        target = Path(destination).expanduser().absolute()
+        with self._lock:
+            try:
+                self._prepare_directory()
+                lock_fd = self._acquire_file_lock()
+                try:
+                    source_fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW)
+                    try:
+                        info = os.fstat(source_fd)
+                        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                            raise AuditLogError("Audit source must be a single-link regular file")
+                        if info.st_size > self.MAX_BYTES:
+                            raise AuditLogError("Audit source exceeds its configured size limit")
+                        chunks = []
+                        remaining = self.MAX_BYTES
+                        while remaining:
+                            chunk = os.read(source_fd, min(65536, remaining))
+                            if not chunk:
+                                break
+                            chunks.append(chunk)
+                            remaining -= len(chunk)
+                        if os.read(source_fd, 1):
+                            raise AuditLogError("Audit source grew beyond its size limit")
+                    finally:
+                        os.close(source_fd)
+
+                    parent = target.parent
+                    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    if parent.is_symlink() or parent.resolve() != parent:
+                        raise AuditLogError("Export directory path must not traverse symlinks")
+                    if parent.stat().st_mode & 0o077:
+                        raise AuditLogError("Export directory permissions must be 0700")
+
+                    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                    export_fd = os.open(target, flags, 0o600)
+                    try:
+                        payload = b"".join(chunks)
+                        written = 0
+                        while written < len(payload):
+                            count = os.write(export_fd, payload[written:])
+                            if count <= 0:
+                                raise AuditLogError("Audit export write made no progress")
+                            written += count
+                        os.fchmod(export_fd, 0o600)
+                        os.fsync(export_fd)
+                    finally:
+                        os.close(export_fd)
+
+                    dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                    dir_fd = os.open(parent, dir_flags)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
+                    return target
+                finally:
+                    self._release_file_lock(lock_fd)
+            except AuditLogError:
+                raise
+            except OSError as exc:
+                raise AuditLogError(f"Unable to export audit log: {exc}") from exc
+
     def archive(self) -> Path | None:
         """Atomically archive the current log and start a fresh private log."""
         with self._lock:
@@ -211,7 +276,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Manage the local WW tool audit log.")
-    parser.add_argument("action", choices=("archive",))
+    parser.add_argument("action", choices=("archive", "export"))
+    parser.add_argument("destination", nargs="?")
     args = parser.parse_args()
-    archived = ToolAuditLog().archive()
-    print(archived if archived is not None else "No audit log to archive.")
+    audit = ToolAuditLog()
+    if args.action == "archive":
+        result = audit.archive()
+        print(result if result is not None else "No audit log to archive.")
+    else:
+        if not args.destination:
+            parser.error("export requires a destination path")
+        print(audit.export(args.destination))
