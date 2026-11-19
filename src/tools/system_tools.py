@@ -1,22 +1,14 @@
 """Tool implementations."""
 import os
-import subprocess
 import asyncio
 import shlex
 import tempfile
 import stat
 from pathlib import Path
-from pydantic import BaseModel, Field
 from typing import Optional
 
-from src.tools.args import (
-    ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
-    UpdateScratchpadArgs, GitArgs, DocSearchArgs, ClarificationArgs,
-    CodeSearchArgs, FilePatchArgs, UrlFetchArgs,
-)
 
-
-from src.tools.workspace import _get_workspace_root, set_workspace_root
+from src.tools.workspace import _get_workspace_root
 
 
 def _resolve_workspace_path(path: str | Path) -> Path:
