@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 TUI Module — Terminal UI components for the WW Bridge.
 
 Responsibility: prompt_toolkit session, header, toolbar, keybindings,

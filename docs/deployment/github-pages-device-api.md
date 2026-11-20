@@ -1,101 +1,72 @@
 # GitHub Pages frontend with a device-hosted WW API
 
-WW can serve its browser interface from GitHub Pages while the FastAPI backend
-runs on your Android device in Termux. Pages hosts only the static frontend;
-the device continues to own Gemini credentials, sessions and API execution.
+The browser workspace is a static client. GitHub Pages serves the HTML/JavaScript; the authenticated FastAPI backend runs locally on the user's device and owns Gemini cookies, conversation sessions, workspace access, tool execution and approval.
 
-## 1. Enable GitHub Pages
+## 1. Enable Pages
 
-In the repository settings, open **Pages** and set **Build and deployment** to
-**GitHub Actions**. The workflow in `.github/workflows/pages.yml` publishes
-`src/dashboard/chat.html` as the Pages site's `index.html`.
+In repository Settings → Pages, select **GitHub Actions** as the deployment source. The authoritative workflow is `.github/workflows/pages.yml`; it publishes `src/dashboard/chat.html` as the site's `index.html`.
 
-For this repository the expected origin is:
+The repository URL is:
 
-`https://gemquota.github.io`
+- Frontend origin: `https://gemquota.github.io`
+- Page: `https://gemquota.github.io/ww/`
 
-The page URL is normally:
+The `gh-pages` branch root index is also kept in sync for branch-based Pages configuration. There is no separate progress-dashboard deployment.
 
-`https://gemquota.github.io/ww/`
+## 2. Install the local backend
 
-## 2. Install and start the WW API in Termux
-
-From the WW repository:
+Inside Debian PRoot-Distro, from the WW repository:
 
 ```bash
-python -m pip install -r requirements.txt
-python -m pip install fastapi uvicorn
+python -m pip install -r requirements-dashboard.txt
 ```
 
-Set an API key and the exact Pages origin before starting the server:
+Put the Netscape-format `cookies.txt` in the repository root or configure `SECURE_1PSID` in a local, gitignored `.env`. `__Secure-1PSIDTS` is optional.
+
+Configure the API key and workspace:
 
 ```bash
 export WW_DASHBOARD_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export WW_WORKSPACE="$HOME/path/to/your/project"
 export WW_CORS_ORIGINS="https://gemquota.github.io"
+```
+
+Keep the API key private. Do not commit `.env`, cookies, tunnel credentials or workspace state.
+
+## 3. Start the backend
+
+```bash
 uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
 ```
 
-Keep the generated API key private. Paste it into the browser frontend's API
-key field. The frontend stores the URL and key in that tab's session storage,
-not in the repository.
+The server binds to loopback by default. Keep it running in the foreground when using model-generated privileged tools: write, patch, Git mutation and shell requests display an approval prompt in the backend Termux terminal. A detached process without interactive stdin cannot provide this approval experience.
 
-The API binds to loopback so it is not exposed directly to your Wi-Fi or mobile
-network. Put an HTTPS tunnel or trusted VPN endpoint in front of
-`http://127.0.0.1:8080` if the browser is not running on the same device.
+Commands execute in the environment where the backend process runs. WW does not launch or switch into PRoot itself. Start the backend inside Debian PRoot to make tool commands run inside that Debian environment. The runtime status reports `current-process`; it does not trust an environment variable to claim a PRoot backend. PRoot is a compatibility/execution environment, not a hardened security sandbox; commands have the permissions of the backend process.
 
-## 3. Make the device reachable from the browser
+## 4. Connect the browser
 
-A GitHub Pages site is HTTPS. Browsers block its JavaScript from calling an
-ordinary HTTP LAN address as mixed content. For access outside the device,
-use an HTTPS tunnel (for example, a Cloudflare Tunnel) or a VPN product that
-provides an HTTPS endpoint. Point the frontend's **WW API URL** field at that
-HTTPS endpoint, without a trailing slash.
+Open `https://gemquota.github.io/ww/`, expand **Backend connection**, set the API URL to `http://127.0.0.1:8080` when using the same device, enter `WW_DASHBOARD_API_KEY`, and connect.
 
-If you use a different frontend domain, set `WW_CORS_ORIGINS` to a
-comma-separated list of exact origins, for example:
+The frontend checks the authenticated health and runtime endpoints. A successful backend-ready state confirms the API is reachable and credentials are configured; Gemini authentication itself is exercised on the first chat request.
 
-```bash
-export WW_CORS_ORIGINS="https://gemquota.github.io,https://chat.example.com"
-```
+For another device or network, use an HTTPS tunnel or private VPN endpoint forwarding to the loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API URLs. For localhost and private-network URLs, the frontend sets the browser `targetAddressSpace` hint. Current Chrome versions may also display a Local Network Access permission prompt because the Pages origin is public and the backend is local; grant that permission for the site. This browser permission is separate from the WW API key and CORS checks. Grant it only to the trusted Pages origin; local-network permission is broader than access to the single WW port.
 
-An origin contains scheme, hostname and optional port, but no path. Do not use
-`*`: the backend explicitly rejects wildcard CORS configuration.
+## API and trust boundaries
 
-## 4. Connect
+- `GET /api/v1/health` and `GET /api/v1/runtime` require the API key.
+- `POST /api/v1/chat/stream` streams model text and tool lifecycle events using SSE.
+- `POST /chat` is a non-streaming compatibility endpoint.
+- `POST /tools/execute` is disabled unless `WW_REMOTE_TOOLS_ENABLED=1`; even then it exposes only read-only `read_file` and `list_dir`.
+- Model-generated privileged tools use the shared ConversationRuntime and local terminal approval.
+- CORS allows only explicitly configured origins. CORS is not authentication.
+- Browser API keys are held in tab sessionStorage; browser transcripts are localStorage data.
 
-Open the Pages URL, enter the HTTPS API URL and the API key, then press
-**Connect**. The page checks `/api/v1/health`. Send a message after the status
-shows a successful connection.
+The browser API does not expose a shell endpoint directly. This does not make the backend a sandbox: approved model-generated shell commands execute with the backend process's normal permissions.
 
-## Security notes
+## Sessions and proxying
 
-- `WW_DASHBOARD_API_KEY` is mandatory for the health check, chat and protected
-  endpoints. If it is missing, protected routes fail closed with HTTP 503.
-- For zero-downtime key rotation, set `WW_DASHBOARD_API_KEYS` to a comma-separated overlap of active keys, deploy/restart WW, update browser clients to the new key, then remove the old key from that list. When the plural setting is non-empty it is authoritative and the legacy singular setting is ignored; if the plural setting is empty, `WW_DASHBOARD_API_KEY` remains supported.
-- The browser sends the API key with its health check, so a successful
-  connection confirms both reachability and authentication.
-- CORS is a browser-origin policy, not authentication. The API key is still
-  required for protected endpoints.
-- Do not commit API keys, Gemini cookies, tunnel credentials or `.env` files.
-- A public tunnel makes the API internet-reachable. Use a strong key, keep the
-  device and WW dependencies updated, and stop the tunnel when not needed.
-- Mobile networks and battery optimisation can interrupt a device-hosted
-  backend. The Pages frontend remains available but cannot chat while the
-  device or tunnel is offline.
+Browser session objects are bounded and in-memory. The frontend stores Gemini conversation IDs locally and can ask the backend to resume a conversation after a session eviction or restart. The browser transcript is not a cloud backup.
 
+The API ignores forwarded client addresses unless the immediate peer is in `WW_TRUSTED_PROXY_CIDRS`. If using a reverse proxy, trust only proxy addresses you control. Do not trust arbitrary `X-Forwarded-For` headers.
 
-## Remote tool safety defaults
-
-The dashboard API now fails closed if `WW_DASHBOARD_API_KEY` is missing. Set a long random key before starting the server; protected routes return HTTP 503 until it is configured and HTTP 401 for missing or incorrect client keys.
-
-Remote tool execution is disabled by default. To enable the restricted browser tool endpoint, set:
-
-```bash
-export WW_REMOTE_TOOLS_ENABLED=1
-```
-
-Even when enabled, the browser API exposes only `read_file` and `list_dir`, both confined to the configured WW workspace. Shell execution, Git mutations, file writes, patching, arbitrary code search and URL fetching are deliberately not exposed through the browser API. The local terminal tool workflow is unchanged.
-
-Do not treat the API key or CORS as a sandbox. Keep the server bound to loopback and use an authenticated private tunnel for remote access. The in-memory rate limit is per observed client address; tunnel deployments may cause multiple users to share the same observed address.
-- Browser chat sessions are kept in a bounded in-memory store (64 sessions by default) and expire after 30 minutes of inactivity. Requests within one tab/session are serialized; active sessions are never evicted to make room. Restarting WW clears these in-memory sessions.
-- Rate limiting uses the direct TCP peer address by default and ignores `X-Forwarded-For`. If WW is behind a reverse proxy, configure `WW_TRUSTED_PROXY_CIDRS` with only the proxy IPs/CIDRs you control (comma-separated). Forwarded addresses are considered only when the immediate peer is in that trust list. Never trust all networks or accept forwarded headers directly from arbitrary clients.
+Mobile battery optimisation, network changes and tunnel restarts can interrupt a device-hosted backend. The static Pages page remains available while the backend is offline, but cannot chat until connectivity returns.

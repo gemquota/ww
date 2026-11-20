@@ -1,9 +1,11 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 UIAdapter Protocol — Decouples UI from business logic.
 
 Allows the bridge to run in multiple modes:
 - TerminalUIAdapter: Interactive TUI (colorama + prompt_toolkit)
-- SilentUIAdapter: Headless/CI/script mode (no ANSI codes, auto-approve)
+- SilentUIAdapter: Headless/CI/script mode (no ANSI codes, fail closed)
 """
 
 from abc import ABC, abstractmethod
@@ -49,7 +51,6 @@ class TerminalUIAdapter(UIAdapter):
         """Async approval prompt — does NOT block the event loop."""
         from colorama import Fore, Style
         from prompt_toolkit import PromptSession
-        from prompt_toolkit.formatted_text import HTML
 
         print(f"\n  {Fore.YELLOW}⚠ {prompt}{Style.RESET_ALL}")
         print(f"  {Fore.WHITE}Options: {Fore.GREEN}y{Fore.WHITE}/{Fore.RED}n{Fore.WHITE}, "
@@ -102,11 +103,10 @@ class TerminalUIAdapter(UIAdapter):
 
 
 class SilentUIAdapter(UIAdapter):
-    """Non-interactive adapter for script/CI mode.
-    Auto-approves everything, no ANSI codes, no prompts."""
+    """Non-interactive legacy adapter. Privileged actions are denied by default."""
 
     async def request_approval(self, prompt: str, timeout: Optional[float] = None) -> bool:
-        return True  # Auto-approve in silent mode
+        return False  # No human is present to approve a privileged action.
 
     def log_status(self, emoji: str, title: str, detail: str = "") -> None:
         pass  # No output in silent mode

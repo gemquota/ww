@@ -1,16 +1,11 @@
-"""WW Python package.
-
-Core imports stay deliberately inert. Legacy/advanced components are exposed
-lazily for compatibility, so importing the basic Gemini terminal does not
-initialize the agent framework or pull in its optional dependencies.
-"""
+"""WW Python package with lazy compatibility exports for optional subsystems."""
 from __future__ import annotations
 
 from importlib import import_module
 
 __version__ = "0.3.0"
 __author__ = "WW Team"
-__description__ = "Minimal Gemini Web Chat terminal with optional extensions"
+__description__ = "Gemini Web Chat client with a shared local workspace runtime"
 
 _EXPORTS = {
     "ToolCall": ("src.core.schemas", "ToolCall"),
@@ -43,8 +38,6 @@ _EXPORTS = {
     "ConversationHistory": ("src.context_manager", "ConversationHistory"),
     "TokenCounter": ("src.context_manager", "TokenCounter"),
     "RepoMapper": ("src.context_manager", "RepoMapper"),
-    "get_workspace_context": ("src.smart_context", "get_workspace_context"),
-    "read_file_surgical": ("src.smart_context", "read_file_surgical"),
     "PermissionManager": ("src.permissions", "PermissionManager"),
     "ApprovalPolicy": ("src.permissions", "ApprovalPolicy"),
     "Sandbox": ("src.permissions", "Sandbox"),
@@ -56,7 +49,11 @@ _EXPORTS = {
 
 
 def __getattr__(name: str):
-    """Load optional legacy exports only when explicitly requested."""
+    """Load optional legacy exports and subpackages only when requested."""
+    if name in {"tools", "dashboard", "core", "utils", "cookie_loader"}:
+        value = import_module(f"{__name__}.{name}")
+        globals()[name] = value
+        return value
     try:
         module_name, attribute = _EXPORTS[name]
     except KeyError as exc:

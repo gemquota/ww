@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 CLI commands — /docs, /help, /salvage, etc.
 Addresses NEW-V5-E2#3 — hover documentation (/docs command).
 """

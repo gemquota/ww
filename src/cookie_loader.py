@@ -6,7 +6,9 @@ Cookie values are returned to the caller and are never logged.
 from __future__ import annotations
 
 import http.cookiejar
+import os
 from pathlib import Path
+from typing import MutableMapping
 
 
 COOKIE_NAMES = ("__Secure-1PSID", "__Secure-1PSIDTS")
@@ -45,3 +47,17 @@ def extract_gemini_cookies(path: str | Path) -> dict[str, str]:
     if found.get("__Secure-1PSIDTS"):
         result["SECURE_1PSIDTS"] = found["__Secure-1PSIDTS"]
     return result
+
+
+
+def load_cookie_environment(
+    path: str | Path,
+    environ: MutableMapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Populate missing/blank Gemini cookie variables without overriding explicit values."""
+    target = os.environ if environ is None else environ
+    extracted = extract_gemini_cookies(path)
+    for key, value in extracted.items():
+        if not target.get(key):
+            target[key] = value
+    return extracted

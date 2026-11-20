@@ -1,12 +1,12 @@
 {
   "name": "WW Bridge Development",
-  "image": "python:3.13-slim",
+  "image": "python:3.11-slim",
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.13"
+      "version": "3.11"
     }
   },
-  "postCreateCommand": "pip install -r requirements.txt && pip install pytest pytest-asyncio ruff",
+  "postCreateCommand": "pip install -r requirements-dashboard.txt && pip install pytest ruff",
   "customizations": {
     "vscode": {
       "extensions": [

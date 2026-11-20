@@ -1,49 +1,29 @@
-# Architecture Decision Records (ADRs)
+# Architecture Decision Records
 
-**Last updated**: 2026-06-20
-**Version**: 1.0.0
+**Current architecture review:** 2026-11-20
 
----
+ADRs 001–005 record an earlier agent-hierarchy architecture. They remain useful historical context but do not describe the supported terminal/browser runtime in full.
 
-## What is an ADR?
+## Historical decisions
 
-An Architecture Decision Record captures a significant architectural decision
-along with its context, consequences, and alternatives considered.
+| ADR | Decision | Current status |
+|---|---|---|
+| 001 | Communicator → Overseer → Specialists agent hierarchy | Deprecated; legacy migration source only |
+| 002 | Hot → Facts → Summary memory tiers | Legacy; not part of the supported runtime |
+| 003 | Tool registry with DAG dependencies | Superseded by the shared schema-validated ToolRegistry; DAG executor is retired |
+| 004 | Gemini Web API as model interface | Accepted in principle; implemented through the supported gemini-webapi WWClient |
+| 005 | Git-based checkpoint undo | Legacy subsystem; not part of the default runtime |
 
-## Active ADRs
+## Current decisions
 
-| # | Title | Status | Date |
-|---|-------|--------|------|
-| 001 | Agent Hierarchy (Communicator → Overseer → Specialists) | ✅ Accepted | 2026-06-09 |
-| 002 | Memory Tiers (Hot → Facts → Summary) | ✅ Accepted | 2026-06-09 |
-| 003 | Tool Registry with DAG Dependencies | ✅ Accepted | 2026-06-10 |
-| 004 | Gemini Web API as Primary Model Interface | ✅ Accepted | 2026-06-10 |
-| 005 | Checkpoint System with Git-Based Undo | ✅ Accepted | 2026-06-11 |
+| ADR | Decision | Status |
+|---|---|---|
+| 006 | One shared ConversationRuntime for terminal and browser | Accepted |
+| 007 | PRoot-Distro is the execution environment, not a security sandbox | Accepted |
+| 008 | Static GitHub Pages client with device-hosted local API | Accepted |
+| 009 | Local approval for privileged model-generated tools | Accepted |
+| 010 | URL fetching remains disabled until DNS/redirect protections exist | Accepted |
 
-## ADR Format
+## ADR format
 
-```markdown
-# ADR-XXX: Title
-
-**Status**: [Proposed | Accepted | Deprecated | Superseded]
-**Date**: YYYY-MM-DD
-
-## Context
-_What is the issue motivating this decision?_
-
-## Decision
-_What is the change being proposed?_
-
-## Consequences
-_What becomes easier or harder after this change?_
-
-## Alternatives Considered
-_What other options were evaluated and why were they rejected?_
-```
-
-## Guidelines
-
-1. ADRs are numbered sequentially
-2. Create a new ADR before implementing a significant architectural change
-3. Update ADR status when decisions change
-4. Link related ADRs using `Superseded-By` or `Amended-By` headers
+Each record captures context, decision, consequences and rejected alternatives. Update an ADR when implementation changes; do not leave a historical proposal labelled as the active architecture.

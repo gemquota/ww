@@ -2,96 +2,667 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1014">
 <meta name="color-scheme" content="dark">
-<title>WW · Neural Bridge</title>
+<meta name="description" content="WW local coding assistant browser interface">
+<title>WW · Local Workspace</title>
 <style>
-:root{color-scheme:dark;--bg:#090d16;--panel:#111827;--panel2:#172235;--line:#263449;--text:#e8eef8;--muted:#91a1b8;--cyan:#5ce1e6;--green:#8ce99a;--red:#ff8787}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#172b42 0%,var(--bg) 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh;display:flex;flex-direction:column}
-header{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(18px,calc((100vw - 1000px)/2));background:#090d16cc;backdrop-filter:blur(12px)}
-.brand{font-weight:750;letter-spacing:.08em}.brand span{color:var(--cyan)}.status{font-size:12px;color:var(--muted)}.status:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px}
-main{width:min(900px,100%);margin:0 auto;flex:1;display:flex;flex-direction:column;padding:24px 16px 18px;min-height:0}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.toolbar input{min-width:0;flex:1 1 220px}
-input,textarea,button{font:inherit;color:inherit;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:11px 13px}
-input:focus,textarea:focus{outline:1px solid var(--cyan);border-color:var(--cyan)}
-button{cursor:pointer;background:var(--panel2)}button.primary{background:#087e88;border-color:#139ba5;font-weight:650}button:disabled{opacity:.45;cursor:not-allowed}
-#messages{flex:1;min-height:250px;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:8px 2px 20px}
-.message{max-width:90%;border:1px solid var(--line);border-radius:14px;padding:12px 15px;white-space:pre-wrap;overflow-wrap:anywhere}
-.message.user{align-self:flex-end;background:#12313b;border-color:#1b5961}.message.assistant{align-self:flex-start;background:var(--panel)}.message .role{font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:700;margin-bottom:5px}
-.composer{border:1px solid var(--line);background:#0e1725;border-radius:15px;padding:10px;display:flex;gap:10px;align-items:flex-end}
-textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;background:transparent;border:0;padding:8px;outline:none}
-.composer button{min-width:84px}.hint{color:var(--muted);font-size:11px;margin:8px 4px 0}
-#error{color:var(--red);font-size:13px;min-height:20px;padding:5px 4px}
-@media(max-width:600px){header{height:56px}.toolbar{flex-wrap:wrap}.toolbar input{flex-basis:100%}.message{max-width:96%}main{padding:14px 10px}.composer button{min-width:68px;padding:10px}}
+:root{color-scheme:dark;--bg:#0b1014;--side:#0e151a;--panel:#121c22;--panel2:#17242b;--line:#26363e;--line2:#34464e;--text:#e7f0ed;--muted:#8da19d;--soft:#b7c8c2;--mint:#9ce3cb;--mint2:#5cb99d;--amber:#e8c58a;--red:#f08b85;--blue:#91c5df;--radius:14px;font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--text)}body{overflow:hidden}button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.app{height:100dvh;display:grid;grid-template-columns:276px minmax(0,1fr);background:radial-gradient(ellipse at 72% -20%,#18312f 0%,transparent 42%),var(--bg)}
+.sidebar{min-width:0;background:linear-gradient(180deg,#10191e,#0d1418);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 13px 13px;gap:18px}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 8px}.brand-mark{width:34px;height:34px;border:1px solid #4c8d7c;border-radius:11px;display:grid;place-items:center;color:var(--mint);font-weight:800;font-size:17px;background:linear-gradient(145deg,#1d3935,#12211f);box-shadow:0 5px 22px #0005}.brand-name{font-size:15px;font-weight:760;letter-spacing:.16em}.brand-sub{font-size:9px;letter-spacing:.2em;color:var(--muted);margin-top:1px}
+.new-chat{border:1px solid #3d6c61;background:linear-gradient(135deg,#193b34,#142922);color:#dff8ed;border-radius:11px;padding:11px 13px;text-align:left;display:flex;gap:10px;align-items:center;font-weight:650;transition:.18s}.new-chat:hover{border-color:var(--mint);transform:translateY(-1px)}.plus{font-size:20px;line-height:15px;color:var(--mint)}
+.side-label{font-size:10px;font-weight:750;letter-spacing:.16em;color:#718782;padding:0 9px;margin-bottom:5px}.conversation-list{overflow:auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:4px}.conversation{border:1px solid transparent;background:transparent;border-radius:9px;padding:9px 10px;text-align:left;display:flex;flex-direction:column;gap:2px;min-width:0}.conversation:hover{background:#17242a}.conversation.active{background:#1a2c2e;border-color:#34554c}.conversation-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#d8e4df}.conversation-date{font-size:10px;color:#82958f}.empty-list{font-size:12px;color:var(--muted);padding:10px}
+.sidebar-bottom{display:flex;flex-direction:column;gap:9px}.connection{border:1px solid var(--line);border-radius:11px;background:#111b20;padding:10px 11px;display:flex;align-items:center;gap:9px}.dot{width:8px;height:8px;border-radius:50%;background:#73817e;box-shadow:0 0 0 3px #73817e20;flex:none}.dot.online{background:var(--mint2);box-shadow:0 0 0 3px #5cb99d25}.dot.busy{background:var(--amber);box-shadow:0 0 0 3px #e8c58a25}.connection-copy{min-width:0;flex:1}.connection-title{font-size:11px;font-weight:650}.connection-sub{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.settings-toggle{border:1px solid var(--line);border-radius:10px;background:#111a1f;padding:9px 11px;text-align:left;color:var(--soft);font-size:12px;display:flex;justify-content:space-between}.settings-toggle:hover{border-color:var(--line2)}.settings{display:none;border:1px solid var(--line);border-radius:11px;background:#10191e;padding:11px;gap:9px}.settings.open{display:grid}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted);letter-spacing:.08em}.field input{width:100%;border:1px solid var(--line);border-radius:8px;background:#0b1216;padding:9px 10px;font-size:12px;min-width:0}.field input::placeholder{color:#60716d}.key-row{display:flex;gap:5px}.key-row input{flex:1}.small-button{border:1px solid var(--line);background:#19262c;border-radius:8px;padding:8px 10px;font-size:11px;color:var(--soft)}.small-button:hover{border-color:var(--mint2)}.connect-button{border:1px solid #3f7668;background:#1b443a;color:#e2f9ee;border-radius:8px;padding:9px;font-size:12px;font-weight:700}.clear-local{border:0;background:transparent;color:#879993;font-size:10px;text-align:left;padding:4px 1px}.clear-local:hover{color:var(--red)}
+.main{min-width:0;display:flex;flex-direction:column;height:100dvh;position:relative}.topbar{height:62px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(15px,3vw,38px);background:#0c1418cc;backdrop-filter:blur(16px)}.top-left{display:flex;align-items:center;gap:12px;min-width:0}.mobile-menu{display:none;border:1px solid var(--line);background:#152127;border-radius:8px;width:34px;height:34px}.chat-title{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.workspace-tag{font-size:10px;color:var(--muted);border-left:1px solid var(--line2);padding-left:12px;white-space:nowrap}.top-actions{display:flex;gap:7px;align-items:center}.top-button{border:1px solid var(--line);background:#121e23;border-radius:8px;padding:7px 10px;font-size:11px;color:var(--soft)}.top-button:hover{border-color:var(--line2);color:var(--text)}
+.messages{flex:1;min-height:0;overflow:auto;padding:clamp(18px,4vw,44px) max(16px,calc((100% - 880px)/2));display:flex;flex-direction:column;gap:22px;scroll-behavior:smooth}.welcome{margin:auto;max-width:620px;width:100%;padding:35px 20px 48px;text-align:center}.welcome-mark{width:56px;height:56px;border-radius:18px;border:1px solid #427d6c;background:linear-gradient(145deg,#1d4138,#12231f);display:grid;place-items:center;margin:0 auto 22px;color:var(--mint);font-size:24px;font-weight:800;box-shadow:0 15px 50px #0006}.welcome h1{font-size:clamp(25px,4vw,36px);letter-spacing:-.045em;margin:0 0 10px;font-weight:680}.welcome p{color:var(--muted);font-size:13px;max-width:440px;margin:0 auto 23px}.suggestions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}.suggestion{border:1px solid var(--line);background:#111c21;border-radius:999px;padding:8px 12px;color:#b9ccc4;font-size:11px}.suggestion:hover{border-color:#548b78;color:var(--mint)}
+.message{width:100%;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:start;animation:rise .18s ease-out}.avatar{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}.message.user .avatar{background:#263c46;color:#c3e1e8}.message.assistant .avatar{background:#1c3931;color:var(--mint);border:1px solid #31584a}.message-body{min-width:0;padding-top:2px}.message-head{display:flex;align-items:center;gap:9px;margin-bottom:6px}.message-role{font-size:10px;letter-spacing:.12em;font-weight:800;color:#a9bbb4}.message-time{font-size:9px;color:#667a73}.message-content{font-size:13px;line-height:1.72;color:#dce7e2;overflow-wrap:anywhere}.message.user .message-content{color:#d6e4e6}.message-actions{display:flex;gap:5px;margin-top:7px;opacity:.65}.message:hover .message-actions{opacity:1}.icon-button{border:1px solid transparent;background:transparent;color:#82958f;border-radius:6px;padding:3px 6px;font-size:10px}.icon-button:hover{border-color:var(--line);color:var(--mint)}
+.message-content p{margin:0 0 10px}.message-content p:last-child{margin-bottom:0}.message-content h1,.message-content h2,.message-content h3{line-height:1.3;letter-spacing:-.02em;margin:18px 0 8px;color:#eff8f3}.message-content h1{font-size:20px}.message-content h2{font-size:17px}.message-content h3{font-size:14px}.message-content ul,.message-content ol{margin:5px 0 12px;padding-left:22px}.message-content li{padding:2px 0}.message-content blockquote{border-left:2px solid #4d8d78;margin:10px 0;padding:2px 0 2px 13px;color:#a9beb5}.message-content a{color:var(--mint);text-decoration:underline;text-decoration-color:#4d8d7866;text-underline-offset:3px}.message-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;background:#1b292e;border:1px solid #2b3d42;padding:1px 5px;border-radius:5px;color:#b7e9d6}.code-wrap{position:relative;margin:12px 0;border:1px solid #2a3c41;border-radius:10px;background:#0b1216;overflow:hidden}.code-head{height:29px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;background:#131f24;border-bottom:1px solid #27383d;color:#849891;font-size:9px;letter-spacing:.08em}.code-head button{border:0;background:transparent;color:#a9c5b9;font-size:10px;padding:3px}.code-wrap pre{margin:0;padding:12px;overflow:auto;max-height:480px}.code-wrap pre code{display:block;background:transparent;border:0;padding:0;color:#d4e1dc;font-size:11px;line-height:1.6;white-space:pre}.hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.tool-card{margin-left:40px;border:1px solid #344a48;background:linear-gradient(135deg,#15241f,#111a1d);border-radius:10px;overflow:hidden;animation:rise .18s ease-out}.tool-top{display:flex;align-items:center;gap:9px;padding:9px 11px}.tool-symbol{color:var(--mint);font-size:13px}.tool-name{font-size:11px;font-weight:700;color:#c7ded3}.tool-state{margin-left:auto;font-size:10px;color:var(--muted)}.tool-state.waiting{color:var(--amber)}.tool-state.failed{color:var(--red)}.tool-detail{border-top:1px solid #293c38;padding:9px 11px;font-size:10px;color:#aabcb4}.tool-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:230px;overflow:auto;margin:7px 0 0;color:#c9d8d1;font:10px/1.55 ui-monospace,monospace}.tool-detail button{border:1px solid #344b45;background:#1a2c26;color:#b6d7c8;border-radius:6px;padding:4px 7px;font-size:9px;margin-top:6px}
+.composer-area{flex:none;padding:12px 16px max(15px,env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,#0b1014 25%)}.composer-shell{max-width:880px;margin:0 auto;border:1px solid #34464b;border-radius:15px;background:#121d22;box-shadow:0 12px 40px #0005;transition:border-color .2s}.composer-shell:focus-within{border-color:#5a9783;box-shadow:0 0 0 2px #5a978322,0 12px 40px #0005}.composer{display:flex;align-items:flex-end;gap:10px;padding:10px 11px}.composer textarea{flex:1;min-width:0;max-height:190px;min-height:34px;resize:none;border:0;outline:0;background:transparent;padding:7px 4px;color:var(--text);font-size:13px;line-height:1.5}.composer textarea::placeholder{color:#71837e}.send-button{width:36px;height:36px;border:1px solid #4a8c77;background:linear-gradient(145deg,#2a6c58,#1c493d);border-radius:10px;color:#e5fff3;font-size:16px;display:grid;place-items:center;flex:none}.send-button:hover{filter:brightness(1.15)}.send-button:disabled{opacity:.35;cursor:not-allowed}.stop-button{display:none;width:36px;height:36px;border:1px solid #765b42;background:#35281e;border-radius:10px;color:var(--amber);font-size:13px}.composer-foot{max-width:880px;margin:7px auto 0;display:flex;justify-content:space-between;gap:8px;color:#667a73;font-size:9px;padding:0 3px}.composer-foot span:last-child{text-align:right}
+.error-banner{max-width:880px;margin:0 auto 8px;border:1px solid #6e403d;background:#2a1919;color:#f2b3ad;padding:9px 11px;border-radius:8px;font-size:11px;display:none}.error-banner.show{display:block}
+.overlay{display:none}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:760px){.app{grid-template-columns:minmax(0,1fr)}.sidebar{position:absolute;z-index:5;inset:0 auto 0 0;width:min(300px,86vw);transform:translateX(-102%);transition:transform .22s ease;box-shadow:18px 0 45px #0008}.app.sidebar-open .sidebar{transform:translateX(0)}.overlay{display:none;position:absolute;z-index:4;inset:0;background:#0008}.app.sidebar-open .overlay{display:block}.mobile-menu{display:grid;place-items:center}.workspace-tag{display:none}.topbar{height:56px;padding:0 12px}.messages{padding:20px 15px;gap:18px}.welcome{padding:22px 5px 35px}.message{grid-template-columns:25px minmax(0,1fr);gap:9px}.avatar{width:25px;height:25px}.tool-card{margin-left:34px}.composer-area{padding:9px 10px max(12px,env(safe-area-inset-bottom))}.composer-foot{font-size:8px}.top-button{padding:6px 8px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<header><div class="brand">🧠 WW <span>NEURAL BRIDGE</span></div><div class="status" id="status">Ready</div></header>
-<main>
-  <div class="toolbar">
-    <input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="WW API URL (https://…)" aria-label="WW API URL">
-    <input id="apiKey" type="password" autocomplete="off" placeholder="WW API key" aria-label="WW API key">
-    <button id="connect" type="button">Connect</button>
-    <button id="clear" type="button" title="Clear this conversation">Clear</button>
-  </div>
-  <section id="messages" aria-live="polite">
-    <div class="message assistant"><div class="role">WW</div>Bridge interface ready. Enter a message below to start a conversation.</div>
-  </section>
-  <div id="error" role="alert"></div>
-  <form class="composer" id="composer">
-    <textarea id="message" rows="1" placeholder="Message WW… (Enter to send, Shift+Enter for newline)" aria-label="Message"></textarea>
-    <button class="primary" id="send" type="submit">Send ↑</button>
-  </form>
-  <div class="hint">Connect to your device-hosted WW API. The API URL and key are kept in this browser tab's session storage.</div>
-</main>
+<div class="app" id="app">
+  <div class="overlay" id="overlay"></div>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">W</div>
+      <div><div class="brand-name">WW</div><div class="brand-sub">LOCAL WORKSPACE</div></div>
+    </div>
+    <button class="new-chat" id="newChat"><span class="plus">+</span> New conversation</button>
+    <section style="display:flex;flex-direction:column;min-height:0;flex:1">
+      <div class="side-label">CONVERSATIONS</div>
+      <div class="conversation-list" id="conversationList"></div>
+    </section>
+    <div class="sidebar-bottom">
+      <div class="connection">
+        <span class="dot" id="connectionDot"></span>
+        <div class="connection-copy"><div class="connection-title" id="connectionTitle">Backend not connected</div><div class="connection-sub" id="connectionSub">Configure your local WW API</div></div>
+      </div>
+      <button class="settings-toggle" id="settingsToggle"><span>Backend connection</span><span id="settingsChevron">＋</span></button>
+      <div class="settings" id="settings">
+        <div class="field"><label for="apiUrl">LOCAL API URL</label><input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="http://127.0.0.1:8080"></div>
+        <div class="field"><label for="apiKey">DASHBOARD API KEY</label><div class="key-row"><input id="apiKey" type="password" autocomplete="off" placeholder="WW API key"><button class="small-button" id="showKey" type="button">Show</button></div></div>
+        <button class="connect-button" id="connectButton" type="button">Connect to WW</button>
+        <div id="runtimeInfo" style="font-size:10px;color:var(--muted);line-height:1.5"></div><div style="font-size:9px;color:#71847e;line-height:1.5">The API key stays in this tab. Conversation text is stored locally in this browser until you clear its history. Chrome may ask permission for local network access when connecting to localhost or a LAN address.</div>
+      </div>
+      <button class="clear-local" id="clearHistory" type="button">Clear local conversation history</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="top-left">
+        <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open conversations">☰</button>
+        <div class="chat-title" id="chatTitle">New conversation</div>
+        <div class="workspace-tag" id="workspaceTag">WW · LOCAL</div>
+      </div>
+      <div class="top-actions">
+        <button class="top-button" id="newTop" type="button">＋ New</button>
+        <button class="top-button" id="clearChat" type="button">Clear</button>
+      </div>
+    </header>
+    <section class="messages" id="messages" aria-live="polite">
+      <div class="welcome" id="welcome">
+        <div class="welcome-mark">W</div>
+        <h1>Work with your workspace.</h1>
+        <p>Gemini on the front. Your local Termux / PRoot environment underneath. Connect the backend to start.</p>
+        <div class="suggestions">
+          <button class="suggestion" data-prompt="Inspect this project and explain its architecture.">Inspect this project</button>
+          <button class="suggestion" data-prompt="Find the failing tests and diagnose the cause.">Review failing tests</button>
+          <button class="suggestion" data-prompt="Summarise the current working tree and recent changes.">Review Git changes</button>
+        </div>
+      </div>
+    </section>
+    <div class="composer-area">
+      <div class="error-banner" id="errorBanner" role="alert"></div>
+      <form class="composer-shell" id="composerForm">
+        <div class="composer">
+          <textarea id="messageInput" rows="1" placeholder="Message WW…  Enter to send · Shift+Enter for a new line" aria-label="Message WW"></textarea>
+          <button class="stop-button" id="stopButton" type="button" title="Stop generation">■</button>
+          <button class="send-button" id="sendButton" type="submit" title="Send message">↑</button>
+        </div>
+      </form>
+      <div class="composer-foot"><span>Tool execution runs on your WW backend. Privileged actions wait for approval in Termux. Local browser history is bounded.</span><span id="composerStatus">Not connected</span></div>
+    </div>
+  </main>
+</div>
 <script>
 (() => {
- const $=id=>document.getElementById(id);
- const key=$('apiKey'),apiUrl=$('apiUrl'),messages=$('messages'),input=$('message'),send=$('send'),status=$('status'),error=$('error');
- const newSession=()=>('browser-'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()));
- let sessionName=sessionStorage.getItem('ww-chat-session')||newSession();
- sessionStorage.setItem('ww-chat-session',sessionName);
- const history=[];
- const defaultApiUrl=location.hostname.endsWith('github.io')?'':location.origin;
- apiUrl.value=sessionStorage.getItem('ww-api-url')||defaultApiUrl;
- key.value=sessionStorage.getItem('ww-api-key')||'';
- function apiBase(){
-   const raw=apiUrl.value.trim();
-   if(!raw)throw new Error('Enter the HTTPS URL of your running WW API.');
-   let parsed;
-   try{parsed=new URL(raw);}catch{throw new Error('The WW API URL is not valid.');}
-   if(!['http:','https:'].includes(parsed.protocol))throw new Error('The WW API URL must use HTTP or HTTPS.');
-   if(location.protocol==='https:'&&parsed.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(parsed.hostname))
-     throw new Error('An HTTPS Pages site cannot call an HTTP device address. Use an HTTPS tunnel or VPN endpoint.');
-   return parsed.href.replace(/\/+$/,'');
- }
- $('connect').addEventListener('click',async()=>{
-   error.textContent='';
-   try{
-     const base=apiBase();
-     const apiKey=key.value.trim();
-     if(!apiKey)throw new Error('Enter your WW API key before connecting.');
-     sessionStorage.setItem('ww-api-url',base);
-     sessionStorage.setItem('ww-api-key',apiKey);
-     status.textContent='Connecting…';
-     const response=await fetch(base+'/api/v1/health',{headers:{'X-API-Key':apiKey}});
-     if(!response.ok)throw new Error('WW API health check returned HTTP '+response.status+'.');
-     const data=await response.json();
-     status.textContent='Connected · '+(data.version||'WW');
-   }catch(e){status.textContent='Not connected';error.textContent=e.message+' Check that WW is running and its CORS allowlist includes https://gemquota.github.io.';}
- });
- $('clear').addEventListener('click',()=>{messages.replaceChildren();history.length=0;sessionName=newSession();sessionStorage.setItem('ww-chat-session',sessionName);addMessage('assistant','Conversation cleared.');});
- function addMessage(role,text){const el=document.createElement('article');el.className='message '+role;const label=document.createElement('div');label.className='role';label.textContent=role==='user'?'YOU':'WW';const body=document.createElement('div');body.textContent=text;el.append(label,body);messages.append(el);messages.scrollTop=messages.scrollHeight;return body;}
- async function submit(){const text=input.value.trim();if(!text||send.disabled)return;error.textContent='';addMessage('user',text);history.push({role:'user',content:text});input.value='';send.disabled=true;status.textContent='Thinking…';const pending=addMessage('assistant','');pending.textContent='…';
- try{const headers={'Content-Type':'application/json'};const apiKey=key.value.trim();if(apiKey)headers['X-API-Key']=apiKey;
- const response=await fetch(apiBase()+'/chat',{method:'POST',headers,body:JSON.stringify({message:text,session_name:sessionName,history})});
- const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));
- if(!response.ok)throw new Error(data.detail||('HTTP '+response.status));
- pending.textContent=data.response||'(empty response)';history.push({role:'assistant',content:pending.textContent});status.textContent='Connected';
- }catch(e){pending.textContent='';pending.remove();error.textContent=e.message+' If this is a browser network error, check HTTPS, CORS, and device reachability.';status.textContent='Connection error';}
- finally{send.disabled=false;input.focus();messages.scrollTop=messages.scrollHeight;}}
- $('composer').addEventListener('submit',e=>{e.preventDefault();submit();});
- input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const fence = String.fromCharCode(96);
+  const storageKey = "ww-browser-conversations-v1";
+  const activeKey = "ww-browser-active-conversation";
+  const apiUrl = $("apiUrl"), apiKey = $("apiKey"), messages = $("messages");
+  let conversations = loadConversations();
+  let activeId = localStorage.getItem(activeKey) || "";
+  let active = conversations.find(item => item.id === activeId) || null;
+  let controller = null;
+  let busy = false;
+  let connected = false;
+  let toolCards = new Map();
+  let persistenceTimer = null;
+
+  const MAX_STORED_HISTORY_CHARS = 1500000;
+  const MAX_MESSAGES_PER_CONVERSATION = 80;
+  const MAX_MESSAGE_CHARS = 12000;
+
+  function loadConversations() {
+    try {
+      const value = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      return Array.isArray(value)
+        ? value.filter(item => item && typeof item.id === "string" && Array.isArray(item.messages))
+            .map(item => ({
+              ...item,
+              messages: item.messages
+                .filter(message => message && (message.role === "user" || message.role === "assistant"))
+                .slice(-MAX_MESSAGES_PER_CONVERSATION)
+                .map(message => ({...message, text: String(message.text || "").slice(0, MAX_MESSAGE_CHARS)}))
+            }))
+            .sort((a,b) => (b.updated || 0) - (a.updated || 0))
+            .slice(0, 30)
+        : [];
+    } catch (_) { return []; }
+  }
+  function serializedHistory() {
+    const snapshot = conversations.map(item => ({
+      ...item,
+      messages: (item.messages || []).slice(-MAX_MESSAGES_PER_CONVERSATION).map(message => ({
+        ...message,
+        text: String(message.text || "").slice(0, MAX_MESSAGE_CHARS)
+      }))
+    }));
+    let serialized = JSON.stringify(snapshot);
+    while (serialized.length > MAX_STORED_HISTORY_CHARS && snapshot.length > 1) {
+      let removeIndex = -1;
+      for (let i = snapshot.length - 1; i >= 0; i--) {
+        if (snapshot[i].id !== activeId) { removeIndex = i; break; }
+      }
+      if (removeIndex < 0) break;
+      snapshot.splice(removeIndex, 1);
+      serialized = JSON.stringify(snapshot);
+    }
+    const activeSnapshot = snapshot.find(item => item.id === activeId);
+    while (serialized.length > MAX_STORED_HISTORY_CHARS && activeSnapshot && activeSnapshot.messages.length > 1) {
+      activeSnapshot.messages.shift();
+      serialized = JSON.stringify(snapshot);
+    }
+    if (serialized.length > MAX_STORED_HISTORY_CHARS && activeSnapshot && activeSnapshot.messages.length) {
+      const last = activeSnapshot.messages[activeSnapshot.messages.length - 1];
+      last.text = String(last.text || "").slice(-6000);
+      serialized = JSON.stringify(snapshot);
+    }
+    return serialized;
+  }
+  function flushConversations() {
+    if (persistenceTimer !== null) {
+      clearTimeout(persistenceTimer);
+      persistenceTimer = null;
+    }
+    try { localStorage.setItem(storageKey, serializedHistory()); } catch (_) {}
+  }
+  function saveConversations(renderList = true) {
+    conversations.sort((a,b) => (b.updated || 0) - (a.updated || 0));
+    conversations = conversations.slice(0, 30);
+    const serialized = serializedHistory();
+    if (persistenceTimer !== null) clearTimeout(persistenceTimer);
+    persistenceTimer = setTimeout(() => {
+      persistenceTimer = null;
+      try { localStorage.setItem(storageKey, serialized); } catch (_) {
+        try {
+          const compact = conversations.find(item => item.id === activeId);
+          if (compact) {
+            const fallback = [{...compact, messages: compact.messages.slice(-20).map(message => ({
+              ...message, text: String(message.text || "").slice(-6000)
+            }))}];
+            localStorage.setItem(storageKey, JSON.stringify(fallback));
+          }
+        } catch (_) {}
+      }
+    }, 250);
+    if (renderList) renderConversationList();
+  }
+  window.addEventListener("pagehide", flushConversations);
+  function newId() {
+    return "browser-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2));
+  }
+  function newConversation() {
+    active = {id:newId(), conversationId:null, title:"New conversation", updated:Date.now(), messages:[]};
+    conversations.unshift(active);
+    activeId = active.id;
+    localStorage.setItem(activeKey, activeId);
+    saveConversations();
+    renderActive();
+    closeSidebar();
+    $("messageInput").focus();
+  }
+  function switchConversation(id) {
+    const found = conversations.find(item => item.id === id);
+    if (!found) return;
+    active = found;
+    activeId = id;
+    localStorage.setItem(activeKey, id);
+    renderActive();
+    renderConversationList();
+    closeSidebar();
+  }
+  function renderConversationList() {
+    const list = $("conversationList");
+    list.replaceChildren();
+    if (!conversations.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty-list";
+      empty.textContent = "Your recent conversations will appear here.";
+      list.append(empty);
+      return;
+    }
+    for (const item of conversations.slice(0,30)) {
+      const button = document.createElement("button");
+      button.className = "conversation" + (active && active.id === item.id ? " active" : "");
+      button.type = "button";
+      button.addEventListener("click", () => switchConversation(item.id));
+      const title = document.createElement("span");
+      title.className = "conversation-title";
+      title.textContent = item.title || "New conversation";
+      const date = document.createElement("span");
+      date.className = "conversation-date";
+      date.textContent = new Date(item.updated || Date.now()).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+      button.append(title,date);
+      list.append(button);
+    }
+  }
+  function renderActive() {
+    messages.replaceChildren();
+    toolCards.clear();
+    $("chatTitle").textContent = active ? active.title : "New conversation";
+    if (!active || !active.messages.length) {
+      showWelcome();
+    } else {
+      for (const item of active.messages) addMessageElement(item, false);
+      scrollBottom();
+    }
+  }
+  function showWelcome() {
+    const welcome = document.createElement("div");
+    welcome.className = "welcome";
+    welcome.innerHTML = '<div class="welcome-mark">W</div><h1>Work with your workspace.</h1><p>Gemini on the front. Your local Termux / PRoot environment underneath. Connect the backend to start.</p><div class="suggestions"><button class="suggestion" data-prompt="Inspect this project and explain its architecture.">Inspect this project</button><button class="suggestion" data-prompt="Find the failing tests and diagnose the cause.">Review failing tests</button><button class="suggestion" data-prompt="Summarise the current working tree and recent changes.">Review Git changes</button></div>';
+    messages.append(welcome);
+    bindSuggestions(welcome);
+  }
+  function bindSuggestions(root) {
+    root.querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
+      $("messageInput").value = button.getAttribute("data-prompt") || "";
+      submitMessage();
+    }));
+  }
+  function persistMessage(item) {
+    if (!active) newConversation();
+    active.messages.push(item);
+    active.updated = Date.now();
+    if (item.role === "user" && active.title === "New conversation") {
+      active.title = item.text.replace(/\s+/g," ").slice(0,52) || "New conversation";
+    }
+    $("chatTitle").textContent = active.title;
+    saveConversations();
+  }
+  function addMessageElement(item, persist) {
+    const article = document.createElement("article");
+    article.className = "message " + item.role;
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = item.role === "user" ? "YOU" : "W";
+    const body = document.createElement("div");
+    body.className = "message-body";
+    const head = document.createElement("div");
+    head.className = "message-head";
+    const role = document.createElement("span");
+    role.className = "message-role";
+    role.textContent = item.role === "user" ? "YOU" : "WW";
+    const time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = new Date(item.time || Date.now()).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+    head.append(role,time);
+    const content = document.createElement("div");
+    content.className = "message-content";
+    if (item.role === "assistant") renderMarkdown(content,item.text || "");
+    else {
+      const p = document.createElement("p");
+      p.textContent = item.text || "";
+      content.append(p);
+    }
+    const actions = document.createElement("div");
+    actions.className = "message-actions";
+    const copy = document.createElement("button");
+    copy.className = "icon-button";
+    copy.type = "button";
+    copy.textContent = "Copy";
+    copy.addEventListener("click", () => copyText(item.text || "",copy));
+    actions.append(copy);
+    body.append(head,content,actions);
+    article.append(avatar,body);
+    messages.append(article);
+    if (persist) persistMessage(item);
+    return {article,content};
+  }
+  function addMessage(role,text) {
+    const item = {role,text:text || "",time:Date.now()};
+    const view = addMessageElement(item,true);
+    return {item,view};
+  }
+  function renderMarkdown(target, source) {
+    target.replaceChildren();
+    const lines = String(source || "").replace(/\r/g,"").split("\n");
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) { i++; continue; }
+      if (line.startsWith(fence.repeat(3))) {
+        const language = line.slice(3).trim() || "code";
+        const code = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith(fence.repeat(3))) code.push(lines[i++]);
+        if (i < lines.length) i++;
+        const wrap = document.createElement("div"); wrap.className = "code-wrap";
+        const bar = document.createElement("div"); bar.className = "code-head";
+        const label = document.createElement("span"); label.textContent = language.toUpperCase();
+        const copy = document.createElement("button"); copy.type = "button"; copy.textContent = "Copy code";
+        const codeText = code.join("\n");
+        copy.addEventListener("click", () => copyText(codeText,copy));
+        bar.append(label,copy);
+        const pre = document.createElement("pre"); const codeNode = document.createElement("code");
+        codeNode.textContent = codeText; pre.append(codeNode); wrap.append(bar,pre); target.append(wrap);
+        continue;
+      }
+      if (/^#{1,3}\s/.test(line)) {
+        const level = Math.min(3,(line.match(/^#+/)[0].length));
+        const heading = document.createElement("h" + level);
+        inlineMarkdown(heading,line.replace(/^#{1,3}\s+/,""));
+        target.append(heading); i++; continue;
+      }
+      if (/^\s*[-*]\s+/.test(line)) {
+        const list = document.createElement("ul");
+        while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+          const li = document.createElement("li");
+          inlineMarkdown(li,lines[i++].replace(/^\s*[-*]\s+/,""));
+          list.append(li);
+        }
+        target.append(list); continue;
+      }
+      if (/^\s*\d+\.\s+/.test(line)) {
+        const list = document.createElement("ol");
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+          const li = document.createElement("li");
+          inlineMarkdown(li,lines[i++].replace(/^\s*\d+\.\s+/,""));
+          list.append(li);
+        }
+        target.append(list); continue;
+      }
+      if (/^>\s?/.test(line)) {
+        const quote = document.createElement("blockquote");
+        while (i < lines.length && /^>\s?/.test(lines[i])) inlineMarkdown(quote,lines[i++].replace(/^>\s?/,""));
+        target.append(quote); continue;
+      }
+      if (/^\s*---+\s*$/.test(line)) {
+        const hr = document.createElement("hr"); hr.className = "hr"; target.append(hr); i++; continue;
+      }
+      const paragraph = document.createElement("p");
+      const parts = [];
+      while (i < lines.length && lines[i].trim() && !/^#{1,3}\s|^\s*[-*]\s+|^\s*\d+\.\s+|^>\s?|^\s*---+\s*$/.test(lines[i]) && !lines[i].startsWith(fence.repeat(3))) {
+        parts.push(lines[i++]);
+      }
+      inlineMarkdown(paragraph,parts.join("\n"));
+      target.append(paragraph);
+    }
+  }
+  function inlineMarkdown(parent,text) {
+    const pattern = new RegExp("\\[([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)|\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*|" + fence + "([^" + fence + "]+)" + fence,"g");
+    let cursor = 0, match;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > cursor) parent.append(document.createTextNode(text.slice(cursor,match.index)));
+      if (match[1]) {
+        const link = document.createElement("a");
+        link.textContent = match[1]; link.href = match[2]; link.target = "_blank"; link.rel = "noopener noreferrer";
+        parent.append(link);
+      } else if (match[3]) {
+        const strong = document.createElement("strong"); strong.textContent = match[3]; parent.append(strong);
+      } else if (match[4]) {
+        const em = document.createElement("em"); em.textContent = match[4]; parent.append(em);
+      } else if (match[5]) {
+        const code = document.createElement("code"); code.textContent = match[5]; parent.append(code);
+      }
+      cursor = pattern.lastIndex;
+    }
+    if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
+  }
+  async function copyText(value,button) {
+    try {
+      await navigator.clipboard.writeText(value);
+      const old = button.textContent; button.textContent = "Copied"; setTimeout(() => button.textContent = old,1100);
+    } catch (_) {
+      const area = document.createElement("textarea"); area.value = value; document.body.append(area); area.select();
+      try { document.execCommand("copy"); button.textContent = "Copied"; } catch (_) {}
+      area.remove();
+    }
+  }
+  function addToolCard(tool,callId) {
+    const card = document.createElement("article"); card.className = "tool-card";
+    const top = document.createElement("div"); top.className = "tool-top";
+    const symbol = document.createElement("span"); symbol.className = "tool-symbol"; symbol.textContent = "⌘";
+    const name = document.createElement("span"); name.className = "tool-name"; name.textContent = "Tool · " + tool;
+    const state = document.createElement("span"); state.className = "tool-state"; state.textContent = "Running";
+    top.append(symbol,name,state); card.append(top); messages.append(card);
+    const record = {card,state,detail:null}; toolCards.set(callId || tool,record); scrollBottom(); return record;
+  }
+  function showToolEvent(event) {
+    if (event.type === "tool_start") { addToolCard(event.tool || "tool",event.call_id); return; }
+    const record = toolCards.get(event.call_id || event.tool || "tool");
+    if (!record) return;
+    if (event.type === "approval_required") {
+      record.state.textContent = "Waiting for approval in Termux";
+      record.state.className = "tool-state waiting";
+      const detail = document.createElement("div"); detail.className = "tool-detail";
+      const note = document.createElement("div"); note.textContent = "Review and approve this exact operation in the WW backend terminal.";
+      detail.append(note);
+      if (event.arguments) {
+        const pre = document.createElement("pre"); pre.textContent = JSON.stringify(event.arguments,null,2); detail.append(pre);
+      }
+      record.card.append(detail); record.detail = detail; scrollBottom();
+    } else if (event.type === "tool_result") {
+      const output = String(event.output || "");
+      record.state.textContent = /^(DENIED|ERROR|TOOL ERROR|TOOL TIMEOUT)/.test(output) ? "Finished · attention" : "Finished";
+      record.state.className = "tool-state" + (/^(DENIED|ERROR|TOOL ERROR|TOOL TIMEOUT)/.test(output) ? " failed" : "");
+      if (!record.detail) { record.detail = document.createElement("div"); record.detail.className = "tool-detail"; record.card.append(record.detail); }
+      const pre = document.createElement("pre"); pre.textContent = output;
+      const copy = document.createElement("button"); copy.type = "button"; copy.textContent = "Copy output";
+      copy.addEventListener("click", () => copyText(output,copy));
+      record.detail.append(pre,copy); scrollBottom();
+    }
+  }
+  function showError(message) {
+    const banner = $("errorBanner"); banner.textContent = message; banner.classList.add("show");
+  }
+  function clearError() { $("errorBanner").textContent = ""; $("errorBanner").classList.remove("show"); }
+  function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
+  function setConnection(state,detail) {
+    const dot = $("connectionDot");
+    dot.className = "dot" + (state === "online" ? " online" : state === "busy" ? " busy" : "");
+    $("connectionTitle").textContent = state === "online" ? "Backend ready" : state === "busy" ? "WW is working" : "Backend not connected";
+    $("connectionSub").textContent = detail || "Configure your local WW API";
+    $("composerStatus").textContent = state === "online" ? "Ready" : state === "busy" ? "Working…" : "Not connected";
+  }
+  function apiBase() {
+    const raw = apiUrl.value.trim();
+    if (!raw) throw new Error("Enter the URL of your running WW backend.");
+    let parsed;
+    try { parsed = new URL(raw); } catch (_) { throw new Error("The backend URL is not valid."); }
+    if (!["http:","https:"].includes(parsed.protocol)) throw new Error("The backend URL must use HTTP or HTTPS.");
+    if (location.protocol === "https:" && parsed.protocol !== "https:" && !["localhost","127.0.0.1","[::1]"].includes(parsed.hostname)) {
+      throw new Error("A Pages site needs an HTTPS backend URL, except for a local loopback address.");
+    }
+    return parsed.href.replace(/\/+$/,"");
+  }
+  function fetchApi(path, options = {}) {
+    const url = new URL(path, apiBase());
+    const host = url.hostname.toLowerCase();
+    let targetAddressSpace;
+    if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1" || host === "[::1]") {
+      targetAddressSpace = "loopback";
+    } else if (host.endsWith(".local") || host.startsWith("[fc") || host.startsWith("[fd") || host.startsWith("[fe80")) {
+      targetAddressSpace = "local";
+    } else {
+      const octets = host.split(".").map(Number);
+      if (octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) {
+        const [a, b] = octets;
+        if (a === 127) targetAddressSpace = "loopback";
+        else if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) {
+          targetAddressSpace = "local";
+        }
+      }
+    }
+    return fetch(url.toString(), {
+      ...options,
+      ...(targetAddressSpace ? {targetAddressSpace} : {})
+    });
+  }
+  function authHeaders(json) {
+    const token = apiKey.value.trim();
+    if (!token) throw new Error("Enter your WW dashboard API key in Backend connection.");
+    const headers = {"X-API-Key":token};
+    if (json) headers["Content-Type"] = "application/json";
+    return headers;
+  }
+  async function connectBackend() {
+    clearError();
+    try {
+      const headers = authHeaders(false);
+      sessionStorage.setItem("ww-api-url",base);
+      sessionStorage.setItem("ww-api-key",apiKey.value.trim());
+      setConnection("busy","Checking local API");
+      const health = await fetchApi("/api/v1/health",{headers});
+      if (!health.ok) throw new Error("Health check returned HTTP " + health.status + ".");
+      const info = await fetchApi("/api/v1/runtime",{headers});
+      if (!info.ok) throw new Error("Runtime check returned HTTP " + info.status + ".");
+      const data = await info.json();
+      if (!data.gemini_credentials_configured) {
+        throw new Error("The local API is reachable, but Gemini credentials were not found. Add cookies.txt or SECURE_1PSID to the backend environment.");
+      }
+      connected = true;
+      $("runtimeInfo").textContent = "Workspace: " + (data.workspace || "local") + " · Python " + (data.python || "unknown") + " · " + (data.execution_backend || "local") + " · Gemini credentials found";
+      $("workspaceTag").textContent = "WORKSPACE · " + (data.workspace || "LOCAL");
+      setConnection("online","Workspace " + (data.workspace || "ready"));
+      $("settings").classList.remove("open");
+      $("settingsChevron").textContent = "＋";
+    } catch (error) {
+      connected = false;
+      setConnection("offline","Connection failed");
+      showError(error.message + " Check that the backend is running and its CORS origins include https://gemquota.github.io.");
+    }
+  }
+  function updateConversationId(value) {
+    if (!active || !value) return;
+    active.conversationId = value; active.updated = Date.now(); saveConversations();
+  }
+  async function submitMessage() {
+    const input = $("messageInput");
+    const text = input.value.trim();
+    if (!text || busy) return;
+    clearError();
+    if (!active) newConversation();
+    if (!connected) {
+      try { await connectBackend(); } catch (_) {}
+      if (!connected) return;
+    }
+    const user = addMessage("user",text);
+    input.value = ""; resizeInput();
+    let assistant = addMessage("assistant","");
+    busy = true; controller = new AbortController(); toolCards = new Map();
+    $("sendButton").disabled = true; $("stopButton").style.display = "grid";
+    setConnection("busy","Generating response");
+    try {
+      const headers = authHeaders(true);
+      const response = await fetchApi("/api/v1/chat/stream",{
+        method:"POST",headers,signal:controller.signal,
+        body:JSON.stringify({
+          message:text,
+          session_name:active.id,
+          conversation_id:active.conversationId
+        })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || "Chat request returned HTTP " + response.status + ".");
+      }
+      if (!response.body) throw new Error("This browser does not support streamed responses.");
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const result = await reader.read();
+        if (result.done) break;
+        buffer += decoder.decode(result.value,{stream:true});
+        let boundary;
+        while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0,boundary); buffer = buffer.slice(boundary + 2);
+          const dataLine = frame.split("\n").find(line => line.startsWith("data:"));
+          if (!dataLine) continue;
+          const event = JSON.parse(dataLine.slice(5).trim());
+          if (event.conversation_id) updateConversationId(event.conversation_id);
+          if (event.type === "delta") {
+            assistant.item.text += event.text || "";
+            renderMarkdown(assistant.view.content,assistant.item.text);
+            active.messages[active.messages.length - 1] = assistant.item;
+            active.updated = Date.now(); saveConversations(false); scrollBottom();
+          } else if (event.type === "tool_start") {
+            if (!assistant.item.text.trim()) {
+              assistant.view.article.remove();
+              if (active.messages[active.messages.length - 1] === assistant.item) {
+                active.messages.pop();
+                saveConversations(false);
+              }
+            }
+            showToolEvent(event);
+          } else if (event.type === "approval_required" || event.type === "tool_result") {
+            showToolEvent(event);
+          } else if (event.type === "tool_round_complete") {
+            assistant = addMessage("assistant", "");
+          } else if (event.type === "error") {
+            throw new Error(event.message || "The WW runtime reported an error.");
+          } else if (event.type === "execution_limit") {
+            showError(event.message || "The tool execution limit was reached.");
+          } else if (event.type === "done") {
+            updateConversationId(event.conversation_id);
+          }
+        }
+      }
+      if (!assistant.item.text.trim()) {
+        assistant.item.text = "The response stream ended without a final text response.";
+        renderMarkdown(assistant.view.content,assistant.item.text);
+      }
+      active.updated = Date.now(); saveConversations();
+      setConnection("online","Response complete");
+    } catch (error) {
+      if (error.name === "AbortError") {
+        assistant.item.text += assistant.item.text ? "\n\n[Generation stopped]" : "Generation stopped.";
+        renderMarkdown(assistant.view.content,assistant.item.text);
+        setConnection(connected ? "online" : "offline","Generation stopped");
+      } else {
+        showError(error.message);
+        assistant.item.text += assistant.item.text ? "\n\n[Request failed: " + error.message + "]" : "Request failed: " + error.message;
+        renderMarkdown(assistant.view.content,assistant.item.text);
+        setConnection("offline","Request failed");
+      }
+      active.messages[active.messages.length - 1] = assistant.item;
+      saveConversations();
+    } finally {
+      busy = false; controller = null;
+      $("sendButton").disabled = false; $("stopButton").style.display = "none";
+      $("messageInput").focus(); scrollBottom();
+    }
+  }
+  function resizeInput() {
+    const input = $("messageInput");
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight,190) + "px";
+  }
+  function closeSidebar() { $("app").classList.remove("sidebar-open"); }
+  $("newChat").addEventListener("click",newConversation);
+  $("newTop").addEventListener("click",newConversation);
+  $("clearChat").addEventListener("click",newConversation);
+  $("clearHistory").addEventListener("click",() => {
+    if (!confirm("Delete all locally stored WW browser conversations? Gemini cloud conversations are not deleted.")) return;
+    conversations = []; active = null; activeId = "";
+    localStorage.removeItem(storageKey); localStorage.removeItem(activeKey);
+    newConversation();
+  });
+  $("settingsToggle").addEventListener("click",() => {
+    const open = $("settings").classList.toggle("open");
+    $("settingsChevron").textContent = open ? "−" : "＋";
+  });
+  $("connectButton").addEventListener("click",connectBackend);
+  $("showKey").addEventListener("click",() => {
+    apiKey.type = apiKey.type === "password" ? "text" : "password";
+    $("showKey").textContent = apiKey.type === "password" ? "Show" : "Hide";
+  });
+  $("mobileMenu").addEventListener("click",() => $("app").classList.add("sidebar-open"));
+  $("overlay").addEventListener("click",closeSidebar);
+  $("stopButton").addEventListener("click",() => controller && controller.abort());
+  $("composerForm").addEventListener("submit",event => {event.preventDefault();submitMessage();});
+  $("messageInput").addEventListener("input",resizeInput);
+  $("messageInput").addEventListener("keydown",event => {
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitMessage(); }
+  });
+  bindSuggestions(document);
+  apiUrl.value = sessionStorage.getItem("ww-api-url") || (location.hostname.endsWith("github.io") ? "" : location.origin);
+  apiKey.value = sessionStorage.getItem("ww-api-key") || "";
+  if (!active) newConversation(); else { renderActive(); renderConversationList(); }
+  if (apiUrl.value && apiKey.value) connectBackend();
 })();
 </script>
 </body>

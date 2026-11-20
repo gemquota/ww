@@ -1,97 +1,83 @@
-# AGENTS.md
+# WW project instructions
 
-## Project Overview
-WW (Gemini Multi-Agent Bridge) is a Python-based CLI harness that provides an agentic coding loop powered by Google Gemini Web API. It implements a 3-tier agent hierarchy (Communicator → Overseer → Specialists) with tool execution, workspace sandboxing, SQLite-persisted memory, and context management.
+## Product and supported runtime
 
-## Architecture
-- **3-Tier Agency**: Communicator (UI/Entry) → Overseer (Technical Lead) → Specialized Agents (Execution)
-- **Model**: Gemini Web API only (via `gemini-webapi` library)
-- **Memory**: SQLite-backed session persistence with 3-tier context (Hot → Facts → Summary) + Causal Graph (PCG)
-- **Context**: Smart workspace ingestion with .gitignore awareness, token counting, and auto-compaction
-- **Permissions**: Granular approval system for shell commands and file writes
-- **Checkpoints**: Automatic git-based state snapshots with /undo support
-- **Recovery**: AutoHealer escalates failures to Gemini for diagnosis/fix strategy
-- **Tools**: Pydantic-schematized ToolRegistry with DAG dependency resolution
-- **Benchmarks**: Structured task evaluation with execution traces
+WW is a Gemini Web Chat client with a local workspace runtime. The supported application has two clients and one execution architecture:
 
-## Directory Structure
-```
-ww/
-├── gemini_bridge.py      # Main orchestrator entry point (thin wrapper)
-├── AGENTS.md             # Project instructions for AI agents
-├── config.yaml           # Runtime configuration
-├── requirements.txt      # Python dependencies
-├── src/                  # Source package
-│   ├── gemini_bridge.py  #   Main orchestrator (TUI, agent loop, tool dispatch)
-│   ├── config.py         #   Pydantic-settings config loader
-│   ├── context_manager.py#   ConversationHistory + RepoMapper + TokenCounter
-│   ├── smart_context.py  #   Git-aware workspace context (gitignore, repo map)
-│   ├── permissions.py    #   Sandbox + approval policy system
-│   ├── diff_engine.py    #   Fuzzy SEARCH/REPLACE editing with colorized diffs
-│   ├── checkpoint.py     #   Git checkpoint undo system
-│   ├── agents_loader.py  #   Hierarchical AGENTS.md loader
-│   ├── telemetry.py      #   Session logging (SQLite + JSONL)
-│   ├── profiler.py       #   cProfile hot-path benchmarking
-│   ├── debug_init.py     #   GeminiClient initialization tester
-│   ├── core/             #   Ported from 2b:
-│   │   ├── schemas.py    #     ToolCall Pydantic model
-│   │   ├── memory.py     #     MemoryManager + SQLite + PCG
-│   │   ├── healing.py    #     AutoHealer (Gemini diagnosis)
-│   │   ├── benchmarker.py#     BenchmarkHarness with traces
-│   │   └── judge.py      #     BenchmarkJudge (Gemini evaluation)
-│   ├── tools/            #   Ported from 2b:
-│   │   ├── registry.py   #     ToolRegistry with DAG
-│   │   └── system_tools.py#    10 tool implementations + schemas
-│   ├── utils/            #   Ported from 2b:
-│   │   ├── web_client.py #     WebGeminiClient abstraction
-│   │   └── validation.py #     Tool call extraction
-│   ├── dashboard/        #   FastAPI web dashboard
-│   │   └── app.py        #     REST API (health, chat, sessions, stats)
-│   ├── plugins/          #   Plugin system
-│   │   └── ww_plugin.py  #     PluginScanner + WWPlugin base class
-│   └── gfx/              #   Mascot TUI
-│       └── mascot_tui.py #     Terminal mascot with animated states
-├── .tests/               # Test suite
-│   ├── test_core.py      #   20 unit tests (schemas, memory, healing)
-│   ├── test_tools.py     #   23 tests (registry, system tools, validation)
-│   ├── test_integration.py#  26 tests (sandbox, permissions, checkpoint)
-│   ├── test_set3.py      #   17 tests (DAG, new tools, plugins)
-│   ├── test_quality_10dim.py# 46 quality dimension tests
-│   ├── test_systemic_benchmarks.py # 38 systemic benchmarks
-│   ├── test_trend_engine.py # ~10 trend engine tests
-│   └── benchmarks/       #   Quality bench, regression gate, trend engine
-├── deploy/               # Deployment
-│   ├── Dockerfile        #   Container image
-│   ├── docker-compose.yml#   Multi-service orchestration
-│   └── .github/workflows/ci.yml  # CI pipeline
-├── docs/                 # Documentation site (mkdocs)
-├── agents/               # Agent markdown definitions (8 agents)
-├── meta/                 # Audit, tasks, porting record, analysis
-└── site/                 # Generated documentation site (static HTML)
+- **Terminal:** `python gemini_bridge.py`
+- **Browser backend:** `uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080`
+- **Static browser client:** `src/dashboard/chat.html`, published by `.github/workflows/pages.yml`
+
+Both clients use `src/ww_client.py` and `src/conversation_runtime.py`. Do not create a second Gemini client, tool registry, or execution loop for a new interface. Browser sessions wrap the same WWClient and ConversationRuntime used by the terminal.
+
+The old `src/gemini_bridge.py` entry point is retired. `src/tool_executor.py`, `src/context.py`, `src/tui.py`, `src/commands.py`, `src/tutorial.py`, `src/ui_adapter.py`, `src/bridge`, `src/core`, `src/v7`, `src/plugins`, top-level `agents/`, `demo/` and `chaos/` are legacy/experimental migration source, not supported application entry points. The retired bridge contains unresolved references. Do not build new features on it without first migrating the required behavior into the shared runtime.
+
+## Core architecture
+
+- `gemini_bridge.py`: supported terminal entry point, startup conversation picker, prompt loop and slash commands.
+- `src/ww_client.py`: stateful Gemini Web Chat transport, cookie authentication, conversation resume, streaming and media.
+- `src/cookie_loader.py`: Netscape cookie extraction and environment precedence.
+- `src/conversation_runtime.py`: shared conversation state, tool protocol, validation, approval, feedback loop and streaming events.
+- `src/tool_protocol.py`: explicit tool-fence parsing and streaming fence filtering.
+- `src/tools/args.py`: Pydantic argument schemas.
+- `src/tools/registry.py`: shared registry and schema validation.
+- `src/tools/system_tools.py`: workspace and subprocess operations.
+- `src/tools/local_approval.py`, `tool_policy.py`, `audit.py`: local approvals, risk classification and audit records.
+- `src/dashboard/app.py`: authenticated local API and SSE endpoints.
+- `src/dashboard/session_store.py`: bounded browser session lifecycle.
+- `src/project_context.py`: project inventory and context export. There is no supported `src.smart_context` module.
+- `src/markdown_renderer.py`, `src/artifacts.py`, `src/canvas_browser.py`: terminal rendering and optional media/Android integration.
+- `src/ww_settings.py`: local preferences and chat-folder metadata.
+
+## Execution and permissions
+
+- WW is designed to run in Termux or Debian PRoot-Distro on Android, as well as ordinary Python environments.
+- PRoot is the execution/compatibility environment, **not a security sandbox**. Do not claim namespace, filesystem, network, UID or capability isolation. Commands run with the permissions of the backend process.
+- The user has explicitly abandoned hardened isolation work. Do not resume Bubblewrap, namespace or cgroup investigations unless asked.
+- Model-generated writes, patches, Git mutations and shell commands require the shared local approval controller. Read-only tools do not.
+- Shell commands execute in the backend process environment. Do not pass Gemini cookies or WW dashboard API keys into child command environments.
+- URL fetching is disabled until DNS pinning, redirect validation and SSRF handling are implemented.
+- The browser API binds to loopback by default. Do not expose it publicly without an HTTPS private tunnel/VPN and a configured CORS origin. CORS is not authentication.
+- The direct browser `/tools/execute` endpoint is opt-in and read-only. Model-generated privileged tools use the shared runtime and local terminal approval.
+- Keep output, file reads, tool rounds, subprocess duration and process cleanup bounded. Atomic file replacement is preferred. Validate candidate Python source before writing it.
+
+## Dependencies and configuration
+
+- `requirements.txt`: supported terminal/core dependencies.
+- `requirements-dashboard.txt`: core plus FastAPI/Uvicorn for the local browser backend.
+- `requirements-optional.txt`: legacy/experimental modules only; do not add optional dependencies to the core path without a demonstrated need.
+- `.env`, `cookies.txt`, API keys and generated state are local secrets/data and must never be committed.
+- `WW_WORKSPACE` selects the workspace. `WW_COOKIE_FILE` selects the Netscape cookie export. `WW_DASHBOARD_API_KEY` protects the local API. `WW_CORS_ORIGINS` configures explicit frontend origins.
+- The static Pages frontend contains no Gemini credentials. Browser API keys remain in tab sessionStorage; browser transcripts are localStorage data.
+- The old YAML settings/agent hierarchy is legacy configuration. Do not assume it configures the supported runtime unless a current call site proves it.
+
+## Tests and CI
+
+The maintained tests live in `tests/` and use `unittest` (including `IsolatedAsyncioTestCase`). The canonical commands are:
+
+```bash
+python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+python -m scripts.check_frontend_js  # requires Node.js
+python -m unittest discover -s tests -v
+python -m scripts.termux_acceptance
 ```
 
-## Setup Commands
-- Install dependencies: `pip install -r requirements.txt`
-- Set `SECURE_1PSID` and `SECURE_1PSIDTS` in `.env` (Gemini Web API credentials)
-- Run the bridge: `python gemini_bridge.py`
-- Run with verbose mode: `python gemini_bridge.py --verbose`
-- Run syntax check: `python -m py_compile gemini_bridge.py`
+The acceptance harness runs the unit suite, exercises workspace tools and process cleanup, starts the local API against a temporary workspace, and checks API authentication, runtime readiness, Pages CORS and static browser-page serving. It uses placeholder credentials and does not authenticate to Gemini.
 
-## Code Style
-- Python 3.10+ with asyncio patterns
-- Use type hints for all function signatures
-- Prefer `pathlib.Path` over `os.path` for file operations
-- Use structured tool blocks (`tool:xxx`) for all system interaction
-- Prefer surgical edits via `tool:replace` over full file rewrites
+CI is defined by:
+- `.github/workflows/ci.yml`: compile, unit/integration tests, local API/process acceptance.
+- `.github/workflows/code-quality.yml`: Ruff and compile checks.
+- `.github/workflows/pages.yml`: deploy the browser frontend.
 
-## Testing Instructions
-- Syntax check: `python -m py_compile *.py core/*.py tools/*.py utils/*.py`
-- Run benchmark tests: `python benchmarks/runner.py --suite benchmarks/golden_tasks.json`
-- Verify sandboxing: attempt to read `/etc/passwd` (should be blocked)
-- Verify memory: check `.ww/sessions/sessions.db` exists and has data
+Do not refer contributors to `.tests/`, `.tel/tests/`, or a nonexistent Makefile. Do not claim live Gemini or Android device verification based solely on unit tests or GitHub Actions. The actual device acceptance sequence is documented in `docs/architecture-review.md`.
 
-## Security Considerations
-- NEVER read `.env` files or expose credentials
-- All file operations are sandboxed to WORKSPACE_ROOT
-- Shell commands require approval for unknown/dangerous operations
-- Path traversal attacks are blocked by the Sandbox class
+## Engineering rules
+
+1. Inspect the current mainline and relevant feature branches before implementing overlapping functionality.
+2. Prefer integrating existing modules over parallel implementations.
+3. Preserve working behavior and add tests for regressions.
+4. Keep the terminal and browser clients on the same runtime and policy path.
+5. Use the narrowest dependency set that supports the active application.
+6. Distinguish implemented code, unit-tested components, CI integration tests and real device verification in all status reports.
+7. Update README and architecture docs when behavior changes. Treat legacy docs as untrusted until checked against current code.
+8. Never claim a deployment, merge, test pass or device verification unless its result has been observed.

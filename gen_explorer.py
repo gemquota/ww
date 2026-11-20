@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate self-contained architecture-explorer.html"""
+"""Generate a historical V5 architecture graph; it is not a current runtime map.
+
+The supported architecture is documented in docs/architecture-review.md.
+"""
 import json
 
 MODS = [

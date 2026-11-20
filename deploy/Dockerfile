@@ -1,66 +1,31 @@
-FROM python:3.13-slim AS builder
+FROM python:3.11-slim
 
-LABEL description="WW Bridge — Gemini Multi-Agent Coding Harness"
-LABEL maintainer="WW Team"
+LABEL description="WW local Gemini workspace API"
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy dependencies first (cache layer)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir \
-        pydantic-settings \
-        pyyaml \
-        uvicorn \
-        fastapi \
-        mkdocs \
-        mkdocs-material
+COPY requirements-dashboard.txt requirements.txt ./
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir -r requirements-dashboard.txt
 
-# Copy application
 COPY . .
 
-# Create runtime directories
-RUN mkdir -p .ww/sessions .tel/logs
+RUN groupadd --system ww \
+    && useradd --system --gid ww --home-dir /home/ww --create-home ww \
+    && mkdir -p /workspace \
+    && chown -R ww:ww /app /workspace /home/ww
 
-# --- Stage 2: Runtime ---
-FROM python:3.13-slim AS runtime
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Non-root user
-RUN groupadd -r ww && useradd -r -g ww -d /app -s /sbin/nologin ww
-
-WORKDIR /app
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /app /app
-
-# Create runtime directories with correct permissions
-RUN mkdir -p .ww/sessions .tel/logs && chown -R ww:ww /app
-
-# Default config
-ENV WW_CONFIG=/app/config.yaml
-ENV WW_WORKSPACE=/app
 ENV PYTHONUNBUFFERED=1
+ENV WW_WORKSPACE=/workspace
+ENV WW_COOKIE_FILE=/run/secrets/cookies.txt
+EXPOSE 8080
 
-# Read-only root filesystem compatibility
-VOLUME ["/app/.ww", "/app/.tel"]
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request, sys; urllib.request.urlopen('http://localhost:8080/api/v1/health', timeout=5)" 2>/dev/null || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=4)" || exit 1
 
 USER ww
 
-ENTRYPOINT ["python3", "gemini_bridge.py"]
-CMD []
+CMD ["python", "-m", "uvicorn", "src.dashboard.app:app", "--host", "0.0.0.0", "--port", "8080"]

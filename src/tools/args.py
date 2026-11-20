@@ -1,8 +1,4 @@
 """Tool implementations with Pydantic schemas."""
-import os
-import subprocess
-import asyncio
-from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -11,21 +7,18 @@ class ReadFileArgs(BaseModel):
     file_path: str = Field(
         ..., max_length=512,
         description="Path to the file to read.",
-        pattern=r"^[a-zA-Z0-9_./\\-]+$"
     )
 
 class ListDirArgs(BaseModel):
     dir_path: str = Field(
         ".", max_length=512,
         description="Path to the directory to list.",
-        pattern=r"^[a-zA-Z0-9_./\\-]+$"
     )
 
 class WriteFileArgs(BaseModel):
     file_path: str = Field(
         ..., max_length=512,
         description="Path to the file to write.",
-        pattern=r"^[a-zA-Z0-9_./\\-]+$"
     )
     content: str = Field(..., max_length=50000, description="The content to write to the file.")
 
@@ -60,7 +53,6 @@ class FilePatchArgs(BaseModel):
     file_path: str = Field(
         ..., max_length=512,
         description="The file to apply the patch to.",
-        pattern=r"^[a-zA-Z0-9_./\\-]+$"
     )
     search_text: str = Field(..., max_length=10000, description="The exact text block to find.")
     replace_text: str = Field(..., max_length=10000, description="The replacement text.")

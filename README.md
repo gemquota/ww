@@ -1,10 +1,10 @@
 # WW
 
-**A lightweight terminal client for Gemini Web Chat.**
+**A Gemini Web Chat client with a local workspace runtime and browser interface.**
 
-WW keeps the core job simple: authenticate to Gemini Web Chat, send prompts, and render responses. Interactive mode can resume previous conversations, organise them into local folders, and use Gemini Gems and account-available models.
+WW uses one shared conversation runtime for its terminal and browser clients. It handles Gemini sessions, explicit tool calls, local command execution, approval prompts, output feedback, and bounded execution loops. The browser frontend is static and can be hosted on GitHub Pages; the authenticated API and all workspace operations remain on the user's device.
 
-The Overseer, specialist agents, orchestration, tool execution, workspace scanning, plugins, persistent agent memory and dashboard remain optional extensions. None is required by the basic terminal.
+The older agent hierarchy, specialist-agent memory, plugin scanner, and experimental orchestration modules remain legacy source awaiting migration. The old src/gemini_bridge.py entry point is retired; use the root gemini_bridge.py terminal or src.dashboard.app browser backend.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ On startup, WW loads up to 20 recent Gemini conversations and displays them in p
 - Enter `>` or `<` to move between pages.
 - Enter `n` to start a new conversation, or `q` to cancel the picker.
 
-Prompts are entered at `you>`. **Press Enter to add another line; press Escape, then Enter, to send the complete multi-line message.** This keeps pasted scripts and diagnostic batches together as one Gemini turn. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
+Prompts are entered at `you>`. **Press Enter to add another line; press Escape, then Enter, to send the complete multi-line message.** This keeps pasted scripts and diagnostic batches together as one Gemini turn. Prompt history persists under $XDG_STATE_HOME/ww/history (or ~/.local/state/ww/history), with prompt-toolkit history search and command completion. Gemini responses are rendered as Markdown. Interactive `<ElicitationsGroup>` / `<Elicitation>` suggestions appear as numbered choices; enter a number to send that option's exact `query` as the next prompt.
 
 ### Commands
 
@@ -100,6 +100,60 @@ Folders are local labels associated with Gemini conversation IDs. They do not cr
 python gemini_bridge.py --prompt "Explain TCP versus UDP"
 ```
 
+## Browser workspace and local backend
+
+The browser frontend is a static page deployed from src/dashboard/chat.html to [https://gemquota.github.io/ww/](https://gemquota.github.io/ww/) by the Pages workflow. The gh-pages root index is also kept in sync for branch-based Pages setups. It contains no Gemini credentials or backend secrets. It connects to the local WW API, which runs on the device and uses the same ConversationRuntime as the terminal. The browser currently provides text chat, streaming, tool execution and Markdown rendering; terminal-only media/Canvas slash commands and multimodal attachment upload/rendering are not yet exposed there.
+
+### Install the backend dependencies
+
+From the WW repository, inside the Debian PRoot environment:
+
+```bash
+python -m pip install -r requirements-dashboard.txt
+```
+
+### Configure the backend
+
+Put your Gemini cookies.txt in the WW repository root, or set SECURE_1PSID (and optionally SECURE_1PSIDTS) in your local .env. Then configure the API key and workspace:
+
+```bash
+export WW_DASHBOARD_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export WW_WORKSPACE="$HOME/path/to/your/project"
+```
+
+Keep the API key in your local environment or gitignored .env; never commit it. The default CORS allowlist already includes https://gemquota.github.io. Set WW_CORS_ORIGINS only if you use another frontend origin.
+
+### Start the local API
+
+Run this in the Debian PRoot environment, from the WW repository:
+
+```bash
+uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
+```
+
+The server binds to loopback by default. Chrome may ask for Local Network Access permission when the Pages site connects to localhost; allow it for the trusted Pages origin. PRoot is an execution environment, not a security sandbox. Keep the server running in the foreground when using model-generated tools: write, patch, Git mutation, and shell operations display their approval request in this Termux terminal. Read-only inspection tools do not require approval. Tool commands execute in the same environment as the backend process. Start the API from inside Debian PRoot when you want workspace commands to run there; WW does not launch or switch into PRoot itself.
+
+### Connect the Pages frontend
+
+1. In repository Settings → Pages, select **GitHub Actions** as the deployment source when using the workflow. For branch-based deployment, select gh-pages and the root folder.
+2. Open [WW on GitHub Pages](https://gemquota.github.io/ww/).
+3. Expand **Backend connection** in the left sidebar.
+4. Set the API URL to http://127.0.0.1:8080 when the browser and backend are on the same Android device.
+5. Enter WW_DASHBOARD_API_KEY and connect.
+
+For a browser on another device or network, use an HTTPS tunnel or private VPN endpoint that forwards to the local loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API addresses.
+
+The frontend streams responses and tool lifecycle events, renders Markdown and code blocks locally, and keeps bounded, debounced browser-side conversation history. The API key is held in the current tab's sessionStorage; conversation text is stored in that browser's localStorage until you clear its local history. Gemini conversations themselves remain in the Google account and can be resumed using their conversation IDs.
+
+### Shared API
+
+- GET /api/v1/health — authenticated API health
+- GET /api/v1/runtime — workspace, runtime and credential readiness
+- POST /api/v1/chat/stream — streaming chat and tool lifecycle events (SSE)
+- POST /chat — non-streaming compatibility endpoint
+- POST /tools/execute — opt-in read-only direct tool API; disabled unless WW_REMOTE_TOOLS_ENABLED=1
+
+Model-generated privileged tool calls are handled by the shared runtime and require local approval in the backend terminal. The direct browser tool endpoint remains read-only and disabled by default.
 ### Project context export and attachment
 
 Run `/context` from inside a project to detect its Git/project root, recursively inventory its directories and files, and attach a structured JSON snapshot to the active Gemini conversation. You can also pass an explicit path:
@@ -207,20 +261,28 @@ The settings file contains the chat page size, default model, default Gem ID, an
 ## Core architecture
 
 ```text
-Terminal -> cookie loader -> WWClient -> Gemini Web Chat
-                         \-> local preferences and folder metadata
+Terminal CLI ───────┐
+                    ├── ConversationRuntime ── WWClient ── Gemini Web Chat
+GitHub Pages UI ────┘          │
+                               ├── Tool protocol and schema validation
+                               ├── Local approval and audit
+                               └── Termux / PRoot process and workspace tools
 ```
 
-The core runtime uses the terminal entry point, a small cookie loader, the conversation transport, local JSON preferences, the project-context exporter, and the Gemini Web client library. It does not require an API key, agent hierarchy, tools, repository access, or a local database.
+The terminal and browser use the same stateful Gemini transport, tool registry, execution policy, and feedback loop. The browser page is only a client: it does not execute commands itself and does not contain Gemini credentials. The backend runs on the user's device, where workspace access, subprocess execution, and local approval take place.
 
 ## Notes
 
 WW uses the unofficial `gemini-webapi` integration. Google can change its web interface or invalidate session cookies, so the integration may need maintenance. This is a web-session client, not an official Google API.
 
+
+The Termux acceptance harness runs the unit suite, exercises workspace reads/writes, tests process-group timeout cleanup, starts the local API against a temporary workspace, and verifies authentication, runtime readiness, Pages CORS and browser-page serving. It uses placeholder credentials and does not make a live Gemini request.
+
 ## Development
 
 ```bash
-python -m pip install -r requirements.txt
-python -m py_compile gemini_bridge.py src/*.py
-python -m unittest discover -s tests -v
+python -m pip install -r requirements-dashboard.txt
+python -m compileall -q src scripts tests gemini_bridge.py ww_dev.py
+python -m scripts.check_frontend_js  # requires Node.js
+python -m scripts.termux_acceptance
 ```

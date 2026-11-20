@@ -1,47 +1,27 @@
-version: "3.9"
-
 services:
-  ww-bridge:
+  ww:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: ww-bridge
-    image: ww-bridge:latest
+    container_name: ww-local
+    image: ww-local:latest
     restart: unless-stopped
+    user: "${WW_UID:-1000}:${WW_GID:-1000}"
     ports:
-      - "${WW_DASHBOARD_PORT:-8080}:8080"
+      - "127.0.0.1:${WW_DASHBOARD_PORT:-8080}:8080"
     volumes:
-      - "${WW_WORKSPACE_MOUNT:-../.}:/app"
-      - ww-sessions:/app/.ww/sessions
-      - "${WW_CONFIG_MOUNT:-../config.yaml}:/app/config.yaml:ro"
+      - "${WW_WORKSPACE_MOUNT:-../.}:/workspace"
+      - "${WW_COOKIE_FILE_MOUNT:-../cookies.txt}:/run/secrets/cookies.txt:ro"
     env_file:
       - ../.env
     environment:
-      - WW_CONFIG=/app/config.yaml
-      - WW_WORKSPACE=/app
-      - WW_DASHBOARD__HOST=0.0.0.0
-      - WW_DASHBOARD__PORT=8080
-      - PYTHONUNBUFFERED=1
-    stdin_open: true
-    tty: true
+      WW_WORKSPACE: /workspace
+      WW_EXECUTION_BACKEND: docker
+      WW_COOKIE_FILE: /run/secrets/cookies.txt
+      WW_AUDIT_LOG: /workspace/.ww/audit.jsonl
+      WW_CORS_ORIGINS: "${WW_CORS_ORIGINS:-https://gemquota.github.io}"
+      WW_DASHBOARD_API_KEY: "${WW_DASHBOARD_API_KEY:?Set WW_DASHBOARD_API_KEY in the environment or .env}"
+      PYTHONUNBUFFERED: "1"
 
-  dashboard:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    container_name: ww-dashboard
-    image: ww-bridge:latest
-    restart: unless-stopped
-    ports:
-      - "${WW_DASHBOARD_PORT:-8080}:8080"
-    volumes:
-      - ww-sessions:/app/.ww/sessions:ro
-    env_file:
-      - ../.env
-    environment:
-      - WW_CONFIG=/app/config.yaml
-      - WW_WORKSPACE=/app
-    command: ["uvicorn", "src.dashboard.app:app", "--host", "0.0.0.0", "--port", "8080"]
-
-volumes:
-  ww-sessions:
+# The image defaults to the local browser API. To run the terminal instead:
+# docker compose -f deploy/docker-compose.yml run --rm --entrypoint python ww gemini_bridge.py

@@ -1,3 +1,5 @@
+> **Historical only (2026-11-20):** Isolation work was explicitly abandoned. PRoot is the execution environment, not a security sandbox. Do not resume Bubblewrap, namespace, cgroup or capability-probe work unless the user explicitly requests it. See [the current architecture review](architecture-review.md).
+
 # Android / Termux host evaluation
 
 **Collected:** 2026-11-19  

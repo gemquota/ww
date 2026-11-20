@@ -1,15 +1,15 @@
 import inspect
 import asyncio
 from typing import Dict, Callable, Any, List, Optional, Type, Set
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ToolNode(BaseModel):
     name: str
     func: Callable
     description: str
     schema_type: Optional[Type[BaseModel]]
-    dependencies: Set[str] = set()
-    tags: List[str] = []
+    dependencies: Set[str] = Field(default_factory=set)
+    tags: List[str] = Field(default_factory=list)
 
 class CircularDependencyError(ValueError):
     """Raised when tool dependencies form a cycle."""
@@ -61,16 +61,37 @@ class ToolRegistry:
         schema_info = f" Args: {node.schema_type.model_json_schema()}" if node.schema_type else ""
         return f"- {name}: {node.description}{schema_info}"
 
+    def validate_arguments(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and normalize arguments using the registered Pydantic schema."""
+        if name not in self.tools:
+            raise KeyError(f"Tool '{name}' not found.")
+        if not isinstance(args, dict):
+            raise TypeError("Tool arguments must be an object.")
+        schema = self.tools[name].schema_type
+        if schema is None:
+            return dict(args)
+        validator = getattr(schema, "model_validate", None)
+        model = validator(args) if validator else schema.parse_obj(args)
+        dump = getattr(model, "model_dump", None)
+        return dump() if dump else model.dict()
+
     async def execute(self, name: str, args: Dict[str, Any]) -> str:
+        """Validate arguments and execute sync or async tools without blocking the event loop."""
         if name not in self.tools:
             return f"ERROR: Tool '{name}' not found."
         try:
-            func = self.tools[name].func
+            node = self.tools[name]
+            validated_args = self.validate_arguments(name, args)
+            func = node.func
             if inspect.iscoroutinefunction(func):
-                return await func(**args)
-            return func(**args)
+                result = await func(**validated_args)
+            else:
+                result = await asyncio.to_thread(func, **validated_args)
+                if inspect.isawaitable(result):
+                    result = await result
+            return result if isinstance(result, str) else str(result)
         except Exception as e:
-            return f"TOOL ERROR ({name}): {e}"
+            return f"TOOL ERROR ({name}): {type(e).__name__}: {e}"
 
     def resolve_dag(self, target_tool: str) -> List[str]:
         """Resolve the dependency chain for a tool via DFS.
@@ -159,7 +180,7 @@ class ToolRegistry:
                 # Gather args from dependency results
                 args = {}
                 if name == target_tool:
-                    args = root_args
+                    args = dict(root_args)
                 node = self.tools[name]
                 for dep in node.dependencies:
                     if dep in results:

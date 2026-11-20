@@ -1,4 +1,6 @@
 """
+LEGACY: not used by the supported terminal/browser runtime. See AGENTS.md and docs/architecture-review.md.
+
 BridgeContext — centralized state container for the WW Bridge.
 
 Replaces module-level mutable singletons with a single dataclass
@@ -19,12 +21,13 @@ from src.core.memory import MemoryManager
 from src.core.healing import AutoHealer
 from src.bridge.causal_graph import CausalGraph
 from src.tools.registry import ToolRegistry
+from src.tools.args import (
+    ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
+    GitArgs, DocSearchArgs, ClarificationArgs, CodeSearchArgs, FilePatchArgs,
+)
 from src.tools.system_tools import (
     read_file, list_dir, write_file, shell_exec, git_tool,
-    doc_search, request_clarification, code_search, file_patch, url_fetch,
-    ReadFileArgs, ListDirArgs, WriteFileArgs, ShellExecArgs,
-    GitArgs, DocSearchArgs, ClarificationArgs,
-    CodeSearchArgs, FilePatchArgs, UrlFetchArgs
+    doc_search, request_clarification, code_search, file_patch,
 )
 from src.permissions import ApprovalPolicy
 from src.utils.web_client import WebGeminiClient
@@ -56,7 +59,7 @@ class BridgeContext:
 
     # Tool system
     tool_registry: Optional[ToolRegistry] = None
-    tool_defs: list = field(default_factory=list)
+    tool_defs: str = ""
 
     # Plugin system
     plugin_scanner: Optional[Any] = None  # PluginScanner type
@@ -113,12 +116,11 @@ class BridgeContext:
         ctx.tool_registry.register("request_clarification", request_clarification, "Ask the user for more information.", ClarificationArgs, tags=["comm", "interrupt"])
         ctx.tool_registry.register("code_search", code_search, "Search for a regex pattern across project files.", CodeSearchArgs, tags=["read", "research", "search"])
         ctx.tool_registry.register("file_patch", file_patch, "Apply a surgical text replacement in a file.", FilePatchArgs, tags=["write", "edit", "patch"])
-        ctx.tool_registry.register("url_fetch", url_fetch, "Fetch a URL via HTTP GET with configurable timeout.", UrlFetchArgs, tags=["read", "network"])
 
-        ctx.tool_defs = ctx.tool_registry.get_definitions(minimalist=True)
+        ctx.tool_defs = ctx.tool_registry.get_definitions()
 
         # Set workspace root for sandboxed tool operations
-        from src.tools.system_tools import set_workspace_root as _set_tools_root
+        from src.tools.workspace import set_workspace_root as _set_tools_root
         _set_tools_root(workspace_root)
 
         return ctx
