@@ -324,11 +324,12 @@ async def git_tool(command: str, message: Optional[str] = None) -> str:
         return f"GIT ERROR: {e}"
 
 async def doc_search(query: str) -> str:
-    """Search project documentation in docs/ and meta/ directories."""
-    search_paths = []
-    for sp in [Path("docs"), Path("meta")]:
-        if sp.exists():
-            search_paths.append(sp)
+    """Search documentation under the configured workspace, not process CWD."""
+    root = _get_workspace_root().resolve()
+    search_paths = [
+        root / name for name in ("docs", "meta")
+        if (root / name).is_dir()
+    ]
     if not search_paths:
         return "ERROR: No documentation directories (docs/ or meta/) found."
 
@@ -337,11 +338,11 @@ async def doc_search(query: str) -> str:
         try:
             stdout, stderr, _ = await _run_process(
                 "grep", "-rnEi", "--include=*.md", "--", query, str(sp),
-                cwd=_get_workspace_root(), timeout=15, output_limit=1024 * 1024,
+                cwd=root, timeout=15, output_limit=1024 * 1024,
             )
             out = stdout.decode(errors="replace").strip()
             if out:
-                results.append(f"[{sp}/]\n{out}")
+                results.append(f"[{sp.relative_to(root)}/]\n{out}")
         except Exception:
             continue
 
