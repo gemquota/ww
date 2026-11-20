@@ -2,7 +2,7 @@
 
 **Assessment date:** 2026-11-20  
 **Baseline at review start:** main at 0043cb1516e2d4299e1804e4595e100917ad67d2  
-**Repository inventory at review start:** 33 branches including main; no open pull requests. The integration/unified-runtime branch and PR #44 were created after that snapshot.
+**Repository inventory:** 34 branches including main and integration/unified-runtime. The 32 other non-main/non-integration branches were enumerated and compared against the consolidated branch. PR #44 is the active integration review.
 
 ## Integration policy
 
@@ -15,7 +15,7 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 | Branch | Decision | Evidence / rationale |
 |---|---|---|
 | main | Keep as baseline | Current application and merged Phase 1/2 work. |
-| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Core CI and code-quality both passed on head 3d46f1b; ready for squash merge, with device verification outstanding. |
+| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Both CI workflows passed on cc258d8, before the subsequent documentation-search fix and regression test. The latest head still needs fresh CI and mergeability confirmation; device verification remains outstanding. |
 | chore/lint-multimodal-canvas | Do not merge | Main already has a newer code-quality workflow, including project-context coverage. |
 | dependabot/pip/google-genai-gte-2.9.0 | Close/archive | No commits ahead of main; dependency is not part of the current core transport. |
 | dependabot/pip/prompt-toolkit-gte-3.0.52 | Close/archive | No commits ahead; main already requires prompt-toolkit 3.0.53 or newer. |
@@ -84,3 +84,9 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 The older src/gemini_bridge.py and src/tool_executor.py remain in the repository as retired migration source and contain unresolved references. They are not used by the supported terminal or browser app. Advanced specialist-agent, memory-tier and orchestration features have not been ported; they remain explicitly outside the supported runtime unless separately requested.
 
 No feature branch should be merged wholesale after this review. Remaining useful changes should be ported as isolated, tested commits against the shared runtime. PR #44 is the consolidated integration branch; it must pass the final CI and code-quality checks before squash merge.
+
+
+## Review coverage and limits
+
+The branch inventory and comparisons cover every branch present in the repository at the time of review. Feature decisions are based on branch diffs, unique commits and the current implementation; this is not a claim that every historical line on every branch received an independent line-by-line audit. Distinctive feature work was assessed for whether its behavior already exists, conflicts with the consolidated architecture, or merits a selective port. The shared runtime, workspace tools, approval path, browser session lifecycle and subprocess handling received a separate source-level review. Final CI on the current PR head and on-device Termux/PRoot plus Android browser acceptance are still required before merge.
+
