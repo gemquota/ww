@@ -15,7 +15,7 @@ The default terminal and dashboard now share ConversationRuntime, WWClient, tool
 | Branch | Decision | Evidence / rationale |
 |---|---|---|
 | main | Keep as baseline | Current application and merged Phase 1/2 work. |
-| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Both CI workflows passed on cc258d8, before the subsequent documentation-search fix and regression test. The latest head still needs fresh CI and mergeability confirmation; device verification remains outstanding. |
+| integration/unified-runtime | Consolidated PR #44 | Shared terminal/browser runtime, Pages frontend, acceptance harness and repository cleanup. Both CI workflows passed on head 2a4e290, including the documentation-search regression test and local API/process acceptance. PR #44 is mergeable; real Termux/PRoot, Gemini and Android browser verification remain outstanding. |
 | chore/lint-multimodal-canvas | Do not merge | Main already has a newer code-quality workflow, including project-context coverage. |
 | dependabot/pip/google-genai-gte-2.9.0 | Close/archive | No commits ahead of main; dependency is not part of the current core transport. |
 | dependabot/pip/prompt-toolkit-gte-3.0.52 | Close/archive | No commits ahead; main already requires prompt-toolkit 3.0.53 or newer. |
