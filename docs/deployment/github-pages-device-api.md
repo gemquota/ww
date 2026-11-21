@@ -59,7 +59,7 @@ For another device or network, use an HTTPS tunnel or private VPN endpoint forwa
 - `POST /tools/execute` is disabled unless `WW_REMOTE_TOOLS_ENABLED=1`; even then it exposes only read-only `read_file` and `list_dir`.
 - Model-generated privileged tools use the shared ConversationRuntime and local terminal approval.
 - CORS allows only explicitly configured origins. CORS is not authentication.
-- Browser API keys are held in tab sessionStorage; browser transcripts are localStorage data.
+- After a successful connection, the browser saves the API URL and dashboard key in localStorage and restores them on later visits. The saved key is plaintext and accessible to scripts running on the Pages origin; use a trusted browser profile and clear it when finished.
 
 The browser API does not expose a shell endpoint directly. This does not make the backend a sandbox: approved model-generated shell commands execute with the backend process's normal permissions.
 

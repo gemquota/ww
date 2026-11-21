@@ -52,7 +52,7 @@
         <div class="field"><label for="apiUrl">LOCAL API URL</label><input id="apiUrl" type="url" inputmode="url" autocomplete="url" placeholder="http://127.0.0.1:8080"></div>
         <div class="field"><label for="apiKey">DASHBOARD API KEY</label><div class="key-row"><input id="apiKey" type="password" autocomplete="off" placeholder="WW API key"><button class="small-button" id="showKey" type="button">Show</button></div></div>
         <button class="connect-button" id="connectButton" type="button">Connect to WW</button>
-        <div id="runtimeInfo" style="font-size:10px;color:var(--muted);line-height:1.5"></div><div style="font-size:9px;color:#71847e;line-height:1.5">The API key stays in this tab. Conversation text is stored locally in this browser until you clear its history. Chrome may ask permission for local network access when connecting to localhost or a LAN address.</div>
+        <div id="runtimeInfo" style="font-size:10px;color:var(--muted);line-height:1.5"></div><div style="font-size:9px;color:#71847e;line-height:1.5">After a successful connection, the API URL and key are saved in this browser’s local cache so they survive closing the tab. They are stored on this browser profile and are accessible to scripts running on this site. Chrome may ask permission for local network access when connecting to localhost or a LAN address.</div><button class="clear-local" id="clearConnection" type="button">Forget saved backend connection</button>
       </div>
       <button class="clear-local" id="clearHistory" type="button">Clear local conversation history</button>
     </div>
@@ -101,6 +101,7 @@
   const fence = String.fromCharCode(96);
   const storageKey = "ww-browser-conversations-v1";
   const activeKey = "ww-browser-active-conversation";
+  const connectionKey = "ww-browser-connection-v1";
   const apiUrl = $("apiUrl"), apiKey = $("apiKey"), messages = $("messages");
   let conversations = loadConversations();
   let activeId = localStorage.getItem(activeKey) || "";
@@ -503,8 +504,7 @@
     clearError();
     try {
       const headers = authHeaders(false);
-      sessionStorage.setItem("ww-api-url",base);
-      sessionStorage.setItem("ww-api-key",apiKey.value.trim());
+      const base = apiBase();
       setConnection("busy","Checking local API");
       const health = await fetchApi("/api/v1/health",{headers});
       if (!health.ok) throw new Error("Health check returned HTTP " + health.status + ".");
@@ -514,6 +514,7 @@
       if (!data.gemini_credentials_configured) {
         throw new Error("The local API is reachable, but Gemini credentials were not found. Add cookies.txt or SECURE_1PSID to the backend environment.");
       }
+      localStorage.setItem(connectionKey,JSON.stringify({url:base,key:apiKey.value.trim()}));
       connected = true;
       $("runtimeInfo").textContent = "Workspace: " + (data.workspace || "local") + " · Python " + (data.python || "unknown") + " · " + (data.execution_backend || "local") + " · Gemini credentials found";
       $("workspaceTag").textContent = "WORKSPACE · " + (data.workspace || "LOCAL");
@@ -646,6 +647,17 @@
     $("settingsChevron").textContent = open ? "−" : "＋";
   });
   $("connectButton").addEventListener("click",connectBackend);
+  $("clearConnection").addEventListener("click",() => {
+    localStorage.removeItem(connectionKey);
+    apiUrl.value = "";
+    apiKey.value = "";
+    connected = false;
+    setConnection("offline","Saved connection forgotten");
+    $("runtimeInfo").textContent = "";
+    $("workspaceTag").textContent = "WW · LOCAL";
+    $("settings").classList.add("open");
+    $("settingsChevron").textContent = "−";
+  });
   $("showKey").addEventListener("click",() => {
     apiKey.type = apiKey.type === "password" ? "text" : "password";
     $("showKey").textContent = apiKey.type === "password" ? "Show" : "Hide";
@@ -659,8 +671,10 @@
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitMessage(); }
   });
   bindSuggestions(document);
-  apiUrl.value = sessionStorage.getItem("ww-api-url") || (location.hostname.endsWith("github.io") ? "" : location.origin);
-  apiKey.value = sessionStorage.getItem("ww-api-key") || "";
+  let savedConnection = null;
+  try { savedConnection = JSON.parse(localStorage.getItem(connectionKey) || "null"); } catch (_) { localStorage.removeItem(connectionKey); }
+  apiUrl.value = savedConnection && typeof savedConnection.url === "string" ? savedConnection.url : (location.hostname.endsWith("github.io") ? "" : location.origin);
+  apiKey.value = savedConnection && typeof savedConnection.key === "string" ? savedConnection.key : "";
   if (!active) newConversation(); else { renderActive(); renderConversationList(); }
   if (apiUrl.value && apiKey.value) connectBackend();
 })();
