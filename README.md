@@ -143,7 +143,7 @@ The server binds to loopback by default. Chrome may ask for Local Network Access
 
 For a browser on another device or network, use an HTTPS tunnel or private VPN endpoint that forwards to the local loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API addresses.
 
-The frontend streams responses and tool lifecycle events, renders Markdown and code blocks locally, and keeps bounded, debounced browser-side conversation history. The API key is held in the current tab's sessionStorage; conversation text is stored in that browser's localStorage until you clear its local history. Gemini conversations themselves remain in the Google account and can be resumed using their conversation IDs.
+The frontend streams responses and tool lifecycle events, renders Markdown and code blocks locally, and keeps bounded, debounced browser-side conversation history. After a successful connection, the API URL and dashboard key are saved in that browser's localStorage and restored on later visits. Conversation text is also stored in localStorage until you clear its local history. The saved key is plaintext browser storage, so use this only in a browser profile you control; scripts running on the GitHub Pages origin can access it. Gemini conversations themselves remain in the Google account and can be resumed using their conversation IDs.
 
 ### Shared API
 
