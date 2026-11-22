@@ -30,12 +30,11 @@ class RabMacroIntegrationTests(unittest.TestCase):
         self.assertTrue(close["hideOnClick"])
         self.assertEqual(close["configuredActionClassType"], "FloatingTextAction")
         close_action = json.loads(close["configuredActionJson"])
-        self.assertEqual(close_action["option"], 1)
-        self.assertEqual(close_action["identifier"], "rab_action_status")
+        self.assertEqual(close_action["option"], 2)  # Hide all floating-text overlays, including stale test cards.
 
     def test_dismissal_only_hides_overlays_and_does_not_cancel_session(self):
-        clear_actions = [a for a in self.actions if a.get("option") == 1 and a.get("m_classType") == "FloatingTextAction"]
-        self.assertEqual({a["identifier"] for a in clear_actions}, {"rab_action_status", "rab_action_close"})
+        clear_actions = [a for a in self.actions if a.get("m_classType") == "FloatingTextAction" and a.get("option") == 2]
+        self.assertEqual(len(clear_actions), 1)
         self.assertFalse(any(a.get("m_classType") in {"CancelActiveMacroAction", "TerminateRunningAction"} for a in self.actions))
         self.assertEqual(self.macro["m_name"], "RAB Local Android Bridge")
 
