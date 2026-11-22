@@ -1,0 +1,3 @@
+#!/data/data/com.termux/files/usr/bin/bash
+cd "$HOME/dev/rab"
+exec python3 -m rab.cli "$@"
