@@ -19,6 +19,7 @@ from src.dashboard.routes_auth import dispatch_request, verify_api_key
 from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
 from src.tools.workspace import set_workspace_root
 from src.ww_client import WWClient
+from src.ui_controller import decide as decide_controller, record_feedback as record_ui_feedback
 from src.ui_decision import (
     JevConfigurationError,
     JevRequestError,
@@ -80,6 +81,14 @@ class UIDecisionRequest(BaseModel):
     objective: str = Field(min_length=1, max_length=1000)
     observation: dict = Field(default_factory=dict)
     candidates: list[UIActionCandidate] = Field(min_length=1, max_length=16)
+
+
+class UIControllerFeedback(BaseModel):
+    objective: str = Field(min_length=1, max_length=1000)
+    observation: dict = Field(default_factory=dict)
+    action_id: str = Field(min_length=1, max_length=64)
+    outcome: str = Field(pattern="^(success|failure|uncertain)$")
+    note: str = Field(default="", max_length=500)
 
 
 # API Versioning & Rate Limiting
@@ -219,6 +228,34 @@ async def decide_ui(request: UIDecisionRequest):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except JevRequestError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/ui/controller/decide", dependencies=[Security(verify_api_key)])
+async def decide_ui_controller(request: UIDecisionRequest):
+    """Route a UI choice to fast Jev or explicitly request deliberation."""
+    try:
+        return await decide_controller(
+            objective=request.objective,
+            observation=request.observation,
+            candidates=[candidate.model_dump() for candidate in request.candidates],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/ui/controller/feedback", dependencies=[Security(verify_api_key)])
+async def ui_controller_feedback(request: UIControllerFeedback):
+    """Persist outcome feedback for the local UI decision policy."""
+    try:
+        return record_ui_feedback(
+            objective=request.objective,
+            observation=request.observation,
+            action_id=request.action_id,
+            outcome=request.outcome,
+            note=request.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/chat", response_model=ChatResponse, dependencies=[Security(verify_api_key)])
@@ -482,6 +519,8 @@ async def root():
             "POST /api/v1/chat/stream": "Streaming chat and tool events",
             "POST /chat": "Non-streaming compatibility chat",
             "POST /api/v1/ui/decide": "Jev UI action suggestion (never executes actions)",
+            "POST /api/v1/ui/controller/decide": "System 1/System 2 decision routing",
+            "POST /api/v1/ui/controller/feedback": "Record UI action outcome",
             "POST /tools/execute": "Opt-in read-only tool execution",
             "GET  /chat-ui": "Serve the browser workspace",
             "GET  /sessions": "List recent telemetry sessions",
