@@ -6,9 +6,12 @@ cannot expand the candidate set or grant permission to act.
 from __future__ import annotations
 
 import json
+import os
 import re
+from pathlib import Path
 from typing import Any
 
+from src.cookie_loader import load_cookie_environment
 from src.ww_client import WWClient
 
 
@@ -35,6 +38,13 @@ async def deliberate_ui_action(
     experience: dict[str, Any],
 ) -> dict[str, Any]:
     """Ask Gemini to deliberate over the fixed candidate set."""
+    # Match the dashboard's cookie-file fallback so System Two can use the
+    # same Gemini Web Chat credentials as the browser runtime.
+    if not os.getenv("SECURE_1PSID"):
+        cookie_file = Path(os.getenv("WW_COOKIE_FILE", "cookies.txt")).expanduser()
+        if cookie_file.is_file():
+            load_cookie_environment(cookie_file)
+
     client = WWClient()
     try:
         await client.connect()
