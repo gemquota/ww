@@ -54,6 +54,7 @@ _POLICIES = {
     "shell_exec": ToolPolicy(ToolRisk.EXECUTION),
     "url_fetch": ToolPolicy(ToolRisk.NETWORK),
     "rab_device_action": ToolPolicy(ToolRisk.EXECUTION),
+    "rab_ui_action": ToolPolicy(ToolRisk.EXECUTION),
 }
 
 _DENIED = ToolPolicy(ToolRisk.DENY)
