@@ -46,6 +46,7 @@ from src.tools.tool_policy import (
 )
 from src.tools.workspace import set_workspace_root
 from src.rab_tools import RABDeviceActionArgs, rab_device_action
+from src.rab_ui_controller import RABUIActionArgs, rab_ui_action
 
 
 SYSTEM_PROMPT = """You are WW, a coding and project-work assistant running through a local
@@ -93,6 +94,7 @@ _TOOL_SCHEMAS = {
     "file_patch": FilePatchArgs,
     "request_clarification": ClarificationArgs,
     "rab_device_action": RABDeviceActionArgs,
+    "rab_ui_action": RABUIActionArgs,
 }
 
 _TOOL_FUNCTIONS = {
@@ -106,6 +108,7 @@ _TOOL_FUNCTIONS = {
     "file_patch": file_patch,
     "request_clarification": request_clarification,
     "rab_device_action": rab_device_action,
+    "rab_ui_action": rab_ui_action,
 }
 
 _TOOL_DESCRIPTIONS = {
@@ -119,6 +122,7 @@ _TOOL_DESCRIPTIONS = {
     "file_patch": "Replace one exact text block in a workspace file. Args: file_path, search_text, replace_text. Requires local approval.",
     "request_clarification": "Return a clarification request. Args: question.",
     "rab_device_action": "Perform an explicitly approved Android operation through RAB. Args: operation, params. Device interaction always requires local approval; operations are allowlisted and the bridge acknowledgement is checked.",
+    "rab_ui_action": "Use Jev/Gemini to select among validated Android UI candidates, then dispatch the selected low/medium-risk action through the RAB ledger. Args: objective, observation, candidates (each has id, description, operation, params, risk). Requires local approval before any device input. Returns pending verification, never claims success from HTTP acknowledgement.",
 }
 
 

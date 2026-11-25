@@ -13,6 +13,10 @@ class RABDeviceToolTests(unittest.TestCase):
         self.assertEqual(policy_for_tool("rab_device_action").risk, ToolRisk.EXECUTION)
         self.assertTrue(policy_for_tool("rab_device_action").requires_approval)
         self.assertFalse(policy_for_tool("rab_device_action").remote_allowed)
+        self.assertIn("rab_ui_action", registry.tools)
+        self.assertEqual(policy_for_tool("rab_ui_action").risk, ToolRisk.EXECUTION)
+        self.assertTrue(policy_for_tool("rab_ui_action").requires_approval)
+        self.assertFalse(policy_for_tool("rab_ui_action").remote_allowed)
 
     def test_schema_limits_operations_to_allowlist(self):
         args = RABDeviceActionArgs(operation="tap", params={"x": 12, "y": 34})
