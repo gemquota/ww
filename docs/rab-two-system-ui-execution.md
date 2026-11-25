@@ -10,7 +10,9 @@ read-only tool surface.
 
 The tool accepts:
 - `objective`: the intended UI outcome.
-- `observation`: caller-supplied coarse current UI state (app/screen/page/dialog/mode).
+- `observation`: caller-supplied UI state; only app/screen/page/dialog/mode are
+  forwarded to hosted decision services. Raw text, screenshots, and other fields
+  are discarded before model calls.
 - `candidates`: 1-12 unique candidate IDs with description, allowlisted operation,
   operation-specific parameters, and risk.
 
