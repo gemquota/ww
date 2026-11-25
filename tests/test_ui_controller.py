@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from src import ui_controller
 
@@ -36,7 +36,7 @@ class ControllerMemoryTests(unittest.TestCase):
             )
         suggestion = {"status": "suggest", "action_id": "settings", "reasons": []}
         with patch.object(ui_controller, "jev_enabled", return_value=True):
-            with patch.object(ui_controller, "decide_ui_action", return_value=suggestion):
+            with patch.object(ui_controller, "decide_ui_action", new=AsyncMock(return_value=suggestion)):
                 async_result = ui_controller.decide(
                     objective="Navigate settings", observation=self.observation,
                     candidates=[{"id":"settings","description":"Open settings","risk":"low"}],
