@@ -33,7 +33,9 @@ never dispatched through this tool.
 The RAB runtime requires `automation.rab_android_bridge` to be executable in
 its capability manifest and the MacroDroid HTTP bridge to be reachable on
 127.0.0.1:8080. If the macro is not imported/enabled, the service is offline,
-or accessibility permissions are missing, execution fails closed.
+or accessibility permissions are missing, execution fails closed. Gemini System Two uses
+`WW_UI_SYSTEM2_TIMEOUT` (default 75 seconds) for its connection and reasoning
+request; timeout or authentication failures also fail closed.
 
 ## Verification boundary
 
