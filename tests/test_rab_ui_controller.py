@@ -60,12 +60,13 @@ class RABUIControllerTests(unittest.IsolatedAsyncioTestCase):
         }
         with patch("integrations.rab.runtime.rab.store.read_manifest", return_value={"capabilities":[{"id":"automation.rab_android_bridge","state":"executable"}]}), \
              patch("integrations.rab.runtime.rab.bridge.probe", return_value={"reachable": True}), \
-             patch("src.rab_ui_controller.decide_ui", new=AsyncMock(return_value=self.decision)), \
+             patch("src.rab_ui_controller.decide_ui", new=AsyncMock(return_value=self.decision)) as decide, \
              patch("integrations.rab.runtime.rab.runtime.execute", return_value=acknowledged) as execute:
             raw = await rab_ui_action(
-                "Open settings", {"app": "demo", "screen": "home"}, [self.candidate]
+                "Open settings", {"app": "demo", "screen": "home", "private_text": "secret", "screenshot": "base64"}, [self.candidate]
             )
         result = json.loads(raw)
+        self.assertEqual(decide.await_args.kwargs["observation"], {"app": "demo", "screen": "home"})
         self.assertEqual(result["status"], "dispatched")
         self.assertEqual(result["verification_status"], "pending")
         self.assertFalse(result["execution_permitted"])
