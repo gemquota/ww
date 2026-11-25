@@ -77,6 +77,20 @@ class FakeResearchGemini(FakeGemini):
         return SimpleNamespace(turns=[SimpleNamespace(role="model", model_output=output)])
 
 
+class WWClientHeadlessTests(unittest.IsolatedAsyncioTestCase):
+    async def test_connect_can_skip_recent_chat_enumeration(self):
+        instances = []
+        def factory(*args):
+            client = FakeGemini(*args)
+            instances.append(client)
+            return client
+        ww = WWClient("cookie", client_factory=factory, load_recent_chats=False)
+        await ww.connect()
+        self.assertIsNone(instances[0].recent_limit)
+        self.assertEqual(len(instances[0].chat_calls), 1)
+        await ww.close()
+
+
 class WWClientStructuredTests(unittest.IsolatedAsyncioTestCase):
     async def test_ask_output_preserves_the_structured_response(self):
         ww = WWClient("cookie", client_factory=FakeResearchGemini)
