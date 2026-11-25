@@ -46,8 +46,10 @@ async def deliberate_ui_action(
         if cookie_file.is_file():
             load_cookie_environment(cookie_file)
 
-    client = WWClient()
-    timeout = min(90.0, max(5.0, float(os.getenv("WW_UI_SYSTEM2_TIMEOUT", "25"))))
+    client = WWClient(recent_chats=13)
+    # WWClient's Gemini transport init itself allows 45 seconds; keep the
+    # outer deadline longer so it does not cancel a valid login prematurely.
+    timeout = min(120.0, max(10.0, float(os.getenv("WW_UI_SYSTEM2_TIMEOUT", "75"))))
     try:
         await asyncio.wait_for(client.connect(), timeout=timeout)
         prompt = {
