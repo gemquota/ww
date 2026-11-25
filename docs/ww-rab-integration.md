@@ -24,7 +24,7 @@ All three are loopback-only. Do not expose them directly to the public internet.
 2. RAB health polling checks the exact MacroDroid RAB_PING_OK acknowledgement every ten seconds. Unknown/unreachable is not shown as healthy.
 3. WW exposes rab_device_action to the model through its shared tool registry. It is allowlisted and classified as execution-risk, so it requires the existing local approval path. The browser remote read-only tool endpoint does not expose it.
 4. RAB bridge acknowledgement is checked. HTTP success without the expected operation-specific response is not treated as success.
-5. WW uses port 8081 so MacroDroid retains its documented port 8080.
+5. WW uses port 8081 so MacroDroid retains its documented port 8080. The Termux service wrapper is scripts/ww-api (start/stop/status).
 
 The publisher is best-effort: a missing RAB console must never fail or delay an agent task beyond a short loopback timeout.
 

@@ -129,6 +129,14 @@ Run this in the Debian PRoot environment, from the WW repository:
 
 ```bash
 uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8081
+
+On Termux, use the service wrapper to manage the local API:
+
+```bash
+scripts/ww-api start
+scripts/ww-api status
+scripts/ww-api stop
+```
 ```
 
 The server binds to loopback by default. Chrome may ask for Local Network Access permission when the Pages site connects to localhost; allow it for the trusted Pages origin. PRoot is an execution environment, not a security sandbox. Keep the server running in the foreground when using model-generated tools: write, patch, Git mutation, and shell operations display their approval request in this Termux terminal. Read-only inspection tools do not require approval. Tool commands execute in the same environment as the backend process. Start the API from inside Debian PRoot when you want workspace commands to run there; WW does not launch or switch into PRoot itself.

@@ -1,0 +1,61 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+ROOT="/root/projects/ww"
+DATA="$HOME/.local/share/ww"
+PID="$DATA/api.pid"
+LOG="$DATA/api.log"
+PORT="${WW_DASHBOARD_PORT:-8081}"
+mkdir -p "$DATA"
+cd "$ROOT"
+load_env() {
+  if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+  fi
+  export WW_DASHBOARD_PORT="$PORT"
+}
+alive() {
+  curl -fsS --max-time 1 "http://127.0.0.1:$PORT/api/v1/health" \
+    -H "X-API-Key: ${WW_DASHBOARD_API_KEY:-}" >/dev/null 2>&1
+}
+case "${1:-status}" in
+  start)
+    load_env
+    if alive; then echo "WW API already healthy on 127.0.0.1:$PORT"; exit 0; fi
+    nohup python -m uvicorn src.dashboard.app:app \
+      --host 127.0.0.1 --port "$PORT" --log-level "${WW_DASHBOARD_LOG_LEVEL:-info}" \
+      >>"$LOG" 2>&1 </dev/null &
+    echo $! >"$PID"
+    for _ in $(seq 1 40); do
+      if alive; then echo "WW API started on 127.0.0.1:$PORT"; exit 0; fi
+      sleep 0.25
+    done
+    echo "WW API failed to become healthy; inspect $LOG" >&2
+    tail -30 "$LOG" >&2 || true
+    exit 1
+    ;;
+  stop)
+    if [ -f "$PID" ]; then
+      p="$(cat "$PID")"
+      if [ -r "/proc/$p/cmdline" ] && tr '\0' ' ' <"/proc/$p/cmdline" | grep -q 'uvicorn src.dashboard.app:app'; then
+        kill "$p"
+        echo "WW API stopped"
+      else
+        echo "Saved PID is not WW API; refusing to kill it" >&2
+      fi
+      rm -f "$PID"
+    else
+      echo "No saved WW API PID"
+    fi
+    ;;
+  status)
+    load_env
+    if alive; then echo "WW API healthy on 127.0.0.1:$PORT"; else echo "WW API unavailable on 127.0.0.1:$PORT"; exit 1; fi
+    ;;
+  *)
+    echo "Usage: ww-api {start|stop|status}" >&2
+    exit 2
+    ;;
+esac
