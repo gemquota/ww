@@ -23,7 +23,12 @@ def _capability(cid):
     return cap
 
 
-def execute(cid: str, inputs: dict, operation_id: str | None = None):
+def execute(
+    cid: str,
+    inputs: dict,
+    operation_id: str | None = None,
+    expected_state: str | None = None,
+):
     cap = _capability(cid)
     execution_id = operation_id or str(uuid.uuid4())
     canonical_inputs = json.dumps(inputs, sort_keys=True, separators=(",", ":"))
@@ -59,6 +64,7 @@ def execute(cid: str, inputs: dict, operation_id: str | None = None):
             capability_id=cid,
             operation=str(operation),
             request=params,
+            expected_state=expected_state,
             dispatched_at=dispatched_at,
         )
         action_record_created = True
