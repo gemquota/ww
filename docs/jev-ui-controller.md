@@ -14,7 +14,7 @@ export WW_JEV_MODEL="jev-latest"
 export WW_JEV_TIMEOUT=8
 ~~~
 
-Do not put the key in chat.html, browser storage, a URL, or a committed file.
+Do not put the key in chat.html, browser storage, a URL, or a committed file. The objective, UI observation and candidate descriptions are sent to TypeSafe for evaluation; send only the minimum context needed and redact passwords, cookies, API keys, personal data and private page content before calling this endpoint.
 The feature is unavailable when the key is absent. It adds no dependency to WW's
 core terminal install; the integration uses Python's standard library.
 
