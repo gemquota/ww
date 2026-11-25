@@ -45,6 +45,16 @@ class RABUICandidate(BaseModel):
         return max((value, floor), key=rank.__getitem__)
 
 
+def _coarse_observation(observation: dict[str, Any]) -> dict[str, str]:
+    """Only send coarse UI context to hosted decision services."""
+    allowed = ("app", "screen", "page", "dialog", "mode")
+    return {
+        key: value.strip()[:160]
+        for key in allowed
+        if isinstance((value := observation.get(key)), str) and value.strip()
+    }
+
+
 class RABUIActionArgs(BaseModel):
     objective: str = Field(min_length=1, max_length=1000)
     observation: dict[str, Any] = Field(default_factory=dict)
@@ -92,9 +102,10 @@ async def rab_ui_action(
         {"id": item["id"], "description": item["description"], "risk": item["risk"]}
         for item in normalized
     ]
+    safe_observation = _coarse_observation(observation)
     decision = await decide_ui(
         objective=objective,
-        observation=observation,
+        observation=safe_observation,
         candidates=decision_candidates,
         system2=deliberate_ui_action,
     )
