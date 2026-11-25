@@ -14,7 +14,10 @@ from typing import Any, Awaitable, Callable
 
 from src.ui_decision import JevConfigurationError, JevRequestError, decide_ui_action, jev_enabled
 
-DEFAULT_DB = Path(os.getenv("WW_DATA_DIR", str(Path.home() / ".local/share/ww"))) / "ui_controller.sqlite3"
+DEFAULT_DB = Path(os.getenv(
+    "WW_UI_CONTROLLER_DB",
+    str(Path(os.getenv("WW_DATA_DIR", str(Path.home() / ".local/share/ww"))) / "ui_controller.sqlite3"),
+)).expanduser()
 
 
 def _db(path: Path) -> sqlite3.Connection:
@@ -134,7 +137,17 @@ async def decide(
             "experience": memory,
             "execution_permitted": False,
         }
-    result = await system2(objective, observation, candidates, memory)
+    try:
+        result = await system2(objective, observation, candidates, memory)
+    except Exception as exc:
+        return {
+            "system": "S2",
+            "status": "deliberation-unavailable",
+            "system1": s1,
+            "experience": memory,
+            "reason": f"system-two-error:{type(exc).__name__}",
+            "execution_permitted": False,
+        }
     selected = result.get("action_id") if isinstance(result, dict) else None
     if selected not in {c["id"] for c in candidates}:
         return {
