@@ -36,6 +36,14 @@ class RABUICandidate(BaseModel):
         from integrations.rab.runtime.rab.bridge import _validate
         return _validate(operation, value)
 
+    @field_validator("risk")
+    @classmethod
+    def enforce_operation_risk_floor(cls, value: str, info):
+        minimum = {"tap": "low", "drag": "medium", "type": "high", "launch_app": "medium"}
+        floor = minimum.get(info.data.get("operation"), "high")
+        rank = {"low": 0, "medium": 1, "high": 2}
+        return max((value, floor), key=rank.__getitem__)
+
 
 class RABUIActionArgs(BaseModel):
     objective: str = Field(min_length=1, max_length=1000)
