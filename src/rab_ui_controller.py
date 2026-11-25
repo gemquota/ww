@@ -7,6 +7,7 @@ runtime records transport evidence; it does not claim visual verification.
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from typing import Any, Literal
 
@@ -46,8 +47,6 @@ class RABUIActionArgs(BaseModel):
         ids = [candidate.id for candidate in value]
         if len(ids) != len(set(ids)):
             raise ValueError("Candidate IDs must be unique.")
-        if any(candidate.risk == "high" for candidate in value):
-            raise ValueError("High-risk actions require a separate explicit action flow and are not executable through this controller.")
         return value
 
 
@@ -69,16 +68,24 @@ async def rab_ui_action(
         system2=deliberate_ui_action,
     )
     if decision.get("status") != "suggest":
-        return str({
+        return json.dumps({
             "status": decision.get("status", "blocked"),
             "decision": decision,
             "execution_permitted": False,
-        })
+        }, ensure_ascii=False)
     selected_id = decision.get("suggestion", {}).get("action_id")
     selected = next((item for item in normalized if item["id"] == selected_id), None)
     if selected is None:
-        return str({"status": "invalid-selection", "execution_permitted": False})
+        return json.dumps({"status": "invalid-selection", "execution_permitted": False})
 
+    if selected["risk"] == "high":
+        return json.dumps({
+            "status": "approval-required",
+            "decision": decision,
+            "selected_candidate": selected_id,
+            "reason": "High-risk actions require a separate explicit approval flow.",
+            "execution_permitted": False,
+        }, ensure_ascii=False)
     operation_id = "ww-ui-" + uuid.uuid4().hex
     from integrations.rab.runtime.rab.runtime import execute
     inputs = {"operation": selected["operation"], **selected["params"]}
@@ -88,15 +95,15 @@ async def rab_ui_action(
     action_record = result.get("action_record") or {}
     if result.get("status") not in {"acknowledged"}:
         # Ambiguous transport outcomes are never retried automatically.
-        return str({
+        return json.dumps({
             "status": "indeterminate",
             "decision": decision,
             "rab": result,
             "retry_permitted": False,
             "verification_status": action_record.get("verification_status", "pending"),
             "execution_permitted": False,
-        })
-    return str({
+        }, ensure_ascii=False)
+    return json.dumps({
         "status": "dispatched",
         "decision": decision,
         "selected_candidate": selected_id,
@@ -104,4 +111,4 @@ async def rab_ui_action(
         "verification_status": action_record.get("verification_status", "pending"),
         "note": "MacroDroid acknowledged the request. This is not proof that Android executed it or reached the expected UI state.",
         "execution_permitted": False,
-    })
+    }, ensure_ascii=False)
