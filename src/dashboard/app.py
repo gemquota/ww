@@ -20,6 +20,7 @@ from src.dashboard.session_store import BrowserSessionStore, SessionCapacityErro
 from src.tools.workspace import set_workspace_root
 from src.ww_client import WWClient
 from src.ui_controller import decide as decide_controller, record_feedback as record_ui_feedback
+from src.ui_deliberation import deliberate_ui_action
 from src.ui_decision import (
     JevConfigurationError,
     JevRequestError,
@@ -234,10 +235,14 @@ async def decide_ui(request: UIDecisionRequest):
 async def decide_ui_controller(request: UIDecisionRequest):
     """Route a UI choice to fast Jev or explicitly request deliberation."""
     try:
+        candidates = [candidate.model_dump() for candidate in request.candidates]
+        async def system2(objective, observation, candidates, experience):
+            return await deliberate_ui_action(objective, observation, candidates, experience)
         return await decide_controller(
             objective=request.objective,
             observation=request.observation,
-            candidates=[candidate.model_dump() for candidate in request.candidates],
+            candidates=candidates,
+            system2=system2,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
