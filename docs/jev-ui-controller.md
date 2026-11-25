@@ -70,3 +70,8 @@ Configuration:
 Tune confidence thresholds against a labelled UI-interaction evaluation set before
 allowing any controller to execute suggestions. Jev is not a substitute for the
 existing WW approval and tool-policy systems.
+
+
+## Two-system controller and learning
+
+See [Two-System UI Controller](jev-two-system-controller.md). The controller routes Jev suggestions to a deliberation-needed state when confidence/risk is insufficient or repeated outcomes indicate failure. Feedback is recorded locally. These endpoints do not execute input.
