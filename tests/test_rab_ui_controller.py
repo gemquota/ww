@@ -53,6 +53,7 @@ class RABUIControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["execution_permitted"])
         execute.assert_called_once()
         self.assertEqual(execute.call_args.args[0], "automation.rab_android_bridge")
+        self.assertEqual(execute.call_args.args[3], "Settings screen is visible")
 
     async def test_high_risk_candidate_is_not_dispatched(self):
         high = {**self.candidate, "risk": "high"}
