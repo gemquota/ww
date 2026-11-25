@@ -34,6 +34,24 @@ class RABUIControllerTests(unittest.IsolatedAsyncioTestCase):
                 **self.candidate, "params": {"x": -1, "y": 200}
             })
 
+    def test_operations_raise_their_minimum_risk(self):
+        typed = RABUICandidate.model_validate({
+            "id": "type", "description": "Enter text", "operation": "type",
+            "params": {"text": "hello"}, "risk": "low",
+        })
+        dragged = RABUICandidate.model_validate({
+            "id": "drag", "description": "Swipe", "operation": "drag",
+            "params": {"start_x": 1, "start_y": 1, "end_x": 20, "end_y": 20, "duration_ms": 300},
+            "risk": "low",
+        })
+        launched = RABUICandidate.model_validate({
+            "id": "launch", "description": "Open app", "operation": "launch_app",
+            "params": {"package": "com.example.app"}, "risk": "low",
+        })
+        self.assertEqual(typed.risk, "high")
+        self.assertEqual(dragged.risk, "medium")
+        self.assertEqual(launched.risk, "medium")
+
     async def test_decision_dispatches_once_and_keeps_verification_pending(self):
         acknowledged = {
             "status": "acknowledged",
