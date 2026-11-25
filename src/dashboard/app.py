@@ -221,6 +221,9 @@ async def chat_stream(request: ChatRequest):
     session_name = request.session_name.strip()[:128] or "api_default"
 
     async def events():
+        from src.rab_status import RABTaskPublisher
+        publisher = RABTaskPublisher(session_name, request.message)
+        await publisher.begin()
         try:
             async with _browser_sessions.acquire(
                 session_name, lambda: _create_browser_client(session_name)
@@ -234,14 +237,14 @@ async def chat_stream(request: ChatRequest):
                     "session_name": session_name,
                 }) + "\n\n"
                 async for event in conversation.runtime.stream(request.message):
+                    await publisher.handle(event)
                     if event.get("type") == "done":
                         event["conversation_id"] = conversation.client.active_chat_id
                     yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
         except Exception as exc:
-            yield "data: " + json.dumps({
-                "type": "error",
-                "message": f"WW conversation failed: {type(exc).__name__}",
-            }) + "\n\n"
+            failure = {"type": "error", "message": f"WW conversation failed: {type(exc).__name__}"}
+            await publisher.handle(failure)
+            yield "data: " + json.dumps(failure) + "\n\n"
 
     return StreamingResponse(
         events(),
@@ -451,4 +454,9 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8080, log_level="info")
+    uvicorn.run(
+        app,
+        host=os.getenv("WW_DASHBOARD_HOST", "127.0.0.1"),
+        port=int(os.getenv("WW_DASHBOARD_PORT", "8081")),
+        log_level=os.getenv("WW_DASHBOARD_LOG_LEVEL", "info"),
+    )

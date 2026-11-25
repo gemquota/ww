@@ -128,7 +128,7 @@ Keep the API key in your local environment or gitignored .env; never commit it. 
 Run this in the Debian PRoot environment, from the WW repository:
 
 ```bash
-uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
+uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8081
 ```
 
 The server binds to loopback by default. Chrome may ask for Local Network Access permission when the Pages site connects to localhost; allow it for the trusted Pages origin. PRoot is an execution environment, not a security sandbox. Keep the server running in the foreground when using model-generated tools: write, patch, Git mutation, and shell operations display their approval request in this Termux terminal. Read-only inspection tools do not require approval. Tool commands execute in the same environment as the backend process. Start the API from inside Debian PRoot when you want workspace commands to run there; WW does not launch or switch into PRoot itself.
@@ -138,10 +138,10 @@ The server binds to loopback by default. Chrome may ask for Local Network Access
 1. In repository Settings → Pages, select **GitHub Actions** as the deployment source when using the workflow. For branch-based deployment, select gh-pages and the root folder.
 2. Open [WW on GitHub Pages](https://gemquota.github.io/ww/).
 3. Expand **Backend connection** in the left sidebar.
-4. Set the API URL to http://127.0.0.1:8080 when the browser and backend are on the same Android device.
+4. Set the API URL to http://127.0.0.1:8081 when the browser and backend are on the same Android device.
 5. Enter WW_DASHBOARD_API_KEY and connect.
 
-For a browser on another device or network, use an HTTPS tunnel or private VPN endpoint that forwards to the local loopback API. Do not expose port 8080 directly to the public internet. The Pages frontend requires HTTPS for non-loopback API addresses.
+For a browser on another device or network, use an HTTPS tunnel or private VPN endpoint that forwards to the local loopback API. Do not expose either local service directly to the public internet. MacroDroid retains port 8080; WW uses port 8081. The Pages frontend requires HTTPS for non-loopback API addresses.
 
 The frontend streams responses and tool lifecycle events, renders Markdown and code blocks locally, and keeps bounded, debounced browser-side conversation history. The API key is held in the current tab's sessionStorage; conversation text is stored in that browser's localStorage until you clear its local history. Gemini conversations themselves remain in the Google account and can be resumed using their conversation IDs.
 

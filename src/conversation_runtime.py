@@ -45,6 +45,7 @@ from src.tools.tool_policy import (
     policy_for_tool,
 )
 from src.tools.workspace import set_workspace_root
+from src.rab_tools import RABDeviceActionArgs, rab_device_action
 
 
 SYSTEM_PROMPT = """You are WW, a coding and project-work assistant running through a local
@@ -91,6 +92,7 @@ _TOOL_SCHEMAS = {
     "doc_search": DocSearchArgs,
     "file_patch": FilePatchArgs,
     "request_clarification": ClarificationArgs,
+    "rab_device_action": RABDeviceActionArgs,
 }
 
 _TOOL_FUNCTIONS = {
@@ -103,6 +105,7 @@ _TOOL_FUNCTIONS = {
     "doc_search": doc_search,
     "file_patch": file_patch,
     "request_clarification": request_clarification,
+    "rab_device_action": rab_device_action,
 }
 
 _TOOL_DESCRIPTIONS = {
@@ -115,6 +118,7 @@ _TOOL_DESCRIPTIONS = {
     "doc_search": "Search project Markdown documentation. Args: query.",
     "file_patch": "Replace one exact text block in a workspace file. Args: file_path, search_text, replace_text. Requires local approval.",
     "request_clarification": "Return a clarification request. Args: question.",
+    "rab_device_action": "Perform an explicitly approved Android operation through RAB. Args: operation, params. Device interaction always requires local approval; operations are allowlisted and the bridge acknowledgement is checked.",
 }
 
 
@@ -450,6 +454,10 @@ class ConversationRuntime:
 
                 async def queue_event(event: dict[str, Any]) -> None:
                     await queued_events.put(event)
+                    if previous_sink is not None:
+                        result = previous_sink(event)
+                        if inspect.isawaitable(result):
+                            await result
 
                 self.event_sink = queue_event
                 task = asyncio.create_task(

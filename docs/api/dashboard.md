@@ -6,7 +6,7 @@ Start it from the repository root:
 
 ```bash
 python -m pip install -r requirements-dashboard.txt
-uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8080
+uvicorn src.dashboard.app:app --host 127.0.0.1 --port 8081
 ```
 
 The server binds to loopback by default. Protected endpoints require `X-API-Key`, configured through `WW_DASHBOARD_API_KEY` or the active key list `WW_DASHBOARD_API_KEYS`. CORS defaults to the GitHub Pages origin and can be overridden with an explicit comma-separated `WW_CORS_ORIGINS` list. Wildcard CORS is rejected.

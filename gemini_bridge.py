@@ -478,11 +478,17 @@ async def run_terminal(
     )
 
     if prompt is not None:
+        from src.rab_status import RABTaskPublisher
+        publisher = RABTaskPublisher("terminal", prompt)
+        await publisher.begin()
+        runtime.event_sink = publisher.handle
         try:
             output = await runtime.ask_output(prompt)
+            await publisher.handle({"type": "done"})
             await render_model_output(output, client.active_chat_id)
             return 0
-        except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
+        except Exception as exc:
+            await publisher.handle({"type": "error", "message": str(exc)})  # noqa: BLE001 - CLI boundary reports request errors.
             print(f"Request error: {exc}", file=sys.stderr)
             return 1
         finally:
@@ -686,11 +692,19 @@ async def run_terminal(
                 except Exception as exc:  # noqa: BLE001 - CLI boundary reports errors.
                     print(f"Could not start a new conversation: {exc}")
                 continue
+            from src.rab_status import RABTaskPublisher
+            publisher = RABTaskPublisher("terminal", message)
+            await publisher.begin()
+            runtime.event_sink = publisher.handle
             try:
                 output = await runtime.ask_output(message)
+                await publisher.handle({"type": "done"})
                 pending_options, _saved = await render_model_output(output, client.active_chat_id)
             except Exception as exc:  # noqa: BLE001 - CLI boundary reports request errors.
+                await publisher.handle({"type": "error", "message": str(exc)})
                 print(f"\nRequest error: {exc}", file=sys.stderr)
+            finally:
+                runtime.event_sink = None
     finally:
         save_settings(settings)
         await client.close()
