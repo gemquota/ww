@@ -62,6 +62,19 @@ class ControllerMemoryTests(unittest.TestCase):
         self.assertEqual(result["status"], "suggest")
         self.assertFalse(result["execution_permitted"])
 
+    def test_system_two_abstention_is_explicit_and_non_executable(self):
+        import asyncio
+        async def abstain(*args):
+            return {"action_id": None, "rationale": "The screen is ambiguous."}
+        with patch.object(ui_controller, "jev_enabled", return_value=False):
+            result = asyncio.run(ui_controller.decide(
+                objective="Navigate settings", observation=self.observation,
+                candidates=[{"id":"settings","description":"Open settings","risk":"low"}],
+                system2=abstain, db_path=self.db,
+            ))
+        self.assertEqual(result["status"], "abstain")
+        self.assertFalse(result["execution_permitted"])
+
     def test_system_two_failure_fails_closed(self):
         import asyncio
         async def broken(*args):
