@@ -19,6 +19,12 @@ from src.dashboard.routes_auth import dispatch_request, verify_api_key
 from src.dashboard.session_store import BrowserSessionStore, SessionCapacityError
 from src.tools.workspace import set_workspace_root
 from src.ww_client import WWClient
+from src.ui_decision import (
+    JevConfigurationError,
+    JevRequestError,
+    decide_ui_action,
+    jev_enabled,
+)
 
 load_dotenv()
 
@@ -62,6 +68,18 @@ class ChatResponse(BaseModel):
     response: str
     session_name: str
     conversation_id: Optional[str] = None
+
+
+class UIActionCandidate(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    description: str = Field(min_length=1, max_length=500)
+    risk: str = Field(default="medium", pattern="^(low|medium|high)$")
+
+
+class UIDecisionRequest(BaseModel):
+    objective: str = Field(min_length=1, max_length=1000)
+    observation: dict = Field(default_factory=dict)
+    candidates: list[UIActionCandidate] = Field(min_length=1, max_length=16)
 
 
 # API Versioning & Rate Limiting
@@ -180,8 +198,27 @@ async def runtime_status():
         "platform": sys.platform,
         "execution_backend": "current-process",
         "gemini_credentials_configured": credentials_ready,
-        "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"],
+        "features": ["conversation-runtime", "tool-feedback", "local-approval", "sse-streaming"] + (["jev-ui-decisions"] if jev_enabled() else []),
     }
+
+
+@app.post("/api/v1/ui/decide", dependencies=[Security(verify_api_key)])
+async def decide_ui(request: UIDecisionRequest):
+    """Return a Jev-backed UI action suggestion; never execute it."""
+    if not jev_enabled():
+        raise HTTPException(status_code=503, detail="Jev is not configured on this backend.")
+    try:
+        return await decide_ui_action(
+            objective=request.objective,
+            observation=request.observation,
+            candidates=[candidate.model_dump() for candidate in request.candidates],
+        )
+    except JevConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except JevRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/chat", response_model=ChatResponse, dependencies=[Security(verify_api_key)])
@@ -444,6 +481,7 @@ async def root():
             "GET  /api/v1/runtime": "Workspace and runtime readiness",
             "POST /api/v1/chat/stream": "Streaming chat and tool events",
             "POST /chat": "Non-streaming compatibility chat",
+            "POST /api/v1/ui/decide": "Jev UI action suggestion (never executes actions)",
             "POST /tools/execute": "Opt-in read-only tool execution",
             "GET  /chat-ui": "Serve the browser workspace",
             "GET  /sessions": "List recent telemetry sessions",
