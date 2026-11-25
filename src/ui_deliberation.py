@@ -46,7 +46,7 @@ async def deliberate_ui_action(
         if cookie_file.is_file():
             load_cookie_environment(cookie_file)
 
-    client = WWClient(recent_chats=13)
+    client = WWClient(recent_chats=13, load_recent_chats=False)
     # WWClient's Gemini transport init itself allows 45 seconds; keep the
     # outer deadline longer so it does not cancel a valid login prematurely.
     timeout = min(120.0, max(10.0, float(os.getenv("WW_UI_SYSTEM2_TIMEOUT", "75"))))
