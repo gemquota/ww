@@ -25,6 +25,7 @@ class RABUICandidate(BaseModel):
     operation: AllowedOperation
     params: dict[str, Any] = Field(default_factory=dict)
     risk: Literal["low", "medium", "high"] = "low"
+    expected_state: str | None = Field(default=None, max_length=500)
 
     @field_validator("params")
     @classmethod
@@ -56,6 +57,28 @@ async def rab_ui_action(
     candidates: list[dict[str, Any]],
 ) -> str:
     """Decide, dispatch once through RAB, and return pending verification state."""
+    from integrations.rab.runtime.rab.bridge import probe
+    from integrations.rab.runtime.rab.store import read_manifest
+
+    capability = next(
+        (item for item in read_manifest().get("capabilities", [])
+         if item.get("id") == "automation.rab_android_bridge"),
+        None,
+    )
+    if not capability or capability.get("state") not in {"executable", "verified"}:
+        return json.dumps({
+            "status": "awaiting-setup",
+            "capability_state": capability.get("state") if capability else "missing",
+            "execution_permitted": False,
+        })
+    bridge_status = await asyncio.to_thread(probe)
+    if not bridge_status.get("reachable"):
+        return json.dumps({
+            "status": "bridge-unavailable",
+            "bridge": bridge_status,
+            "execution_permitted": False,
+        })
+
     normalized = [RABUICandidate.model_validate(item).model_dump() for item in candidates]
     decision_candidates = [
         {"id": item["id"], "description": item["description"], "risk": item["risk"]}
@@ -90,7 +113,8 @@ async def rab_ui_action(
     from integrations.rab.runtime.rab.runtime import execute
     inputs = {"operation": selected["operation"], **selected["params"]}
     result = await asyncio.to_thread(
-        execute, "automation.rab_android_bridge", inputs, operation_id
+        execute, "automation.rab_android_bridge", inputs, operation_id,
+        selected.get("expected_state")
     )
     action_record = result.get("action_record") or {}
     if result.get("status") not in {"acknowledged"}:
