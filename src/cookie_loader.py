@@ -1,7 +1,9 @@
 """Read Gemini session cookies from a Netscape-format cookies.txt file.
 
-Only cookies scoped to google.com (including its subdomains) are considered.
-Cookie values are returned to the caller and are never logged.
+The primary session cookie must be scoped to google.com. Google also exports
+the timestamp cookie on youtube.com in some browser profiles, so that one
+additional Google-owned domain is accepted for __Secure-1PSIDTS only. Values
+are returned to the caller and are never logged.
 """
 from __future__ import annotations
 
@@ -36,7 +38,9 @@ def extract_gemini_cookies(path: str | Path) -> dict[str, str]:
     found: dict[str, str] = {}
     for cookie in jar:
         domain = cookie.domain.lstrip(".").lower()
-        if domain != "google.com" and not domain.endswith(".google.com"):
+        google_domain = domain == "google.com" or domain.endswith(".google.com")
+        youtube_timestamp = domain == "youtube.com" and cookie.name == "__Secure-1PSIDTS"
+        if not (google_domain or youtube_timestamp):
             continue
         if cookie.name in COOKIE_NAMES and cookie.value:
             found[cookie.name] = cookie.value
