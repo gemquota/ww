@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import urllib.error
 import urllib.request
@@ -142,6 +143,12 @@ async def decide_ui_action(
         deliberation_probability = float(_answer_value(deliberation_answer, "noul") or 0.0)
     except (TypeError, ValueError):
         deliberation_probability = 1.0
+    if not math.isfinite(confidence_value):
+        confidence_value = 0.0
+    if not math.isfinite(deliberation_probability):
+        deliberation_probability = 1.0
+    confidence_value = min(1.0, max(0.0, confidence_value))
+    deliberation_probability = min(1.0, max(0.0, deliberation_probability))
 
     selected_candidate = next((item for item in normalized if item["id"] == selected), None)
     if selected_candidate is None:
