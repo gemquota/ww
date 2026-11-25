@@ -47,6 +47,34 @@ class ControllerMemoryTests(unittest.TestCase):
         self.assertEqual(result["status"], "needs-deliberation")
         self.assertIn("negative-experience", result["system1"]["reasons"])
 
+
+    def test_system_two_can_select_only_supplied_candidate(self):
+        import asyncio
+        async def deliberate(objective, observation, candidates, memory):
+            return {"action_id": "settings", "rationale": "Best reversible step"}
+        with patch.object(ui_controller, "jev_enabled", return_value=False):
+            result = asyncio.run(ui_controller.decide(
+                objective="Navigate settings", observation=self.observation,
+                candidates=[{"id":"settings","description":"Open settings","risk":"low"}],
+                system2=deliberate, db_path=self.db,
+            ))
+        self.assertEqual(result["system"], "S2")
+        self.assertEqual(result["status"], "suggest")
+        self.assertFalse(result["execution_permitted"])
+
+    def test_system_two_failure_fails_closed(self):
+        import asyncio
+        async def broken(*args):
+            raise RuntimeError("offline")
+        with patch.object(ui_controller, "jev_enabled", return_value=False):
+            result = asyncio.run(ui_controller.decide(
+                objective="Navigate settings", observation=self.observation,
+                candidates=[{"id":"settings","description":"Open settings","risk":"low"}],
+                system2=broken, db_path=self.db,
+            ))
+        self.assertEqual(result["status"], "deliberation-unavailable")
+        self.assertFalse(result["execution_permitted"])
+
     def test_without_system_two_escalation_does_not_execute(self):
         import asyncio
         with patch.object(ui_controller, "jev_enabled", return_value=False):
