@@ -149,6 +149,15 @@ async def decide(
             "execution_permitted": False,
         }
     selected = result.get("action_id") if isinstance(result, dict) else None
+    if selected is None:
+        return {
+            "system": "S2",
+            "status": "abstain",
+            "system1": s1,
+            "experience": memory,
+            "rationale": str(result.get("rationale", ""))[:1000] if isinstance(result, dict) else "",
+            "execution_permitted": False,
+        }
     if selected not in {c["id"] for c in candidates}:
         return {
             "system": "S2",
